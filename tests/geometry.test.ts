@@ -183,3 +183,50 @@ describe('견적 셀렉터', () => {
     expect(living!.count).toBeGreaterThan(0);
   });
 });
+
+describe('fitCamera (문서 오픈 fit-to-view)', () => {
+  it('도면 bounds가 여백을 두고 뷰포트 안에 들어온다', async () => {
+    const { fitCamera, makeTransform, w2s } = await import('../src/features/editor2d/view');
+    const { planBounds } = await import('../src/model/geometry');
+    const viewport = { w: 1440, h: 844 };
+    const pad = 80;
+    for (const factory of [createSamplePlan]) {
+      const plan = factory();
+      const cam = fitCamera(plan, viewport, pad);
+      const t = makeTransform(plan, viewport, cam);
+      const b = planBounds(plan);
+      const tl = w2s(t, b.min);
+      const br = w2s(t, b.max);
+      expect(tl.x).toBeGreaterThanOrEqual(pad - 1e-6);
+      expect(tl.y).toBeGreaterThanOrEqual(pad - 1e-6);
+      expect(br.x).toBeLessThanOrEqual(viewport.w - pad + 1e-6);
+      expect(br.y).toBeLessThanOrEqual(viewport.h - pad + 1e-6);
+    }
+  });
+
+  it('거대 도면도 뷰포트 안으로 축소된다 (zoom 하한 0.3 내에서)', async () => {
+    const { fitCamera } = await import('../src/features/editor2d/view');
+    const plan = createSamplePlan();
+    // 30 × 20 m 규모로 벽만 확장한 가짜 도면
+    const big = {
+      ...plan,
+      walls: [
+        { id: 'w1', a: { x: 0, y: 0 }, b: { x: 30, y: 0 }, thickness: 0.15, height: 2.4 },
+        { id: 'w2', a: { x: 0, y: 0 }, b: { x: 0, y: 20 }, thickness: 0.15, height: 2.4 },
+        { id: 'w3', a: { x: 30, y: 0 }, b: { x: 30, y: 20 }, thickness: 0.15, height: 2.4 },
+        { id: 'w4', a: { x: 0, y: 20 }, b: { x: 30, y: 20 }, thickness: 0.15, height: 2.4 },
+      ],
+    };
+    const cam = fitCamera(big, { w: 1440, h: 844 });
+    expect(cam.zoom).toBeLessThan(1);
+    expect(cam.zoom).toBeGreaterThanOrEqual(0.3);
+  });
+
+  it('작은 도면은 확대되되 상한 2.0을 넘지 않는다', async () => {
+    const { fitCamera } = await import('../src/features/editor2d/view');
+    const { createStudyPlan } = await import('../src/model/samplePlan');
+    const cam = fitCamera(createStudyPlan(), { w: 1440, h: 844 });
+    expect(cam.zoom).toBeGreaterThan(1);
+    expect(cam.zoom).toBeLessThanOrEqual(2);
+  });
+});

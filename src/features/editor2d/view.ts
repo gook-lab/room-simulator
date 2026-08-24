@@ -36,6 +36,25 @@ export function s2w(t: ViewTransform, p: Vec2): Vec2 {
   return { x: (p.x - t.ox) / t.s, y: (p.y - t.oy) / t.s };
 }
 
+/**
+ * 도면 전체가 여백을 두고 뷰포트에 들어오는 카메라 (fit-to-view).
+ * 문서 오픈 시 1회 적용 — makeTransform이 pan=0에서 도면 중심을 뷰포트
+ * 중앙에 정렬하므로 zoom만 계산하면 된다.
+ */
+export function fitCamera(
+  plan: Plan,
+  viewport: { w: number; h: number },
+  paddingPx = 80,
+): { pan: Vec2; zoom: number } {
+  const b = planBounds(plan);
+  const planW = Math.max(0.5, b.max.x - b.min.x);
+  const planH = Math.max(0.5, b.max.y - b.min.y);
+  const availW = Math.max(100, viewport.w - paddingPx * 2);
+  const availH = Math.max(100, viewport.h - paddingPx * 2);
+  const zoom = Math.min(availW / (planW * BASE_PX_PER_M), availH / (planH * BASE_PX_PER_M));
+  return { pan: { x: 0, y: 0 }, zoom: Math.min(2, Math.max(0.3, zoom)) };
+}
+
 /** CSS px per meter ≈ 3779.5 → "1 : N" 표기용 축척 */
 export function scaleRatioLabel(t: ViewTransform): string {
   const n = Math.round(3779.5 / t.s / 5) * 5;
