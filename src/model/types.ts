@@ -92,7 +92,12 @@ export type CatalogShape =
   | 'desk'
   | 'dining-set'
   | 'plant'
-  | 'tv';
+  | 'tv'
+  | 'mirror'
+  | 'fan'
+  | 'bin'
+  | 'rack'
+  | 'cat-tower';
 
 export type Swatch = { id: string; label: string; color: string };
 

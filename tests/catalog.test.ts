@@ -27,7 +27,11 @@ describe('카탈로그 무결성', () => {
     }
   });
 
-  it('확충 규모: 35종 이상', () => {
-    expect(CATALOG.length).toBeGreaterThanOrEqual(35);
+  it('확충 규모: 45종 이상', () => {
+    expect(CATALOG.length).toBeGreaterThanOrEqual(45);
+  });
+
+  it('소품(decor) 확충: 12종 이상', () => {
+    expect(CATALOG.filter((c) => c.category === 'decor').length).toBeGreaterThanOrEqual(12);
   });
 });

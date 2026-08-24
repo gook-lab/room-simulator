@@ -431,6 +431,97 @@ export const CATALOG: CatalogItem[] = [
     materialLabel: '화분',
     swatches: potSwatches,
   },
+  /* ---- 소품 확충 (바닥형) ---- */
+  {
+    id: 'plant-stand',
+    name: '스탠드형 대형 화분',
+    category: 'decor',
+    shape: 'plant',
+    size: { w: 0.55, d: 0.55, h: 1.9 },
+    price: 128_000,
+    materialLabel: '화분',
+    swatches: potSwatches,
+  },
+  {
+    id: 'mirror-standing',
+    name: '전신 거울',
+    category: 'decor',
+    shape: 'mirror',
+    size: { w: 0.5, d: 0.35, h: 1.65 },
+    price: 145_000,
+    materialLabel: '프레임',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'drying-rack',
+    name: '빨래 건조대',
+    category: 'decor',
+    shape: 'rack',
+    size: { w: 1.3, d: 0.55, h: 1.1 },
+    price: 39_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'cat-tower',
+    name: '캣타워',
+    category: 'decor',
+    shape: 'cat-tower',
+    size: { w: 0.6, d: 0.6, h: 1.5 },
+    price: 165_000,
+    materialLabel: '패브릭',
+    swatches: fabricSwatches,
+  },
+  {
+    id: 'air-purifier',
+    name: '공기청정기',
+    category: 'decor',
+    shape: 'console',
+    size: { w: 0.28, d: 0.28, h: 0.55 },
+    price: 320_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'fan-stand',
+    name: '스탠드 선풍기',
+    category: 'decor',
+    shape: 'fan',
+    size: { w: 0.38, d: 0.38, h: 1.25 },
+    price: 65_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'trash-bin',
+    name: '휴지통',
+    category: 'decor',
+    shape: 'bin',
+    size: { w: 0.25, d: 0.25, h: 0.4 },
+    price: 18_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'toy-basket',
+    name: '장난감 바구니',
+    category: 'decor',
+    shape: 'bin',
+    size: { w: 0.45, d: 0.45, h: 0.35 },
+    price: 32_000,
+    materialLabel: '컬러',
+    swatches: fabricSwatches,
+  },
+  {
+    id: 'mood-lamp',
+    name: '무드등',
+    category: 'decor',
+    shape: 'floor-lamp',
+    size: { w: 0.18, d: 0.18, h: 0.28 },
+    price: 45_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
 ];
 
 export const catalogById = new Map(CATALOG.map((c) => [c.id, c]));
@@ -439,7 +530,14 @@ export function formatSize(item: CatalogItem): string {
   const { w, d, h } = item.size;
   const cm = (v: number) => Math.round(v * 100);
   if (item.shape === 'round-table') return `Ø ${cm(w)} cm`;
-  if (item.shape === 'floor-lamp' || item.shape === 'pendant-lamp' || item.shape === 'plant')
+  if (
+    item.shape === 'floor-lamp' ||
+    item.shape === 'pendant-lamp' ||
+    item.shape === 'plant' ||
+    item.shape === 'fan' ||
+    item.shape === 'bin' ||
+    item.shape === 'cat-tower'
+  )
     return `Ø ${cm(w)} · H ${cm(h)}`;
   return `${cm(w)} × ${cm(d)} cm`;
 }

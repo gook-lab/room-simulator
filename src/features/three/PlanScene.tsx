@@ -540,6 +540,94 @@ function FurnitureMesh({
       );
       break;
     }
+    case 'mirror': {
+      const frameT = 0.04;
+      body = (
+        <group rotation={[(-8 * Math.PI) / 180, 0, 0]}>
+          <mesh position={[0, h / 2, 0]} castShadow>
+            <boxGeometry args={[w, h, frameT]} />
+            <meshStandardMaterial color={c} roughness={0.7} />
+          </mesh>
+          <mesh position={[0, h / 2, frameT / 2 + 0.002]}>
+            <planeGeometry args={[w - 0.08, h - 0.08]} />
+            <meshStandardMaterial color="#dfeaf2" metalness={0.85} roughness={0.08} />
+          </mesh>
+        </group>
+      );
+      break;
+    }
+    case 'fan': {
+      const headR = w * 0.45;
+      const headY = h - headR - 0.05;
+      body = (
+        <group>
+          <mesh position={[0, 0.02, 0]} castShadow>
+            <cylinderGeometry args={[w * 0.42, w * 0.46, 0.04, 20]} />
+            <meshStandardMaterial color={c} roughness={0.5} />
+          </mesh>
+          <mesh position={[0, headY / 2, 0]}>
+            <cylinderGeometry args={[0.02, 0.025, headY, 10]} />
+            <meshStandardMaterial color={c} roughness={0.5} />
+          </mesh>
+          <mesh position={[0, headY, 0.02]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <cylinderGeometry args={[headR, headR, 0.12, 24]} />
+            <meshStandardMaterial color={c} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, headY, 0.09]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[headR * 0.85, headR * 0.85, 0.01, 24]} />
+            <meshStandardMaterial color={darken(c, 0.3)} roughness={0.6} />
+          </mesh>
+        </group>
+      );
+      break;
+    }
+    case 'bin':
+      body = (
+        <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[w / 2, w * 0.4, h, 20, 1, false]} />
+          <meshStandardMaterial color={c} roughness={0.75} />
+        </mesh>
+      );
+      break;
+    case 'rack': {
+      const frameT2 = 0.03;
+      body = (
+        <group>
+          {[-1, 1].map((s) => (
+            <group key={s}>
+              <Box args={[frameT2, h, frameT2]} position={[s * (w / 2 - frameT2), h / 2, -d / 2 + frameT2]} color={c} />
+              <Box args={[frameT2, h, frameT2]} position={[s * (w / 2 - frameT2), h / 2, d / 2 - frameT2]} color={c} />
+            </group>
+          ))}
+          {[0.55, 0.75, 0.95].map((f, i) => (
+            <group key={i}>
+              <Box args={[w - 0.04, 0.02, 0.02]} position={[0, h * f, -d * 0.25]} color={darken(c, 0.15)} />
+              <Box args={[w - 0.04, 0.02, 0.02]} position={[0, h * f, 0]} color={darken(c, 0.15)} />
+              <Box args={[w - 0.04, 0.02, 0.02]} position={[0, h * f, d * 0.25]} color={darken(c, 0.15)} />
+            </group>
+          ))}
+        </group>
+      );
+      break;
+    }
+    case 'cat-tower': {
+      const poleR = 0.045;
+      body = (
+        <group>
+          <Box args={[w, 0.04, d]} position={[0, 0.02, 0]} color={darken(c, 0.15)} />
+          <mesh position={[0, h * 0.45, 0]} castShadow>
+            <cylinderGeometry args={[poleR, poleR, h * 0.9, 10]} />
+            <meshStandardMaterial color={lighten(c, 0.1)} roughness={0.95} />
+          </mesh>
+          <mesh position={[w * 0.18, h * 0.5, -d * 0.1]} castShadow>
+            <cylinderGeometry args={[w * 0.32, w * 0.32, 0.035, 18]} />
+            <meshStandardMaterial color={c} roughness={0.9} />
+          </mesh>
+          <Box args={[w * 0.62, 0.3, d * 0.62]} position={[-w * 0.08, h - 0.15, d * 0.06]} color={c} />
+        </group>
+      );
+      break;
+    }
     default:
       body = <Box args={[w, h, d]} position={[0, h / 2, 0]} color={c} />;
   }
