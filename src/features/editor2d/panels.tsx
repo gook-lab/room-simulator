@@ -15,8 +15,16 @@ import {
 } from '../../model/catalog';
 import { useCurrentPlan, useStore } from '../../state/store';
 import { FurnitureSymbol } from './symbols';
-import { collisionsFor, occupancyPct } from './interactions';
+import { collisionsFor, findFreeSpot, occupancyPct } from './interactions';
 import { blockedDoorIds } from '../../model/doorZones';
+import {
+  childFitsSurface,
+  deleteItemsWithChildren,
+  moveItemWithChildren,
+  rotateItemWithChildren,
+  surfaceChildren,
+  unmountItem,
+} from '../../model/surfaces';
 import { scaleRatioLabel, type ViewTransform } from './view';
 
 /* ===== 툴 독 ===== */
@@ -509,10 +517,19 @@ export function Inspector() {
 
   const patch = (p: Partial<PlacedItem>) =>
     updatePlan(
-      (pl) => ({
-        ...pl,
-        items: pl.items.map((i) => (i.id === item.id ? { ...i, ...p } : i)),
-      }),
+      (pl) => {
+        // 표면 적층: 부모 위치·회전 변경은 자식 동반 (surfaces.ts 계약)
+        let base = pl;
+        if (p.position) base = moveItemWithChildren(base, item.id, p.position);
+        if (p.rotationDeg != null) base = rotateItemWithChildren(base, item.id, p.rotationDeg);
+        const rest = { ...p };
+        delete rest.position;
+        delete rest.rotationDeg;
+        return {
+          ...base,
+          items: base.items.map((i) => (i.id === item.id ? { ...i, ...rest } : i)),
+        };
+      },
       { coalesceKey: `item-${item.id}` },
     );
 
@@ -562,6 +579,34 @@ export function Inspector() {
             .filter(Boolean)
             .join(' · ')}{' '}
           — 배치는 유지됩니다
+        </div>
+      )}
+      {item.parentId && (
+        <div className="inspector__mount-row">
+          <span>
+            {catalogById.get(
+              plan.items.find((i) => i.id === item.parentId)?.catalogId ?? '',
+            )?.name ?? '가구'}{' '}
+            위에 올려짐
+          </span>
+          <button
+            className="btn btn--outline"
+            onClick={() =>
+              updatePlan((pl) => {
+                const un = unmountItem(pl, item.id);
+                const spot =
+                  findFreeSpot(un, { ...item, parentId: undefined }) ?? item.position;
+                return {
+                  ...un,
+                  items: un.items.map((i) =>
+                    i.id === item.id ? { ...i, position: spot } : i,
+                  ),
+                };
+              })
+            }
+          >
+            바닥에 내려놓기
+          </button>
         </div>
       )}
       <div className="inspector__swatches">
@@ -638,6 +683,11 @@ export function Inspector() {
                   id: `item-${Date.now().toString(36)}`,
                   position: { x: item.position.x + 0.3, y: item.position.y + 0.3 },
                 };
+                // 표면 적층: 사본이 상판을 벗어나면 바닥 배치
+                if (copy.parentId) {
+                  const parent = plan.items.find((p) => p.id === copy.parentId);
+                  if (!parent || !childFitsSurface(copy, parent)) delete copy.parentId;
+                }
                 updatePlan((pl) => ({ ...pl, items: [...pl.items, copy] }));
                 setSelection([copy.id]);
               }}
@@ -647,11 +697,14 @@ export function Inspector() {
             <button
               className="btn btn--outline detail-danger"
               onClick={() => {
-                updatePlan((pl) => ({ ...pl, items: pl.items.filter((i) => i.id !== item.id) }));
+                // 표면 적층: 부모 삭제 시 상판 위 자식 동반 삭제
+                updatePlan((pl) => deleteItemsWithChildren(pl, [item.id]));
                 setSelection([]);
               }}
             >
               삭제
+              {surfaceChildren(plan, item.id).length > 0 &&
+                ` (+올려진 ${surfaceChildren(plan, item.id).length})`}
             </button>
           </div>
         </div>

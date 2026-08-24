@@ -95,7 +95,46 @@ export function WallItemGlyph({
 }
 export type OpeningHover = { wallId: string; t: number; kind: 'door' | 'window' };
 export type Measure = { a: Vec2; b: Vec2 };
-export type PlacingGhost = { catalogId: string; pos: Vec2; valid: boolean };
+export type PlacingGhost = {
+  catalogId: string;
+  pos: Vec2;
+  valid: boolean;
+  /** 표면 적층: 올려놓을 대상 표면 가구 id (하이라이트) */
+  surfaceTargetId?: string;
+};
+
+/** 표면 대상 가구 외곽 하이라이트 (드래그·배치 공용) */
+function SurfaceTargetOutline({
+  plan,
+  id,
+  t,
+  invalid,
+}: {
+  plan: Plan;
+  id: string;
+  t: ViewTransform;
+  invalid: boolean;
+}) {
+  const parent = plan.items.find((i) => i.id === id);
+  if (!parent) return null;
+  return (
+    <g
+      transform={`translate(${parent.position.x * t.s + t.ox} ${parent.position.y * t.s + t.oy}) rotate(${parent.rotationDeg}) scale(${t.s})`}
+    >
+      <rect
+        x={-parent.size.w / 2}
+        y={-parent.size.d / 2}
+        width={parent.size.w}
+        height={parent.size.d}
+        fill={invalid ? '#e8590c' : '#0e9f6e'}
+        opacity={0.1}
+        stroke={invalid ? '#e8590c' : '#0e9f6e'}
+        strokeWidth={2}
+        {...NSS}
+      />
+    </g>
+  );
+}
 
 export type PlanCanvasProps = {
   plan: Plan;
@@ -120,8 +159,9 @@ export type PlanCanvasProps = {
   cursor: string;
 };
 
-/** 아이템 z-레이어: 러그 < 가구 < 조명 */
+/** 아이템 z-레이어: 러그 < 가구 < 조명 < 표면 위 자식 */
 export function itemLayer(item: PlacedItem): number {
+  if (item.parentId) return 3; // 표면 위 자식은 항상 부모 위에 그린다 (클릭도 자식 우선)
   const shape = shapeOf(item.catalogId);
   if (shape === 'rug') return 0;
   if (shape === 'floor-lamp' || shape === 'pendant-lamp') return 2;
@@ -429,10 +469,20 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
   const cm = (v: number) => Math.round(v * 100);
   const colliding = drag.collisions.length > 0;
   const doorBlocked = drag.blockedDoors.length > 0;
-  const warn = colliding || doorBlocked;
+  const onSurface = drag.surfaceTargetId != null;
+  const warn = colliding || doorBlocked || drag.surfaceInvalid === true;
 
   return (
     <g>
+      {/* 표면 적층: 드롭 대상 표면 하이라이트 */}
+      {onSurface && (
+        <SurfaceTargetOutline
+          plan={plan}
+          id={drag.surfaceTargetId!}
+          t={t}
+          invalid={drag.surfaceInvalid === true}
+        />
+      )}
       {/* 침범 중인 문 클리어런스 존 */}
       {doorBlocked &&
         doorZones(plan)
@@ -473,7 +523,19 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
         />
       </g>
       {/* 치수/충돌/문 경고 칩 */}
-      {colliding ? (
+      {onSurface ? (
+        <ScreenChip
+          x={topCenter.x}
+          y={topCenter.y - 20}
+          text={
+            drag.surfaceInvalid
+              ? '상판 밖이거나 다른 물건과 겹칩니다'
+              : `${catalogById.get(plan.items.find((i) => i.id === drag.surfaceTargetId)?.catalogId ?? '')?.name ?? '가구'} 위에 올려놓기`
+          }
+          bg={drag.surfaceInvalid ? '#e8590c' : '#0e9f6e'}
+          mono={false}
+        />
+      ) : colliding ? (
         <ScreenChip
           x={topCenter.x}
           y={topCenter.y - 20}
@@ -749,7 +811,15 @@ function MeasureOverlay({ measure, t }: { measure: Measure; t: ViewTransform }) 
   );
 }
 
-function PlacingGhostPreview({ ghost, t }: { ghost: PlacingGhost; t: ViewTransform }) {
+function PlacingGhostPreview({
+  ghost,
+  t,
+  plan,
+}: {
+  ghost: PlacingGhost;
+  t: ViewTransform;
+  plan: Plan;
+}) {
   const cat = catalogById.get(ghost.catalogId);
   if (!cat) return null;
   const cm = (v: number) => Math.round(v * 100);
@@ -766,6 +836,14 @@ function PlacingGhostPreview({ ghost, t }: { ghost: PlacingGhost; t: ViewTransfo
   const p = w2s(t, ghost.pos);
   return (
     <g>
+      {ghost.surfaceTargetId && (
+        <SurfaceTargetOutline
+          plan={plan}
+          id={ghost.surfaceTargetId}
+          t={t}
+          invalid={!ghost.valid}
+        />
+      )}
       <g
         transform={`translate(${p.x} ${p.y}) scale(${t.s})`}
         opacity={0.45}
@@ -1013,7 +1091,9 @@ export function PlanCanvas(props: PlanCanvasProps) {
             />
           );
         })()}
-      {props.placingGhost && <PlacingGhostPreview ghost={props.placingGhost} t={t} />}
+      {props.placingGhost && (
+        <PlacingGhostPreview ghost={props.placingGhost} t={t} plan={plan} />
+      )}
     </svg>
   );
 }

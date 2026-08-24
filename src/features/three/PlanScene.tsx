@@ -5,6 +5,7 @@ import type { Opening, PlacedItem, Plan, ViewerState, Wall } from '../../model/t
 import { catalogById } from '../../model/catalog';
 import { DEFAULT_WALL_3D, floorColor3d, wallFaceColors } from '../../model/finishes';
 import { isDoorOpen, isPowered } from '../../model/interactions3d';
+import { mountBaseHeight } from '../../model/surfaces';
 import { darken, lampPartColors, lighten } from '../editor2d/symbols';
 import { LIGHT_PRESETS } from './lighting';
 import { DOOR_HEIGHT, planCenter, wallBoxes, wallLength } from './wallGeometry';
@@ -386,10 +387,13 @@ function FurnitureMesh({
   item,
   lampIntensity,
   highlighted = false,
+  baseY = 0,
 }: {
   item: PlacedItem;
   lampIntensity: number;
   highlighted?: boolean;
+  /** 표면 적층: 부모 상판 높이 (자식은 상판 위에 렌더) */
+  baseY?: number;
 }) {
   const cat = catalogById.get(item.catalogId);
   const shape = cat?.shape ?? 'rect-table';
@@ -769,7 +773,7 @@ function FurnitureMesh({
 
   return (
     <group
-      position={[item.position.x, 0, item.position.y]}
+      position={[item.position.x, baseY, item.position.y]}
       rotation={[0, -(item.rotationDeg * Math.PI) / 180, 0]}
       userData={{ itemId: item.id }}
     >
@@ -899,6 +903,7 @@ export function PlanScene({
             item={item}
             lampIntensity={lampIntensity}
             highlighted={item.id === highlightItemId}
+            baseY={mountBaseHeight(plan, item)}
           />
         ))}
       </group>

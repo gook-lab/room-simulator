@@ -398,6 +398,7 @@ export const CATALOG: CatalogItem[] = [
   /* ---- 조명·러그·소품 ---- */
   {
     id: 'lamp-table',
+    mountable: true,
     name: '테이블 램프',
     category: 'lighting',
     shape: 'floor-lamp',
@@ -428,6 +429,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'plant-cactus',
+    mountable: true,
     name: '선인장 화분',
     category: 'decor',
     shape: 'plant',
@@ -560,6 +562,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'mood-lamp',
+    mountable: true,
     name: '무드등',
     category: 'decor',
     shape: 'floor-lamp',

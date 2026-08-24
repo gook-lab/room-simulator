@@ -31,6 +31,7 @@ export function buildColliders(plan: Plan): SegCollider[] {
     }
   }
   for (const item of plan.items) {
+    if (item.parentId) continue; // 표면 위 자식은 바닥 충돌체 아님
     if (NON_COLLIDING_SHAPES.has(shapeOf(item.catalogId))) continue;
     if (item.size.h <= WALKOVER_HEIGHT) continue; // 낮은 오브젝트는 통과
     const corners = itemCorners(item);

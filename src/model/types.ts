@@ -53,6 +53,11 @@ export type PlacedItem = {
   price: number;
   /** 조명 등 전원 상태 — undefined 는 켜짐(기본) */
   powered?: boolean;
+  /**
+   * 표면 적층: 이 아이템이 올라가 있는 부모(표면 가구) id — undefined 는 바닥 배치.
+   * position/rotationDeg 는 월드 좌표 그대로이며, 부모 변환 시 동반 갱신된다 (surfaces.ts).
+   */
+  parentId?: string;
 };
 
 /** 벽 부착 아이템 (액자·벽시계·벽거울) — 벽 세그먼트 좌표계 (wallId + t + 높이) */
@@ -177,6 +182,8 @@ export type CatalogItem = {
   swatches: Swatch[];
   /** 실제 판매 상품 연동 (있으면 price=실판매가, size=실제원) */
   product?: ProductInfo;
+  /** 표면 적층: 테이블·책상 등 상판 위에 올릴 수 있는 소형 아이템 */
+  mountable?: boolean;
 };
 
 /* ===== Editor / Viewer state ===== */
@@ -204,6 +211,10 @@ export type DragState = {
   groupIds?: string[];
   /** 카탈로그에서 새로 끌어온 아이템인지 */
   isNew: boolean;
+  /** 표면 적층: 드롭 대상 표면 가구 id (하이라이트용) */
+  surfaceTargetId?: string | null;
+  /** 표면 위지만 상판 이탈·형제 겹침으로 드롭 불가 */
+  surfaceInvalid?: boolean;
 };
 
 export type LightPreset = 'afternoon' | 'sunset' | 'overcast' | 'night';

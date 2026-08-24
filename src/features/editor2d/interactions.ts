@@ -134,8 +134,16 @@ export function snapItemMove(
 
 export function collisionsFor(
   plan: Plan,
-  moving: { id?: string; catalogId: string; position: Vec2; rotationDeg: number; size: { w: number; d: number } },
+  moving: {
+    id?: string;
+    catalogId: string;
+    position: Vec2;
+    rotationDeg: number;
+    size: { w: number; d: number };
+    parentId?: string;
+  },
 ): string[] {
+  if (moving.parentId) return []; // 표면 위 자식은 형제 겹침(siblingOverlapIds)으로 별도 검사
   if (NON_COLLIDING_SHAPES.has(shapeOf(moving.catalogId))) return [];
   return collidingItemIds(plan, moving, NON_COLLIDING_SHAPES, shapeOf);
 }

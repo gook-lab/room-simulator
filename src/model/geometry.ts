@@ -99,6 +99,7 @@ export function collidingItemIds(
   const out: string[] = [];
   for (const other of plan.items) {
     if (other.id === moving.id) continue;
+    if (other.parentId) continue; // 표면 위 자식은 바닥 충돌 대상 아님
     if (ignoreShapes.has(shapeOf(other.catalogId))) continue;
     if (polysOverlap(movingCorners, itemCorners(other))) out.push(other.id);
   }

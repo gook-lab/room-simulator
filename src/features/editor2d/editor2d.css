@@ -485,6 +485,27 @@
   pointer-events: none;
 }
 
+/* ---- 표면 적층 ---- */
+.inspector__mount-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 16px 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-deep);
+  background: var(--accent-tint);
+  border-radius: 8px;
+}
+
+.inspector__mount-row .btn {
+  font-size: 11px;
+  padding: 5px 9px;
+  flex: none;
+}
+
 /* ---- 상품 연동 ---- */
 .catalog-item__price {
   display: flex;

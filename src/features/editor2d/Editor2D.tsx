@@ -27,6 +27,16 @@ import {
 } from '../../model/wallEdit';
 import { splitRoomByPolyline, trimPolylineToRooms } from '../../model/roomSplit';
 import {
+  childFitsSurface,
+  deleteItemsWithChildren,
+  mountItem,
+  moveItemWithChildren,
+  rotateItemWithChildren,
+  siblingOverlapIds,
+  surfaceAt,
+  unmountItem,
+} from '../../model/surfaces';
+import {
   collisionsFor,
   dimensionNear,
   findFreeSpot,
@@ -188,20 +198,28 @@ export function Editor2D() {
     (dx: number, dy: number) => {
       const sel = useStore.getState().selection;
       if (sel.length === 0) return;
-      updatePlan((pl) => ({
-        ...pl,
-        items: pl.items.map((i) =>
-          sel.includes(i.id)
-            ? {
-                ...i,
-                position: { x: i.position.x + dx, y: i.position.y + dy },
-                roomId:
-                  roomAt(pl.rooms, { x: i.position.x + dx, y: i.position.y + dy })?.id ??
-                  i.roomId,
-              }
-            : i,
-        ),
-      }));
+      updatePlan((pl) => {
+        // 표면 적층: 선택된 부모의 자식 동반 이동
+        const idSet = new Set(sel);
+        for (const i of pl.items) {
+          if (i.parentId && idSet.has(i.parentId)) idSet.add(i.id);
+        }
+        return {
+          ...pl,
+          items: pl.items.map((i) =>
+            idSet.has(i.id)
+              ? {
+                  ...i,
+                  position: { x: i.position.x + dx, y: i.position.y + dy },
+                  roomId: i.parentId
+                    ? i.roomId
+                    : roomAt(pl.rooms, { x: i.position.x + dx, y: i.position.y + dy })?.id ??
+                      i.roomId,
+                }
+              : i,
+          ),
+        };
+      });
     },
     [updatePlan],
   );
@@ -213,9 +231,10 @@ export function Editor2D() {
       // 벽 삭제는 개구부·벽 부착 아이템 연쇄 삭제 포함
       const wallIds = sel.filter((id) => pl.walls.some((w) => w.id === id));
       const base = wallIds.length > 0 ? deleteWalls(pl, wallIds) : pl;
+      // 표면 적층: 부모 삭제 시 상판 위 자식 동반 삭제 (undo 1회로 함께 복원)
+      const afterItems = deleteItemsWithChildren(base, sel);
       return {
-        ...base,
-        items: base.items.filter((i) => !sel.includes(i.id)),
+        ...afterItems,
         openings: base.openings.filter((o) => !sel.includes(o.id)),
         wallItems: (base.wallItems ?? []).filter((w) => !sel.includes(w.id)),
         dimensions: (base.dimensions ?? []).filter((d) => !sel.includes(d.id)),
@@ -231,11 +250,16 @@ export function Editor2D() {
     const pl = planRef.current;
     const copies = pl.items
       .filter((i) => sel.includes(i.id))
-      .map((i) => ({
-        ...i,
-        id: newId('item'),
-        position: { x: i.position.x + 0.3, y: i.position.y + 0.3 },
-      }));
+      .map((i) => {
+        const position = { x: i.position.x + 0.3, y: i.position.y + 0.3 };
+        const copy = { ...i, id: newId('item'), position };
+        // 표면 적층: 사본이 같은 상판에 더 못 들어가면 바닥 배치로 전환
+        if (copy.parentId) {
+          const parent = pl.items.find((p) => p.id === copy.parentId);
+          if (!parent || !childFitsSurface(copy, parent)) delete copy.parentId;
+        }
+        return copy;
+      });
     updatePlan((p) => ({ ...p, items: [...p.items, ...copies] }));
     setSelection(copies.map((c) => c.id));
   }, [updatePlan, setSelection]);
@@ -382,6 +406,18 @@ export function Editor2D() {
           roomId: roomAt(pl.rooms, pos)?.id ?? null,
           price: cat.price,
         };
+        // 표면 적층: mountable 아이템을 표면 가구 위에 클릭하면 자식으로 배치
+        if (cat.mountable) {
+          const surf = surfaceAt(pl, pos);
+          if (surf) {
+            const fits =
+              childFitsSurface(item, surf) &&
+              siblingOverlapIds(pl, item, surf.id).length === 0;
+            if (!fits) return; // 상판 이탈·형제 겹침 — 배치 거부 (고스트가 무효 표시)
+            item.parentId = surf.id;
+            item.roomId = surf.roomId;
+          }
+        }
         // 연속 배치: placing 유지 — 같은 가구를 계속 찍을 수 있다 (Esc/재클릭 종료)
         updatePlan((p) => ({ ...p, items: [...p.items, item] }));
         return;
@@ -569,7 +605,13 @@ export function Editor2D() {
 
       // 다중 선택 상태에서 선택된 아이템을 잡으면 그룹 이동
       if (hit && selection.length > 1 && selection.includes(hit.id)) {
-        const itemIds = selection.filter((id) => pl.items.some((i) => i.id === id));
+        const baseIds = selection.filter((id) => pl.items.some((i) => i.id === id));
+        // 표면 적층: 선택된 부모의 자식은 그룹에 자동 포함 (동반 이동)
+        const idSet = new Set(baseIds);
+        for (const i of pl.items) {
+          if (i.parentId && idSet.has(i.parentId)) idSet.add(i.id);
+        }
+        const itemIds = [...idSet];
         const starts: Record<string, Vec2> = {};
         for (const id of itemIds) {
           const it = pl.items.find((i) => i.id === id)!;
@@ -743,10 +785,22 @@ export function Editor2D() {
           tRef.current.s,
           snap,
         );
-        const probe = { ...item, position };
-        const collisions = collisionsFor(pl, probe);
-        const blockedDoors = blockedDoorIds(pl, probe);
-        patchItem(g.itemId, { position }, false);
+        // 표면 적층: mountable 아이템이 표면 가구 위에 있으면 표면 드롭 후보
+        const cat = catalogById.get(item.catalogId);
+        const surf = cat?.mountable ? surfaceAt(pl, position, item.id) : null;
+        const floorProbe = { ...item, position, parentId: undefined };
+        let collisions: string[] = [];
+        let blockedDoors: string[] = [];
+        let surfaceInvalid = false;
+        if (surf) {
+          surfaceInvalid =
+            !childFitsSurface({ ...floorProbe }, surf) ||
+            siblingOverlapIds(pl, { ...item, position }, surf.id).length > 0;
+        } else {
+          collisions = collisionsFor(pl, floorProbe);
+          blockedDoors = blockedDoorIds(pl, floorProbe);
+        }
+        updatePlan((p) => moveItemWithChildren(p, g.itemId, position), { commit: false });
         setDrag({
           itemId: g.itemId,
           ghost: position,
@@ -754,6 +808,8 @@ export function Editor2D() {
           collisions,
           blockedDoors,
           isNew: false,
+          surfaceTargetId: surf?.id ?? null,
+          surfaceInvalid,
         });
         return;
       }
@@ -766,7 +822,8 @@ export function Editor2D() {
           (Math.atan2(world.y - item.position.y, world.x - item.position.x) * 180) / Math.PI + 90;
         const step = useStore.getState().snapping.angleStepDeg;
         const deg = e.shiftKey ? Math.round(angle) : Math.round(angle / step) * step;
-        patchItem(g.itemId, { rotationDeg: deg }, false);
+        // 표면 적층: 부모 회전 시 자식 동반 회전
+        updatePlan((p) => rotateItemWithChildren(p, g.itemId, deg), { commit: false });
         return;
       }
 
@@ -964,15 +1021,54 @@ export function Editor2D() {
       }
 
       if (g.type === 'move' || g.type === 'rotate' || g.type === 'resize') {
-        const pl = planRef.current;
+        // planRef 는 렌더 시점 갱신이라 같은 프레임의 drop 에서 스테일할 수 있다
+        // — 표면 마운트/언마운트 판정은 스토어 최신 상태로.
+        const st = useStore.getState();
+        const pl = st.plans[st.currentPlanId] ?? planRef.current;
         const item = pl.items.find((i) => i.id === g.itemId);
         if (g.moved && item) {
-          pushHistory(g.before);
-          // 룸 재배정
-          patchItem(g.itemId, { roomId: roomAt(pl.rooms, item.position)?.id ?? null }, false);
+          // 표면 적층: 드롭 지점이 표면 가구면 자식으로 올리고, 벗어나면 바닥으로 내린다
           if (g.type === 'move') {
+            const cat = catalogById.get(item.catalogId);
+            const surf = cat?.mountable ? surfaceAt(pl, item.position, item.id) : null;
+            if (surf) {
+              const invalid =
+                !childFitsSurface({ ...item }, surf) ||
+                siblingOverlapIds(pl, item, surf.id).length > 0;
+              if (invalid) {
+                // 상판 이탈·형제 겹침 — 원위치 복원 (벽 부착과 동일 정책)
+                updatePlan(() => g.before, { commit: false });
+                setDrag(null);
+                return;
+              }
+              pushHistory(g.before);
+              updatePlan((p) => mountItem(p, item.id, surf.id), { commit: false });
+              setPostDrop(null);
+              setDrag(null);
+              return;
+            }
+          }
+          pushHistory(g.before);
+          const unmounted = g.type === 'move' && item.parentId;
+          // 룸 재배정 (+ 표면에서 내려온 경우 parentId 해제)
+          updatePlan(
+            (p) => {
+              const base = unmounted ? unmountItem(p, item.id) : p;
+              return {
+                ...base,
+                items: base.items.map((i) =>
+                  i.id === g.itemId
+                    ? { ...i, roomId: roomAt(p.rooms, i.position)?.id ?? null }
+                    : i,
+                ),
+              };
+            },
+            { commit: false },
+          );
+          if (g.type === 'move') {
+            const probe = { ...item, parentId: undefined };
             const problematic =
-              collisionsFor(pl, item).length > 0 || blockedDoorIds(pl, item).length > 0;
+              collisionsFor(pl, probe).length > 0 || blockedDoorIds(pl, probe).length > 0;
             setPostDrop(problematic ? { itemId: g.itemId } : null);
           }
         }
@@ -1098,14 +1194,24 @@ export function Editor2D() {
     if (!placingCatalogId || !placingPos) return null;
     if (isWallCatalogItem(placingCatalogId)) return null; // 벽 부착은 wallGhost 경로
     const cat = catalogById.get(placingCatalogId);
-    const blocked = cat
-      ? blockedDoorIds(plan, {
+    // 표면 적층: mountable 아이템이 표면 가구 위에 있으면 표면 기준으로 검증
+    const probe = cat
+      ? { catalogId: placingCatalogId, position: placingPos, rotationDeg: 0, size: cat.size }
+      : null;
+    if (cat?.mountable && probe) {
+      const surf = surfaceAt(plan, placingPos);
+      if (surf) {
+        return {
           catalogId: placingCatalogId,
-          position: placingPos,
-          rotationDeg: 0,
-          size: cat.size,
-        }).length > 0
-      : false;
+          pos: placingPos,
+          valid:
+            childFitsSurface(probe, surf) &&
+            siblingOverlapIds(plan, probe, surf.id).length === 0,
+          surfaceTargetId: surf.id,
+        };
+      }
+    }
+    const blocked = probe ? blockedDoorIds(plan, probe).length > 0 : false;
     return {
       catalogId: placingCatalogId,
       pos: placingPos,

@@ -118,6 +118,19 @@ export function importPlan(json: string): ImportResult {
     ) {
       return { ok: false, error: `가구 데이터가 잘못되었습니다 (id: ${String(i?.id)})` };
     }
+    // 표면 적층: parentId 는 존재하는 아이템을 가리켜야 하고, 깊이는 1단(부모는 바닥 배치)
+    if (i.parentId != null) {
+      if (!isStr(i.parentId)) {
+        return { ok: false, error: `가구 ${i.id} 의 parentId 가 잘못되었습니다.` };
+      }
+      const parent = plan.items.find((p) => p.id === i.parentId);
+      if (!parent) {
+        return { ok: false, error: `가구 ${i.id} 가 존재하지 않는 부모(${i.parentId})를 참조합니다.` };
+      }
+      if (parent.parentId != null) {
+        return { ok: false, error: `가구 ${i.id} 의 부모(${i.parentId})가 이미 다른 표면 위에 있습니다 (적층은 1단).` };
+      }
+    }
   }
   if (plan.wallItems != null) {
     if (!Array.isArray(plan.wallItems)) {
