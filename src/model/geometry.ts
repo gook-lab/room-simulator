@@ -155,7 +155,10 @@ export function snapValue(v: number, step: number): number {
 }
 
 export function totalPrice(plan: Plan): number {
-  return plan.items.reduce((s, i) => s + i.price, 0);
+  return (
+    plan.items.reduce((s, i) => s + i.price, 0) +
+    (plan.wallItems ?? []).reduce((s, i) => s + i.price, 0)
+  );
 }
 
 export function priceByRoom(
@@ -168,9 +171,16 @@ export function priceByRoom(
     g.sum += item.price;
     groups.set(item.roomId, g);
   }
+  // 벽 부착 아이템은 룸 소속이 없어 '기타(벽)' 그룹으로 합산
+  for (const wi of plan.wallItems ?? []) {
+    const g = groups.get(null) ?? { count: 0, sum: 0 };
+    g.count += 1;
+    g.sum += wi.price;
+    groups.set(null, g);
+  }
   return [...groups.entries()].map(([roomId, g]) => ({
     roomId,
-    roomName: plan.rooms.find((r) => r.id === roomId)?.name ?? '기타',
+    roomName: plan.rooms.find((r) => r.id === roomId)?.name ?? '기타(벽)',
     ...g,
   }));
 }

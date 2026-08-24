@@ -55,6 +55,21 @@ export type PlacedItem = {
   powered?: boolean;
 };
 
+/** 벽 부착 아이템 (액자·벽시계·벽거울) — 벽 세그먼트 좌표계 (wallId + t + 높이) */
+export type WallItem = {
+  id: string;
+  catalogId: string;
+  wallId: string;
+  /** 벽 a→b 상 중심 위치 (0..1) */
+  t: number;
+  /** 바닥에서 아이템 중심까지 높이 (m) */
+  heightM: number;
+  /** 벽 법선 +측(front) / -측(back) 어느 면에 붙는지 */
+  side: 'front' | 'back';
+  variant: ItemVariant;
+  price: number;
+};
+
 /** 도면에 고정되는 치수 주석 (치수 도구로 생성, 선택·삭제·undo 대상) */
 export type DimensionNote = {
   id: string;
@@ -81,6 +96,8 @@ export type Plan = {
   openings: Opening[];
   rooms: Room[];
   items: PlacedItem[];
+  /** 벽 부착 아이템 — optional (기존 저장본 호환) */
+  wallItems?: WallItem[];
   /** 영속 치수 주석 — README 원 타입에 없는 실용적 추가 (optional, 기존 저장본 호환) */
   dimensions?: DimensionNote[];
   tracing?: Tracing;
@@ -112,7 +129,10 @@ export type CatalogShape =
   | 'fan'
   | 'bin'
   | 'rack'
-  | 'cat-tower';
+  | 'cat-tower'
+  | 'frame'
+  | 'wall-clock'
+  | 'wall-mirror';
 
 export type Swatch = { id: string; label: string; color: string };
 

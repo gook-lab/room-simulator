@@ -244,6 +244,87 @@ function Doors({
   );
 }
 
+/* ===== 벽 부착 아이템 3D ===== */
+
+function WallItemMesh({ plan, id }: { plan: Plan; id: string }) {
+  const wi = (plan.wallItems ?? []).find((w) => w.id === id);
+  const cat = wi ? catalogById.get(wi.catalogId) : undefined;
+  const wall = wi ? plan.walls.find((w) => w.id === wi.wallId) : undefined;
+  if (!wi || !cat || !wall) return null;
+  const len = wallLength(wall);
+  if (len < 1e-6) return null;
+  const dir = { x: (wall.b.x - wall.a.x) / len, y: (wall.b.y - wall.a.y) / len };
+  const normal = { x: -dir.y, y: dir.x };
+  const sign = wi.side === 'front' ? 1 : -1;
+  const p = {
+    x: wall.a.x + dir.x * wi.t * len,
+    y: wall.a.y + dir.y * wi.t * len,
+  };
+  const off = wall.thickness / 2 + cat.size.d / 2 + 0.005;
+  const angle = Math.atan2(dir.y, dir.x);
+  const rotY = -angle + (wi.side === 'back' ? Math.PI : 0);
+  const { w, d, h } = cat.size;
+  const c = wi.variant.color;
+
+  let body: React.ReactNode;
+  switch (cat.shape) {
+    case 'wall-clock':
+      body = (
+        <group>
+          <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <cylinderGeometry args={[w / 2, w / 2, d, 24]} />
+            <meshStandardMaterial color="#f2efe9" roughness={0.5} />
+          </mesh>
+          <mesh position={[0, h * 0.14, d / 2 + 0.002]}>
+            <boxGeometry args={[0.012, h * 0.3, 0.004]} />
+            <meshStandardMaterial color={darken(c, 0.2)} />
+          </mesh>
+          <mesh position={[w * 0.1, 0, d / 2 + 0.002]} rotation={[0, 0, -Math.PI / 3]}>
+            <boxGeometry args={[0.008, h * 0.22, 0.004]} />
+            <meshStandardMaterial color={darken(c, 0.2)} />
+          </mesh>
+        </group>
+      );
+      break;
+    case 'wall-mirror':
+      body = (
+        <group>
+          <mesh castShadow>
+            <boxGeometry args={[w, h, d]} />
+            <meshStandardMaterial color={c} roughness={0.7} />
+          </mesh>
+          <mesh position={[0, 0, d / 2 + 0.002]}>
+            <planeGeometry args={[w - 0.06, h - 0.06]} />
+            <meshStandardMaterial color="#dfeaf2" metalness={0.85} roughness={0.08} />
+          </mesh>
+        </group>
+      );
+      break;
+    default: // frame
+      body = (
+        <group>
+          <mesh castShadow>
+            <boxGeometry args={[w, h, d]} />
+            <meshStandardMaterial color={c} roughness={0.75} />
+          </mesh>
+          <mesh position={[0, 0, d / 2 + 0.002]}>
+            <planeGeometry args={[w - 0.07, h - 0.07]} />
+            <meshStandardMaterial color="#cfd8ce" roughness={0.9} />
+          </mesh>
+        </group>
+      );
+  }
+
+  return (
+    <group
+      position={[p.x + normal.x * off * sign, wi.heightM, p.y + normal.y * off * sign]}
+      rotation={[0, rotY, 0]}
+    >
+      {body}
+    </group>
+  );
+}
+
 /* ===== 가구 3D ===== */
 
 function Box({
@@ -778,6 +859,9 @@ export function PlanScene({
       <Floors plan={plan} />
       <Walls plan={plan} />
       <Doors plan={plan} doorGroupRef={doorGroupRef} highlightOpeningId={highlightOpeningId} />
+      {(plan.wallItems ?? []).map((wi) => (
+        <WallItemMesh key={wi.id} plan={plan} id={wi.id} />
+      ))}
       {showCeiling && <Ceiling plan={plan} />}
       <group ref={furnitureGroupRef}>
         {plan.items.map((item) => (

@@ -512,6 +512,47 @@ export const CATALOG: CatalogItem[] = [
     materialLabel: '컬러',
     swatches: fabricSwatches,
   },
+  /* ---- 벽 부착 소품 ---- */
+  {
+    id: 'frame-s',
+    name: '액자 S',
+    category: 'decor',
+    shape: 'frame',
+    size: { w: 0.4, d: 0.04, h: 0.5 },
+    price: 35_000,
+    materialLabel: '프레임',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'frame-l',
+    name: '액자 L',
+    category: 'decor',
+    shape: 'frame',
+    size: { w: 0.9, d: 0.04, h: 0.6 },
+    price: 78_000,
+    materialLabel: '프레임',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'wall-clock',
+    name: '벽시계',
+    category: 'decor',
+    shape: 'wall-clock',
+    size: { w: 0.3, d: 0.05, h: 0.3 },
+    price: 42_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'wall-mirror',
+    name: '벽거울',
+    category: 'decor',
+    shape: 'wall-mirror',
+    size: { w: 0.6, d: 0.04, h: 0.9 },
+    price: 98_000,
+    materialLabel: '프레임',
+    swatches: woodSwatches,
+  },
   {
     id: 'mood-lamp',
     name: '무드등',
@@ -539,6 +580,9 @@ export function formatSize(item: CatalogItem): string {
     item.shape === 'cat-tower'
   )
     return `Ø ${cm(w)} · H ${cm(h)}`;
+  if (item.shape === 'wall-clock') return `Ø ${cm(w)} cm`;
+  if (item.shape === 'frame' || item.shape === 'wall-mirror')
+    return `${cm(w)} × ${cm(h)} cm`;
   return `${cm(w)} × ${cm(d)} cm`;
 }
 
