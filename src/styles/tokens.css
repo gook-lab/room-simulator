@@ -1,0 +1,116 @@
+/* Roomcast design tokens — from design_handoff_3d_interior_planner/README.md */
+:root {
+  /* Surfaces */
+  --canvas-bg: #f2eee7;
+  --canvas-grid-line: #e4ded3;
+  --app-bg: #f7f4ef;
+  --panel: #ffffff;
+  --panel-sunken: #fbf9f5;
+  --inset-a: #f7f4ef;
+  --inset-b: #f2eee7;
+  --neutral-fill: #ede8e0;
+
+  /* Borders */
+  --border: #e3dcd1;
+  --border-strong: #d9d3c9;
+  --border-divider: #ede8e0;
+
+  /* Ink */
+  --ink: #17201c;
+  --text-2: #4a544e;
+  --text-3: #5b6560;
+  --text-muted: #8b948e;
+  --text-disabled: #a6aea8;
+
+  /* Accent */
+  --accent: #0e9f6e;
+  --accent-deep: #0b7c56;
+  --accent-tint: #e7f6ef;
+
+  /* Warning / info */
+  --warn: #e8590c;
+  --warn-deep: #b24f0e;
+  --warn-tint: #fdf3ea;
+  --warn-border: #f0d2b8;
+  --info-tint: #f0f6f3;
+  --info-border: #cfe6dc;
+
+  /* Material palette (2D rooms / 3D) */
+  --floor-living: #fbf8f3;
+  --floor-kitchen: #f5f1ea;
+  --floor-bath: #f0f4f2;
+  --wood-floor-light: #c9ae86;
+  --wood-floor-dark: #a98b63;
+  --wall3d-front-a: #efe7da;
+  --wall3d-front-b: #d8cdbc;
+  --wall3d-side-a: #d4c8b6;
+  --wall3d-side-b: #b9ac98;
+  --ceiling3d: #e6dccc;
+  --mat-sofa: #dcc7ae;
+  --mat-sofa-stroke: #b79b79;
+  --mat-sofa-shade: #c6af93;
+  --mat-rug: #8fa396;
+  --mat-rug-stroke: #6d8175;
+  --mat-wood: #c9a882;
+  --mat-wood-stroke: #a88a66;
+  --mat-storage: #e4dacb;
+  --mat-storage-stroke: #beb09a;
+  --mat-bed: #c4cfe0;
+  --mat-bed-stroke: #96a6bc;
+  --mat-bed-pillow: #e2e8f1;
+  --mat-counter: #ddd8ce;
+  --mat-counter-stroke: #b6afa2;
+  --mat-bath: #dce9e4;
+  --mat-bath-stroke: #a9c4ba;
+  --mat-glass: #eaf2f6;
+  --mat-window-frame: #fbf8f3;
+  --window-line-2d: #7ba8c9;
+  --mat-lamp: #efd9a8;
+  --light-pool-a: #ffe9b8;
+  --light-pool-b: #fff3d6;
+  --light-preset-border: #e3c77e;
+  --light-preset-bg: #f5ebd4;
+
+  /* Dark HUD */
+  --hud-panel: rgba(23, 32, 28, 0.66);
+  --hud-panel-strong: rgba(23, 32, 28, 0.7);
+  --hud-text: #f7f4ef;
+  --hud-text-2: #c9d2cc;
+  --hud-mono: #93a09a;
+  --hud-keycap-bg: rgba(247, 244, 239, 0.16);
+  --hud-keycap-border: rgba(247, 244, 239, 0.35);
+  --hud-divider: rgba(247, 244, 239, 0.16);
+
+  /* Shadows */
+  --shadow-frame: 0 24px 60px -30px rgba(23, 32, 28, 0.35);
+  --shadow-float: 0 16px 40px -20px rgba(23, 32, 28, 0.32);
+  --shadow-dock: 0 12px 28px -14px rgba(23, 32, 28, 0.3);
+  --shadow-birdseye: 0 16px 40px -22px rgba(23, 32, 28, 0.3);
+  --shadow-hud-chip: 0 10px 24px -12px rgba(0, 0, 0, 0.5);
+  --shadow-tab: 0 1px 2px rgba(23, 32, 28, 0.1);
+
+  /* Typography */
+  --font-ui: 'Plus Jakarta Sans', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Layout */
+  --topbar-h: 56px;
+  --panel-w: 308px;
+  --panel-margin: 20px;
+  --panel-top: 24px;
+  --panel-bottom: 24px;
+
+  /* Radius */
+  --r-frame: 14px;
+  --r-panel: 13px;
+  --r-card: 10px;
+  --r-field: 9px;
+  --r-btn: 8px;
+  --r-chip: 6px;
+  --r-pill: 20px;
+
+  /* Motion */
+  --ease-color: 150ms ease;
+  --ease-move: 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-light: 400ms ease;
+}

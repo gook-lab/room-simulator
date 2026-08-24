@@ -1,0 +1,199 @@
+/* ===== 조감도 (1f) ===== */
+
+.birdseye {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-bg);
+}
+
+.birdseye__topbar {
+  height: var(--topbar-h);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--app-bg);
+  z-index: 5;
+}
+
+.birdseye__viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: linear-gradient(180deg, #f3efe8, #e7e1d6);
+}
+
+.birdseye__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* 라이트 플로팅 패널 */
+.be-panel {
+  position: absolute;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-birdseye);
+  padding: 14px 16px;
+  z-index: 10;
+}
+
+.be-panel__title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 11px;
+}
+
+.be-light {
+  left: 20px;
+  top: 24px;
+  width: 270px;
+}
+
+.be-presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.be-presets button {
+  padding: 9px 6px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--inset-a);
+  border: 1.5px solid transparent;
+  color: var(--text-2);
+  transition: background var(--ease-color), border-color var(--ease-color);
+}
+
+.be-presets button:hover {
+  background: var(--inset-b);
+}
+
+.be-presets button.is-active {
+  background: var(--light-preset-bg);
+  border-color: var(--light-preset-border);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.be-slider {
+  margin-bottom: 14px;
+}
+
+.be-slider__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+
+.be-slider__value {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.slider--gold::-webkit-slider-thumb {
+  border-color: var(--light-preset-border);
+}
+
+.be-sun-card {
+  background: var(--inset-a);
+  border-radius: var(--r-card);
+  padding: 12px 14px;
+}
+
+.be-sun-card__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+
+.be-sun-card__value {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.be-sun-card__meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* 표시 패널 */
+.be-display {
+  right: 20px;
+  top: 24px;
+  width: 170px;
+}
+
+.be-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* 하단 카메라 바 */
+.be-camera-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-birdseye);
+  padding: 9px 14px;
+  z-index: 10;
+}
+
+.be-camera-bar__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.be-camera-bar .chip-toggle {
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--inset-b);
+  color: var(--text-2);
+}
+
+.be-camera-bar .chip-toggle:hover {
+  background: var(--neutral-fill);
+}
+
+.be-camera-bar .chip-toggle.is-active {
+  background: var(--ink);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.be-camera-bar__divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-divider);
+}
