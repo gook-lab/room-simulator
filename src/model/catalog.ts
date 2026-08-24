@@ -71,6 +71,7 @@ const bathSwatches = [
 export const CATALOG: CatalogItem[] = [
   {
     id: 'sofa-linen-3',
+    keywords: ['쇼파'],
     name: '린넨 3인 소파',
     category: 'sofa',
     shape: 'sofa',
@@ -101,6 +102,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'table-coffee',
+    keywords: ['커피테이블', '소파테이블', '쇼파테이블'],
     name: '로우 커피 테이블',
     category: 'table',
     shape: 'rect-table',
@@ -245,6 +247,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'tv-stand-1800',
+    keywords: ['거실장'],
     name: '로우 TV장 1800',
     category: 'storage',
     shape: 'console',
@@ -337,6 +340,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'stool-bar',
+    keywords: ['바스툴'],
     name: '바 스툴',
     category: 'sofa',
     shape: 'round-table',
@@ -576,6 +580,7 @@ export const CATALOG: CatalogItem[] = [
   /* ---- 실상품 기반 확충 (2026-08-25, 치수·가격은 products.json 실측으로 대체됨) ---- */
   {
     id: 'bed-bunk',
+    keywords: ['벙커침대', '이층침대'],
     name: '2층 침대',
     category: 'bed',
     shape: 'bed',
@@ -616,6 +621,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'wardrobe-pax',
+    keywords: ['드레스룸', '팍스'],
     name: '도어 옷장 1500',
     category: 'storage',
     shape: 'wardrobe',
@@ -666,6 +672,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'desk-sit-stand',
+    keywords: ['스탠딩책상', '높이조절책상'],
     name: '입식 겸용 책상',
     category: 'table',
     shape: 'desk',
@@ -706,6 +713,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'armchair',
+    keywords: ['안락의자', '1인 소파'],
     name: '암체어',
     category: 'sofa',
     shape: 'chair',
@@ -726,6 +734,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'sofa-bed-corner',
+    keywords: ['쇼파', '소파베드', '카우치'],
     name: '코너 소파베드',
     category: 'sofa',
     shape: 'sofa',
@@ -746,6 +755,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'kitchen-cart',
+    keywords: ['왜건', '카트', '트롤리'],
     name: '주방 트롤리',
     category: 'storage',
     shape: 'console',
@@ -776,6 +786,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'clothes-rack',
+    keywords: ['옷걸이', '드레스행거'],
     name: '옷걸이 행거',
     category: 'storage',
     shape: 'rack',
@@ -807,6 +818,7 @@ export const CATALOG: CatalogItem[] = [
   /* ---- 가전·컴퓨터 확충 (2026-08-25, 다나와 실측 — products.json) ---- */
   {
     id: 'styler',
+    keywords: ['스타일러', '에어드레서'],
     name: '의류관리기',
     category: 'appliance',
     shape: 'wardrobe',
@@ -827,6 +839,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'ac-stand',
+    keywords: ['시스템에어컨'],
     name: '스탠드 에어컨',
     category: 'appliance',
     shape: 'wardrobe',
@@ -879,6 +892,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'laptop',
+    keywords: ['랩탑', '랩톱'],
     name: '노트북 16형',
     category: 'appliance',
     shape: 'tv',
@@ -901,6 +915,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'desk-standing',
+    keywords: ['스탠딩책상', '높이조절책상', '모션데스크'],
     name: '모션 스탠딩 책상',
     category: 'table',
     shape: 'desk',
@@ -952,6 +967,18 @@ for (let i = 0; i < CATALOG.length; i++) {
 }
 
 export const catalogById = new Map(CATALOG.map((c) => [c.id, c]));
+
+/** 카탈로그 검색 — 이름·브랜드·검색 별칭(keywords) 매칭. 빈 질의는 전체 반환 */
+export function searchCatalog(query: string): CatalogItem[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return CATALOG;
+  return CATALOG.filter(
+    (c) =>
+      c.name.toLowerCase().includes(q) ||
+      (c.product?.brand ?? '').toLowerCase().includes(q) ||
+      (c.keywords ?? []).some((k) => k.toLowerCase().includes(q)),
+  );
+}
 
 export function formatSize(item: CatalogItem): string {
   const { w, d, h } = item.size;

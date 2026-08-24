@@ -12,6 +12,7 @@ import {
   catalogById,
   formatPrice,
   formatSize,
+  searchCatalog,
 } from '../../model/catalog';
 import { useCurrentPlan, useStore } from '../../state/store';
 import { FurnitureSymbol } from './symbols';
@@ -144,14 +145,8 @@ export function CatalogPanel() {
   const placing = useStore((s) => s.placingCatalogId);
   const setPlacing = useStore((s) => s.setPlacing);
   const q = query.trim().toLowerCase();
-  // 검색 중에는 카테고리 무시하고 전체에서 이름 매칭 (브랜드·상품명 포함)
-  const items = q
-    ? CATALOG.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          (c.product?.brand ?? '').toLowerCase().includes(q),
-      )
-    : CATALOG.filter((c) => c.category === category);
+  // 검색 중에는 카테고리 무시하고 전체에서 이름·브랜드·별칭 매칭
+  const items = q ? searchCatalog(q) : CATALOG.filter((c) => c.category === category);
 
   return (
     <aside className="float-panel catalog-panel">

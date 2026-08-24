@@ -90,3 +90,17 @@ describe('products.json (실데이터 무결성)', () => {
     }
   });
 });
+
+describe('searchCatalog (이름·브랜드·별칭)', () => {
+  it('별칭 매칭: "스타일러" → 의류관리기, "벙커" → 2층 침대', async () => {
+    const { searchCatalog } = await import('../src/model/catalog');
+    expect(searchCatalog('스타일러').map((c) => c.id)).toContain('styler');
+    expect(searchCatalog('벙커').map((c) => c.id)).toContain('bed-bunk');
+  });
+
+  it('브랜드·빈 질의: "ikea" 는 다수, 빈 문자열은 전체', async () => {
+    const { CATALOG, searchCatalog } = await import('../src/model/catalog');
+    expect(searchCatalog('ikea').length).toBeGreaterThan(20);
+    expect(searchCatalog('  ')).toHaveLength(CATALOG.length);
+  });
+});

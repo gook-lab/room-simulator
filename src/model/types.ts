@@ -186,6 +186,8 @@ export type CatalogItem = {
   product?: ProductInfo;
   /** 표면 적층: 테이블·책상 등 상판 위에 올릴 수 있는 소형 아이템 */
   mountable?: boolean;
+  /** 검색 별칭 — 이름과 다른 통칭 (예: 의류관리기 ← '스타일러') */
+  keywords?: string[];
 };
 
 /* ===== Editor / Viewer state ===== */
