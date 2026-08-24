@@ -58,3 +58,20 @@ describe('togglePower', () => {
     expect(togglePower(plan, 'nope')).toBe(plan);
   });
 });
+
+describe('lampPartColors (조명 색상 배선 회귀)', () => {
+  it('마감 스와치 색이 몸체에 반영된다', async () => {
+    const { lampPartColors } = await import('../src/features/editor2d/symbols');
+    const brass = lampPartColors('#e3c77e');
+    expect(brass.body).toBe('#e3c77e');
+    const black = lampPartColors('#3d4742');
+    expect(black.body).toBe('#3d4742');
+    expect(black.bodyDark).not.toBe(black.body);
+  });
+
+  it('발광부는 warm 고정 (variant 무관)', async () => {
+    const { lampPartColors } = await import('../src/features/editor2d/symbols');
+    expect(lampPartColors('#3d4742').glow).toBe('#efd9a8');
+    expect(lampPartColors('#f2efe9').glow).toBe('#efd9a8');
+  });
+});

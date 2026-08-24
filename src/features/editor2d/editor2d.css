@@ -249,6 +249,82 @@
   letter-spacing: -0.01em;
 }
 
+/* ---- 인스펙터 상세 옵션 ---- */
+.inspector__detail {
+  border-top: 1px solid var(--border-divider);
+  padding: 12px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inspector__detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inspector__detail-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.detail-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: var(--r-btn);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-align: left;
+  transition: background var(--ease-color);
+}
+
+.detail-option:hover {
+  background: var(--inset-a);
+}
+
+.detail-option.is-active {
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+  font-weight: 700;
+}
+
+.detail-option__dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1px solid rgba(23, 32, 28, 0.1);
+  flex: none;
+}
+
+.detail-option__check {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+.inspector__detail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.inspector__detail-actions .btn {
+  flex: 1;
+  font-size: 12px;
+  padding: 7px 10px;
+}
+
+.detail-danger {
+  color: var(--warn-deep);
+}
+
+.detail-danger:hover {
+  background: var(--warn-tint);
+}
+
 /* ---- 상태바 ---- */
 .statusbar {
   position: absolute;
