@@ -31,6 +31,10 @@ export type Room = {
   polygon: Vec2[];
   areaSqm: number;
   floor: FloorKind;
+  /** 바닥 마감재 — 미지정 시 floor(용도) 기본색 (finishes.ts) */
+  floorFinish?: string;
+  /** 벽 마감(벽지 색) — 미지정 시 기본 벽색 */
+  wallFinish?: string;
 };
 
 export type ItemVariant = { material: string; color: string };

@@ -412,6 +412,13 @@ export function Editor2D() {
           setPostDrop(null);
           return;
         }
+        // 룸 바닥 클릭 → 룸 선택 (마감재 편집 패널)
+        const room = roomAt(pl.rooms, world);
+        if (room) {
+          setSelection([room.id]);
+          setPostDrop(null);
+          return;
+        }
       }
       if (hit) {
         setSelection([hit.id]);

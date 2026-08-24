@@ -3,18 +3,12 @@ import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { Opening, PlacedItem, Plan, ViewerState, Wall } from '../../model/types';
 import { catalogById } from '../../model/catalog';
+import { floorColor3d, resolveWallColor } from '../../model/finishes';
 import { isDoorOpen, isPowered } from '../../model/interactions3d';
 import { darken, lampPartColors, lighten } from '../editor2d/symbols';
 import { LIGHT_PRESETS } from './lighting';
 import { DOOR_HEIGHT, planCenter, wallBoxes, wallLength } from './wallGeometry';
 
-const FLOOR_3D: Record<string, string> = {
-  living: '#c9ae86',
-  kitchen: '#ddd8ce',
-  bath: '#dce9e4',
-};
-
-const WALL_COLOR = '#eae1d2';
 const CEILING_COLOR = '#e6dccc';
 
 function Floors({ plan }: { plan: Plan }) {
@@ -42,7 +36,7 @@ function Floors({ plan }: { plan: Plan }) {
         >
           <shapeGeometry args={[shape]} />
           <meshStandardMaterial
-            color={FLOOR_3D[room.floor] ?? FLOOR_3D.living}
+            color={floorColor3d(room)}
             roughness={0.85}
             side={THREE.DoubleSide}
           />
@@ -54,7 +48,12 @@ function Floors({ plan }: { plan: Plan }) {
 
 function Walls({ plan }: { plan: Plan }) {
   const parts = useMemo(() => {
-    const solid: { pos: [number, number, number]; size: [number, number, number]; rotY: number }[] = [];
+    const solid: {
+      pos: [number, number, number];
+      size: [number, number, number];
+      rotY: number;
+      color: string;
+    }[] = [];
     const glass: typeof solid = [];
     for (const wall of plan.walls) {
       const len = wallLength(wall);
@@ -72,19 +71,21 @@ function Walls({ plan }: { plan: Plan }) {
             box.kind === 'glass' ? 0.04 : wall.thickness,
           ] as [number, number, number],
           rotY: -angle,
+          // 벽지: 세그먼트 중점이 접한 룸의 wallFinish (finishes.ts)
+          color: resolveWallColor(plan.rooms, wall, { x: cx, y: cz }),
         };
         (box.kind === 'glass' ? glass : solid).push(entry);
       }
     }
     return { solid, glass };
-  }, [plan.walls, plan.openings]);
+  }, [plan.walls, plan.openings, plan.rooms]);
 
   return (
     <group>
       {parts.solid.map((p, i) => (
         <mesh key={`s${i}`} position={p.pos} rotation={[0, p.rotY, 0]} castShadow receiveShadow>
           <boxGeometry args={p.size} />
-          <meshStandardMaterial color={WALL_COLOR} roughness={0.9} />
+          <meshStandardMaterial color={p.color} roughness={0.9} />
         </mesh>
       ))}
       {parts.glass.map((p, i) => (

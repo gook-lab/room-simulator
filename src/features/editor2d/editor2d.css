@@ -325,6 +325,14 @@
   background: var(--warn-tint);
 }
 
+/* ---- 룸 마감 리스트 ---- */
+.finish-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+}
+
 /* ---- 상태바 ---- */
 .statusbar {
   position: absolute;
