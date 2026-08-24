@@ -3,10 +3,12 @@ import {
   DEFAULT_WALL_3D,
   FLOOR_FINISHES,
   WALL_FINISHES,
+  finishCost,
   floorColor2d,
   floorColor3d,
   resolveWallColor,
   setRoomFinish,
+  wallFaceColors,
 } from '../src/model/finishes';
 import { createSamplePlan } from '../src/model/samplePlan';
 
@@ -77,5 +79,45 @@ describe('resolveWallColor (3D 벽지 동기화)', () => {
     const wall = plan.walls.find((w) => w.id === 'w-mid-v')!; // 거실|침실 경계
     const mid = { x: 5.35, y: 1.5 };
     expect(resolveWallColor(plan.rooms, wall, mid)).toBe('#ccd8e2');
+  });
+});
+
+describe('wallFaceColors (면 분리 렌더)', () => {
+  it('내벽 양쪽 룸의 벽지가 다르면 면별로 다른 색', () => {
+    let plan = createSamplePlan();
+    plan = setRoomFinish(plan, 'r-living', { wallFinish: 'sage' });
+    plan = setRoomFinish(plan, 'r-bed', { wallFinish: 'skyblue' });
+    const wall = plan.walls.find((w) => w.id === 'w-mid-v')!; // dir (0,1) → normal (-1,0)
+    const faces = wallFaceColors(plan.rooms, wall, { x: 5.35, y: 1.5 });
+    // front = +normal(-x) = 거실측 sage, back = -normal(+x) = 침실측 skyblue
+    expect(faces.front).toBe('#c3cec2');
+    expect(faces.back).toBe('#ccd8e2');
+  });
+
+  it('둘 다 미지정이면 null/null', () => {
+    const plan = createSamplePlan();
+    const wall = plan.walls.find((w) => w.id === 'w-mid-v')!;
+    const faces = wallFaceColors(plan.rooms, wall, { x: 5.35, y: 1.5 });
+    expect(faces).toEqual({ front: null, back: null });
+  });
+});
+
+describe('finishCost (견적 마감 반영)', () => {
+  it('마감 미지정이면 0', () => {
+    expect(finishCost(createSamplePlan())).toEqual({ rows: [], total: 0 });
+  });
+
+  it('바닥 = 단가 × 면적, 벽지 = 단가 × 둘레 × 2.4', () => {
+    let plan = createSamplePlan();
+    plan = setRoomFinish(plan, 'r-bed', { floorFinish: 'vinyl', wallFinish: 'white' });
+    const bed = plan.rooms.find((r) => r.id === 'r-bed')!;
+    const { rows, total } = finishCost(plan);
+    expect(rows).toHaveLength(1);
+    const perimeter = 2 * (5.05 + 3.4); // 침실 폴리곤 (5.35..10.4)×(0..3.4)
+    const expected =
+      Math.round(35_000 * bed.areaSqm) + Math.round(12_000 * perimeter * 2.4);
+    expect(rows[0].sum).toBe(expected);
+    expect(rows[0].labels).toEqual(['장판(우드)', '화이트']);
+    expect(total).toBe(expected);
   });
 });

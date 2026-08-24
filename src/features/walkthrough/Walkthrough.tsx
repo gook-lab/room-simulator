@@ -19,6 +19,7 @@ import { ViewTabs } from '../../components/ViewTabs';
 import { CanvasBoundary } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
 import { PLAYER_RADIUS, buildColliders, moveAndSlide } from '../three/collision';
+import { toggleDayNight } from '../three/lighting';
 import { Minimap, type PlayerPose } from './Minimap';
 
 const WALK_SPEED = 1.4;
@@ -334,6 +335,14 @@ export function Walkthrough() {
         <button className="hud__esc" onClick={() => setView('2d')}>
           <span className="keycap">ESC</span>
           에디터로 돌아가기
+        </button>
+
+        <button
+          className="hud__esc hud__daynight"
+          onClick={() => setLighting({ preset: toggleDayNight(viewer.lighting.preset) })}
+          title="주간/야간 전환"
+        >
+          {viewer.lighting.preset === 'night' ? '주간으로' : '야간으로'}
         </button>
 
         <div className="crosshair">

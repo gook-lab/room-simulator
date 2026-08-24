@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import './dashboard.css';
 import type { Plan } from '../../model/types';
 import { priceByRoom, totalPrice } from '../../model/geometry';
+import { finishCost } from '../../model/finishes';
 import { exportPlan, importPlan } from '../../model/planIO';
 import { useStore } from '../../state/store';
 import { MiniPlan } from '../../components/MiniPlan';
@@ -65,7 +66,9 @@ export function Dashboard() {
   const orderedPlans = planOrder.map((id) => plans[id]).filter(Boolean);
   const estimatePlan = plans[currentPlanId] ?? orderedPlans[0];
   const rows = estimatePlan ? priceByRoom(estimatePlan) : [];
-  const total = estimatePlan ? totalPrice(estimatePlan) : 0;
+  const furnitureTotal = estimatePlan ? totalPrice(estimatePlan) : 0;
+  const finish = estimatePlan ? finishCost(estimatePlan) : { rows: [], total: 0 };
+  const total = furnitureTotal + finish.total;
   const shareUrl = estimatePlan
     ? `roomcast.app/p/${estimatePlan.id.replace('plan-', '')}-${shareViewers3d ? '3d' : 'ro'}`
     : '';
@@ -139,7 +142,9 @@ export function Dashboard() {
           </div>
 
           <div className="estimate-card">
-            <div className="estimate-card__label">가구 합계</div>
+            <div className="estimate-card__label">
+              {finish.total > 0 ? '가구 + 마감 합계' : '가구 합계'}
+            </div>
             <div className="estimate-card__total">
               ₩ {total.toLocaleString('ko-KR')}
             </div>
@@ -154,6 +159,24 @@ export function Dashboard() {
                 </span>
               </div>
             ))}
+            {finish.rows.length > 0 && (
+              <>
+                <div className="estimate-card__divider" style={{ marginTop: 12 }} />
+                <div className="estimate-card__label" style={{ marginBottom: 6 }}>
+                  마감 시공
+                </div>
+                {finish.rows.map((r) => (
+                  <div className="estimate-row" key={`f-${r.roomId}`}>
+                    <span className="estimate-row__name">
+                      {r.roomName} · {r.labels.join(' + ')}
+                    </span>
+                    <span className="estimate-row__price">
+                      ₩{r.sum.toLocaleString('ko-KR')}
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
 
           <div className="share-card">
