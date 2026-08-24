@@ -59,6 +59,7 @@ import {
 } from './PlanCanvas';
 import { CatalogPanel, Inspector, StatusBar, ToolDock } from './panels';
 import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
+import { sketchDraftPoints } from './sketchDraft';
 import { fitCamera, makeTransform, s2w, w2s } from './view';
 
 let idSeq = 0;
@@ -116,7 +117,18 @@ export function Editor2D() {
   const [gestureKind, setGestureKind] = useState<Gesture['type'] | null>(null);
   const [hoverItemId, setHoverItemId] = useState<string | null>(null);
   const [hoverDoor, setHoverDoor] = useState(false);
-  const [wallDraft, setWallDraft] = useState<WallDraft | null>(null);
+  /**
+   * 선 그리기(S) 드래프트 — 프로그레시브 커밋 방식.
+   * 각 세그먼트는 클릭 즉시 plan.walls 에 커밋되어 **선 단위 undo 스택**이 쌓인다.
+   * 드래프트는 앵커(첫 점)+커밋된 벽 id 목록만 들고, 미리보기 점열은 plan 에서 파생
+   * — undo/redo 로 세그먼트가 사라지고 돌아와도 이어그리기 상태가 일관된다.
+   * Esc 는 미커밋 앵커·커서만 취소(커밋된 선은 Cmd+Z 로 한 선씩).
+   */
+  const [wallDraft, setWallDraft] = useState<{
+    anchor: Vec2;
+    wallIds: string[];
+    cursor: Vec2 | null;
+  } | null>(null);
   const [openingHover, setOpeningHover] = useState<OpeningHover | null>(null);
   const [measure, setMeasure] = useState<Measure | null>(null);
   const measureRef = useRef<Measure | null>(null);
@@ -162,9 +174,14 @@ export function Editor2D() {
     }
   }, [pendingFitView, measured, setCamera2d, clearFitView]);
 
+  // 선 그리기 프로그레시브 커밋 중에는 베이스 변환을 드래프트 시작 시점 plan 으로 고정
+  // — 세그먼트 커밋으로 도면 경계가 자라도 그리는 동안 화면이 밀리지 않는다.
+  const draftBasePlanRef = useRef<Plan | null>(null);
+  if (!wallDraft) draftBasePlanRef.current = null;
   const t = useMemo(
-    () => makeTransform(plan, viewport, camera2d),
-    [plan, viewport, camera2d],
+    () => makeTransform(draftBasePlanRef.current ?? plan, viewport, camera2d),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- wallDraft 는 고정 기준 전환 트리거
+    [plan, viewport, camera2d, wallDraft != null],
   );
   const tRef = useRef(t);
   tRef.current = t;
@@ -320,33 +337,57 @@ export function Editor2D() {
     (close: boolean) => {
       const draft = wallDraft;
       setWallDraft(null);
-      if (!draft || draft.points.length < 2) return;
-      updatePlan((pl) => {
-        // 열린 폴리라인은 룸 경계 오버슛을 트리밍 (돌출 벽토막 방지 + 분할 인정)
-        const pts = close ? draft.points : trimPolylineToRooms(pl, draft.points);
-        const walls = [...pl.walls];
-        const segs = close ? pts.length : pts.length - 1;
-        for (let i = 0; i < segs; i++) {
-          const a = pts[i];
-          const b = pts[(i + 1) % pts.length];
-          walls.push({ id: newId('wall'), a, b, thickness: 0.15, height: 2.4 });
-        }
-        let rooms = pl.rooms;
-        if (close && pts.length >= 3) {
+      if (!draft) return;
+      const st = useStore.getState();
+      const pl = st.plans[st.currentPlanId];
+      if (!pl) return;
+      const pts = sketchDraftPoints(pl, draft);
+      if (pts.length < 2) return; // 앵커만 남음 — 취소와 동일
+      const surviving = draft.wallIds.filter((id) => pl.walls.some((w) => w.id === id));
+
+      if (close) {
+        if (pts.length < 3) return;
+        // 닫기: 마지막 세그먼트 + 룸 생성을 하나의 엔트리로 (선 커밋과 별도)
+        updatePlan((p) => {
+          const closing = {
+            id: newId('wall'),
+            a: pts[pts.length - 1],
+            b: pts[0],
+            thickness: 0.15,
+            height: 2.4,
+          };
           const room: Room = {
             id: newId('room'),
-            name: `방 ${pl.rooms.length + 1}`,
-            wallIds: walls.slice(-segs).map((w) => w.id),
+            name: `방 ${p.rooms.length + 1}`,
+            wallIds: [...surviving, closing.id],
             polygon: pts,
             areaSqm: polygonArea(pts),
             floor: 'living',
           };
-          rooms = [...pl.rooms, room];
-        }
-        const next = { ...pl, walls, rooms };
-        // 열린 폴리라인이 기존 룸을 가로지르면 룸 분할 (면적·가구 roomId 재배정)
-        return close ? next : splitRoomByPolyline(next, pts);
-      });
+          return { ...p, walls: [...p.walls, closing], rooms: [...p.rooms, room] };
+        });
+        return;
+      }
+
+      // 열린 폴리라인 마감: 오버슛 트리밍(첫·끝 세그먼트 좌표 보정) + 룸 분할 — 1 엔트리.
+      // 변화가 없으면 엔트리를 만들지 않는다 (무의미한 undo 스텝 방지).
+      const trimmed = trimPolylineToRooms(pl, pts);
+      const coordsChanged =
+        trimmed.length === pts.length &&
+        trimmed.some((p, i) => p.x !== pts[i].x || p.y !== pts[i].y);
+      const wallsAfterTrim = coordsChanged
+        ? pl.walls.map((w) => {
+            let w2 = w;
+            if (w.id === surviving[0]) w2 = { ...w2, a: trimmed[0] };
+            if (w.id === surviving[surviving.length - 1])
+              w2 = { ...w2, b: trimmed[trimmed.length - 1] };
+            return w2;
+          })
+        : pl.walls;
+      const withTrim = coordsChanged ? { ...pl, walls: wallsAfterTrim } : pl;
+      const split = splitRoomByPolyline(withTrim, trimmed);
+      if (!coordsChanged && split === withTrim) return; // 변화 없음
+      updatePlan(() => split);
     },
     [wallDraft, updatePlan],
   );
@@ -425,17 +466,34 @@ export function Editor2D() {
       }
 
       if (tool === 'wall') {
-        const prev = wallDraft?.points[wallDraft.points.length - 1] ?? null;
+        const pts = wallDraft ? sketchDraftPoints(pl, wallDraft) : null;
+        const prev = pts ? pts[pts.length - 1] : null;
         const pt = snapWallPoint(world, prev);
-        if (wallDraft && wallDraft.points.length >= 3) {
-          const startScreen = w2s(tRef.current, wallDraft.points[0]);
+        if (wallDraft && pts && pts.length >= 3) {
+          const startScreen = w2s(tRef.current, pts[0]);
           const cursorScreen = toScreen(e);
           if (Math.hypot(startScreen.x - cursorScreen.x, startScreen.y - cursorScreen.y) < 12) {
             finishWallDraft(true);
             return;
           }
         }
-        setWallDraft((d) => ({ points: [...(d?.points ?? []), pt], cursor: pt }));
+        if (!wallDraft) {
+          draftBasePlanRef.current = pl; // 그리는 동안 뷰 기준 고정
+          setWallDraft({ anchor: pt, wallIds: [], cursor: pt });
+          return;
+        }
+        // 프로그레시브 커밋: 세그먼트 하나 = undo 엔트리 하나 (룸 판정은 finish 시점에만)
+        if (prev && Math.hypot(pt.x - prev.x, pt.y - prev.y) > 1e-9) {
+          const segId = newId('wall');
+          updatePlan((p) => ({
+            ...p,
+            walls: [...p.walls, { id: segId, a: prev, b: pt, thickness: 0.15, height: 2.4 }],
+          }));
+          const surviving = wallDraft.wallIds.filter((id) =>
+            pl.walls.some((w) => w.id === id),
+          );
+          setWallDraft({ ...wallDraft, wallIds: [...surviving, segId], cursor: pt });
+        }
         return;
       }
 
@@ -933,7 +991,8 @@ export function Editor2D() {
         return;
       }
       if (tool === 'wall' && wallDraft) {
-        const prev = wallDraft.points[wallDraft.points.length - 1];
+        const pts = sketchDraftPoints(pl, wallDraft);
+        const prev = pts[pts.length - 1];
         setWallDraft({ ...wallDraft, cursor: snapWallPoint(world, prev) });
         return;
       }
@@ -1221,6 +1280,11 @@ export function Editor2D() {
     };
   })();
 
+  // 드래프트 미리보기(PlanCanvas 렌더용) — plan 파생이라 undo/redo 와 항상 일치
+  const wallDraftView: WallDraft | null = wallDraft
+    ? { points: sketchDraftPoints(plan, wallDraft), cursor: wallDraft.cursor }
+    : null;
+
   const cursor =
     gestureKind === 'pan'
       ? 'grabbing'
@@ -1273,7 +1337,7 @@ export function Editor2D() {
         selection={selection}
         hoverItemId={hoverItemId}
         drag={drag}
-        wallDraft={wallDraft}
+        wallDraft={wallDraftView}
         openingHover={openingHover}
         measure={measure}
         placingGhost={placingGhost}
