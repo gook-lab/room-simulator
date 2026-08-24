@@ -300,3 +300,25 @@
 .dashboard__side .btn--primary.btn--block {
   margin-top: auto;
 }
+
+.backup-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.backup-actions .btn {
+  flex: 1;
+  font-size: 12px;
+  padding: 8px 10px;
+}
+
+.backup-error {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--warn-deep);
+  background: var(--warn-tint);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
