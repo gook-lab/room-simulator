@@ -127,6 +127,8 @@ export type DragState = {
   ghost: Vec2;
   snap: SnapResult | null;
   collisions: string[];
+  /** 문 클리어런스(스윙/통행 존)를 막고 있는 문 id 목록 */
+  blockedDoors: string[];
   /** 카탈로그에서 새로 끌어온 아이템인지 */
   isNew: boolean;
 };

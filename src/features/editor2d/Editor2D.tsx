@@ -10,8 +10,11 @@ import {
   snapValue,
 } from '../../model/geometry';
 import { useCurrentPlan, useStore } from '../../state/store';
+import { blockedDoorIds } from '../../model/doorZones';
+import { toggleDoor } from '../../model/interactions3d';
 import {
   collisionsFor,
+  doorNear,
   findFreeSpot,
   itemAtPoint,
   snapItemMove,
@@ -69,6 +72,7 @@ export function Editor2D() {
   const gestureRef = useRef<Gesture | null>(null);
   const [gestureKind, setGestureKind] = useState<Gesture['type'] | null>(null);
   const [hoverItemId, setHoverItemId] = useState<string | null>(null);
+  const [hoverDoor, setHoverDoor] = useState(false);
   const [wallDraft, setWallDraft] = useState<WallDraft | null>(null);
   const [openingHover, setOpeningHover] = useState<OpeningHover | null>(null);
   const [measure, setMeasure] = useState<Measure | null>(null);
@@ -387,6 +391,14 @@ export function Editor2D() {
       }
 
       const hit = itemAtPoint(pl, world);
+      if (!hit) {
+        // 문 클릭 → 여닫기 토글 (2D에서도 문 상호작용)
+        const door = doorNear(pl, world, tRef.current.s);
+        if (door) {
+          updatePlan((p) => toggleDoor(p, door.opening.id));
+          return;
+        }
+      }
       if (hit) {
         setSelection([hit.id]);
         setPostDrop(null);
@@ -457,8 +469,16 @@ export function Editor2D() {
         );
         const probe = { ...item, position };
         const collisions = collisionsFor(pl, probe);
+        const blockedDoors = blockedDoorIds(pl, probe);
         patchItem(g.itemId, { position }, false);
-        setDrag({ itemId: g.itemId, ghost: position, snap: snapResult, collisions, isNew: false });
+        setDrag({
+          itemId: g.itemId,
+          ghost: position,
+          snap: snapResult,
+          collisions,
+          blockedDoors,
+          isNew: false,
+        });
         return;
       }
 
@@ -522,7 +542,9 @@ export function Editor2D() {
         return;
       }
       if (tool === 'select') {
-        setHoverItemId(itemAtPoint(pl, world)?.id ?? null);
+        const hover = itemAtPoint(pl, world);
+        setHoverItemId(hover?.id ?? null);
+        setHoverDoor(!hover && doorNear(pl, world, tRef.current.s) != null);
       }
     },
     [toWorld, tool, wallDraft, placingCatalogId, patchItem, setDrag, setCamera2d, snapWallPoint],
@@ -550,8 +572,9 @@ export function Editor2D() {
           // 룸 재배정
           patchItem(g.itemId, { roomId: roomAt(pl.rooms, item.position)?.id ?? null }, false);
           if (g.type === 'move') {
-            const collisions = collisionsFor(pl, item);
-            setPostDrop(collisions.length > 0 ? { itemId: g.itemId } : null);
+            const problematic =
+              collisionsFor(pl, item).length > 0 || blockedDoorIds(pl, item).length > 0;
+            setPostDrop(problematic ? { itemId: g.itemId } : null);
           }
         }
         setDrag(null);
@@ -669,14 +692,23 @@ export function Editor2D() {
 
   /* ===== 파생 렌더 데이터 ===== */
 
-  const placingGhost: PlacingGhost | null =
-    placingCatalogId && placingPos
-      ? {
+  const placingGhost: PlacingGhost | null = (() => {
+    if (!placingCatalogId || !placingPos) return null;
+    const cat = catalogById.get(placingCatalogId);
+    const blocked = cat
+      ? blockedDoorIds(plan, {
           catalogId: placingCatalogId,
-          pos: placingPos,
-          valid: roomAt(plan.rooms, placingPos) != null,
-        }
-      : null;
+          position: placingPos,
+          rotationDeg: 0,
+          size: cat.size,
+        }).length > 0
+      : false;
+    return {
+      catalogId: placingCatalogId,
+      pos: placingPos,
+      valid: roomAt(plan.rooms, placingPos) != null && !blocked,
+    };
+  })();
 
   const cursor =
     gestureKind === 'pan'
@@ -689,7 +721,9 @@ export function Editor2D() {
             ? 'crosshair'
             : hoverItemId
               ? 'move'
-              : 'default';
+              : hoverDoor
+                ? 'pointer'
+                : 'default';
 
   const resetView = useCallback(() => {
     const el = hostRef.current;
@@ -707,7 +741,9 @@ export function Editor2D() {
     ? w2s(t, { x: postDropItem.position.x, y: itemAabb(postDropItem).max.y })
     : null;
   const postDropHasCollision =
-    postDropItem != null && collisionsFor(plan, postDropItem).length > 0;
+    postDropItem != null &&
+    (collisionsFor(plan, postDropItem).length > 0 ||
+      blockedDoorIds(plan, postDropItem).length > 0);
 
   return (
     <div className="editor2d" ref={hostRef} onWheel={onWheel}>
