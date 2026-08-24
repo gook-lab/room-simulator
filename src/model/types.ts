@@ -106,7 +106,15 @@ export type Plan = {
 
 /* ===== Catalog ===== */
 
-export type CatalogCategory = 'sofa' | 'table' | 'storage' | 'lighting' | 'rug' | 'decor';
+export type CatalogCategory =
+  | 'sofa'
+  | 'table'
+  | 'bed'
+  | 'storage'
+  | 'lighting'
+  | 'rug'
+  | 'kids'
+  | 'decor';
 
 /** 2D 심볼 / 3D 프리미티브 선택용 형태 힌트 */
 export type CatalogShape =

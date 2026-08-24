@@ -132,9 +132,18 @@ function Thumb({ catalogId }: { catalogId: string }) {
 
 export function CatalogPanel() {
   const [category, setCategory] = useState<CatalogCategory>('sofa');
+  const [query, setQuery] = useState('');
   const placing = useStore((s) => s.placingCatalogId);
   const setPlacing = useStore((s) => s.setPlacing);
-  const items = CATALOG.filter((c) => c.category === category);
+  const q = query.trim().toLowerCase();
+  // 검색 중에는 카테고리 무시하고 전체에서 이름 매칭 (브랜드·상품명 포함)
+  const items = q
+    ? CATALOG.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          (c.product?.brand ?? '').toLowerCase().includes(q),
+      )
+    : CATALOG.filter((c) => c.category === category);
 
   return (
     <aside className="float-panel catalog-panel">
@@ -142,18 +151,32 @@ export function CatalogPanel() {
         <span className="panel-header__title">가구 카탈로그</span>
         <span className="panel-header__meta">{CATALOG.length.toLocaleString()}</span>
       </div>
-      <div className="pills">
-        {CATEGORY_ORDER.map((c) => (
-          <button
-            key={c}
-            className={`pill${category === c ? ' is-active' : ''}`}
-            onClick={() => setCategory(c)}
-          >
-            {CATEGORY_LABELS[c]}
-          </button>
-        ))}
+      <div className="catalog-search">
+        <input
+          className="catalog-search__input"
+          type="search"
+          placeholder="가구 이름 검색"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
       </div>
+      {!q && (
+        <div className="pills">
+          {CATEGORY_ORDER.map((c) => (
+            <button
+              key={c}
+              className={`pill${category === c ? ' is-active' : ''}`}
+              onClick={() => setCategory(c)}
+            >
+              {CATEGORY_LABELS[c]}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="catalog-grid scroll-y">
+        {items.length === 0 && q && (
+          <div className="catalog-empty">'{query.trim()}' 검색 결과가 없습니다</div>
+        )}
         {items.map((c) => {
           const isPlacing = placing === c.id;
           return (

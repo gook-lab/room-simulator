@@ -148,6 +148,41 @@
   letter-spacing: 0.04em;
 }
 
+/* ---- 카탈로그 검색 ---- */
+.catalog-search {
+  padding: 0 16px 10px;
+}
+
+.catalog-search__input {
+  width: 100%;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-field);
+  background: var(--inset-a);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.catalog-search__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.catalog-search__input::placeholder {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.catalog-empty {
+  grid-column: 1 / -1;
+  padding: 18px 0 10px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 /* ---- 인스펙터 ---- */
 .inspector {
   right: var(--panel-margin);
