@@ -10,8 +10,9 @@ import {
   roomAt,
   snapValue,
 } from '../../model/geometry';
+import { catalogById } from '../../model/catalog';
 import { NON_COLLIDING_SHAPES, shapeOf } from './symbols';
-import { itemLayer, sortedItems } from './PlanCanvas';
+import { itemLayer, sortedItems, wallItemPose } from './PlanCanvas';
 
 function isHorizontal(w: Wall): boolean {
   return Math.abs(w.a.y - w.b.y) < 1e-6;
@@ -239,17 +240,31 @@ export function dimensionNear(
   return best?.id ?? null;
 }
 
-/** 클릭 지점의 문 개구부 (2D 문 여닫기 토글용) */
-export function doorNear(
+/** 클릭 지점의 벽 부착 아이템 */
+export function wallItemAt(plan: Plan, world: Vec2): string | null {
+  let best: { id: string; d: number } | null = null;
+  for (const wi of plan.wallItems ?? []) {
+    const pose = wallItemPose(plan, wi.wallId, wi.t, wi.side);
+    if (!pose) continue;
+    const radius = Math.max(0.16, (catalogById.get(wi.catalogId)?.size.w ?? 0.3) / 2);
+    const d = Math.hypot(world.x - pose.center.x, world.y - pose.center.y);
+    if (d < radius && (!best || d < best.d)) best = { id: wi.id, d };
+  }
+  return best?.id ?? null;
+}
+
+/** 클릭 지점의 개구부 (문·창 — 선택/토글용) */
+export function openingNear(
   plan: Plan,
   world: Vec2,
   pxPerM: number,
   thresholdPx = 14,
+  kind?: 'door' | 'window',
 ): { opening: Plan['openings'][number] } | null {
   const threshold = thresholdPx / pxPerM;
   let best: { opening: Plan['openings'][number]; d: number } | null = null;
   for (const o of plan.openings) {
-    if (o.kind !== 'door') continue;
+    if (kind && o.kind !== kind) continue;
     const wall = plan.walls.find((w) => w.id === o.wallId);
     if (!wall) continue;
     const len = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
@@ -264,6 +279,16 @@ export function doorNear(
     }
   }
   return best ? { opening: best.opening } : null;
+}
+
+/** 클릭 지점의 문 개구부 (하위 호환) */
+export function doorNear(
+  plan: Plan,
+  world: Vec2,
+  pxPerM: number,
+  thresholdPx = 14,
+): { opening: Plan['openings'][number] } | null {
+  return openingNear(plan, world, pxPerM, thresholdPx, 'door');
 }
 
 /** 충돌·문 클리어런스 침범 시 "빈 자리로 이동": 나선형 오프셋 탐색 */

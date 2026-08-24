@@ -65,6 +65,10 @@
   background: var(--hud-panel-strong);
 }
 
+.hud__daynight {
+  top: 68px;
+}
+
 /* 크로스헤어 */
 .crosshair {
   position: absolute;

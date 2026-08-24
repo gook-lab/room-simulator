@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { CatalogCategory, PlacedItem, Tool } from '../../model/types';
 import { FLOOR_FINISHES, WALL_FINISHES, setRoomFinish } from '../../model/finishes';
+import { isWallCatalogItem, moveWallItem } from '../../model/wallItems';
+import { deleteOpening, updateOpening } from '../../model/wallEdit';
+import { toggleDoor } from '../../model/interactions3d';
 import { isInteractiveItem, isPowered, togglePower } from '../../model/interactions3d';
 import {
   CATALOG,
@@ -101,7 +104,8 @@ function Thumb({ catalogId }: { catalogId: string }) {
   const cat = catalogById.get(catalogId)!;
   const pad = 0.15;
   const w = cat.size.w + pad * 2;
-  const d = cat.size.d + pad * 2;
+  // 벽 부착 소품은 정면 뷰(w×h)로
+  const d = (isWallCatalogItem(catalogId) ? cat.size.h : cat.size.d) + pad * 2;
   const fake: PlacedItem = {
     id: `thumb-${catalogId}`,
     catalogId,
@@ -217,7 +221,7 @@ function RoomInspector({ roomId }: { roomId: string }) {
   if (!room) return null;
 
   const patch = (p: { floorFinish?: string | null; wallFinish?: string | null }) =>
-    updatePlan((pl) => setRoomFinish(pl, room.id, p));
+    updatePlan((pl) => setRoomFinish(pl, room.id, p), { coalesceKey: `finish-${room.id}` });
 
   return (
     <aside className="float-panel inspector">
@@ -264,6 +268,176 @@ function RoomInspector({ roomId }: { roomId: string }) {
   );
 }
 
+/** 개구부(문·창) 선택 시 속성 패널 — 타입·스윙·폭·개폐·삭제 */
+function OpeningInspector({ openingId }: { openingId: string }) {
+  const plan = useCurrentPlan();
+  const updatePlan = useStore((s) => s.updatePlan);
+  const setSelection = useStore((s) => s.setSelection);
+  const opening = plan.openings.find((o) => o.id === openingId);
+  if (!opening) return null;
+  const isDoor = opening.kind === 'door';
+  const sliding = opening.doorType === 'sliding';
+
+  const patch = (p: Parameters<typeof updateOpening>[2]) =>
+    updatePlan((pl) => updateOpening(pl, opening.id, p), {
+      coalesceKey: `opening-${opening.id}`,
+    });
+
+  return (
+    <aside className="float-panel inspector">
+      <div className="panel-header">
+        <span className="panel-header__title">
+          {isDoor ? (sliding ? '미닫이문' : '여닫이문') : '창'}
+        </span>
+        <span className="badge-accent">개구부</span>
+      </div>
+
+      {isDoor && (
+        <div className="inspector__swatches">
+          <span className="inspector__swatch-label">문 형식</span>
+          <div className="seg-row">
+            <button
+              className={`seg${!sliding ? ' is-active' : ''}`}
+              onClick={() => patch({ doorType: 'hinged' })}
+            >
+              여닫이
+            </button>
+            <button
+              className={`seg${sliding ? ' is-active' : ''}`}
+              onClick={() => patch({ doorType: 'sliding' })}
+            >
+              미닫이
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isDoor && !sliding && (
+        <div className="inspector__swatches">
+          <span className="inspector__swatch-label">스윙 방향</span>
+          <div className="seg-row">
+            <button
+              className={`seg${opening.swing !== 'right' ? ' is-active' : ''}`}
+              onClick={() => patch({ swing: 'left' })}
+            >
+              왼쪽 경첩
+            </button>
+            <button
+              className={`seg${opening.swing === 'right' ? ' is-active' : ''}`}
+              onClick={() => patch({ swing: 'right' })}
+            >
+              오른쪽 경첩
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="inspector__grid" style={{ gridTemplateColumns: '1fr' }}>
+        <NumField
+          label="폭"
+          value={Number(opening.width.toFixed(2))}
+          suffix="m"
+          onCommit={(v) => patch({ width: Math.min(3.0, Math.max(0.5, v)) })}
+        />
+      </div>
+
+      {isDoor && (
+        <div className="inspector__swatches inspector__detail-row" style={{ paddingBottom: 14 }}>
+          <span className="inspector__swatch-label" style={{ marginBottom: 0 }}>
+            열림 상태
+          </span>
+          <button
+            className={`toggle${opening.open !== false ? ' is-on' : ''}`}
+            aria-pressed={opening.open !== false}
+            onClick={() => updatePlan((pl) => toggleDoor(pl, opening.id))}
+          />
+        </div>
+      )}
+
+      <div className="inspector__footer">
+        <span className="inspector__price" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          {isDoor ? '재클릭 시 여닫기' : '벽 위 개구부'}
+        </span>
+        <button
+          className="btn btn--outline detail-danger"
+          onClick={() => {
+            updatePlan((pl) => deleteOpening(pl, opening.id));
+            setSelection([]);
+          }}
+        >
+          삭제
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+/** 벽 부착 아이템 선택 시 패널 */
+function WallItemInspector({ wallItemId }: { wallItemId: string }) {
+  const plan = useCurrentPlan();
+  const updatePlan = useStore((s) => s.updatePlan);
+  const setSelection = useStore((s) => s.setSelection);
+  const wi = (plan.wallItems ?? []).find((w) => w.id === wallItemId);
+  const cat = wi ? catalogById.get(wi.catalogId) : undefined;
+  if (!wi || !cat) return null;
+
+  return (
+    <aside className="float-panel inspector">
+      <div className="panel-header">
+        <span className="panel-header__title">{cat.name}</span>
+        <span className="badge-accent">벽 부착</span>
+      </div>
+      <div className="inspector__grid" style={{ gridTemplateColumns: '1fr' }}>
+        <NumField
+          label="부착 높이"
+          value={Number(wi.heightM.toFixed(2))}
+          suffix="m"
+          onCommit={(v) =>
+            updatePlan(
+              (pl) => moveWallItem(pl, wi.id, { heightM: Math.min(2.3, Math.max(0.3, v)) }),
+              { coalesceKey: `witem-${wi.id}` },
+            )
+          }
+        />
+      </div>
+      <div className="inspector__swatches">
+        <span className="inspector__swatch-label">{cat.materialLabel}</span>
+        <div className="inspector__swatch-row">
+          {cat.swatches.map((sw) => (
+            <button
+              key={sw.id}
+              className={`swatch${wi.variant.material === sw.id ? ' is-active' : ''}`}
+              style={{ background: sw.color }}
+              title={sw.label}
+              onClick={() =>
+                updatePlan(
+                  (pl) => moveWallItem(pl, wi.id, { variant: { material: sw.id, color: sw.color } }),
+                  { coalesceKey: `witem-${wi.id}` },
+                )
+              }
+            />
+          ))}
+        </div>
+      </div>
+      <div className="inspector__footer">
+        <span className="inspector__price">{formatPrice(wi.price)}</span>
+        <button
+          className="btn btn--outline detail-danger"
+          onClick={() => {
+            updatePlan((pl) => ({
+              ...pl,
+              wallItems: (pl.wallItems ?? []).filter((w) => w.id !== wi.id),
+            }));
+            setSelection([]);
+          }}
+        >
+          삭제
+        </button>
+      </div>
+    </aside>
+  );
+}
+
 export function Inspector() {
   const plan = useCurrentPlan();
   const selection = useStore((s) => s.selection);
@@ -275,6 +449,14 @@ export function Inspector() {
   useEffect(() => setDetailOpen(false), [selectedId]);
   const item = selectedId ? plan.items.find((i) => i.id === selectedId) : undefined;
   if (!item) {
+    // 개구부(문·창) 선택
+    if (selectedId && plan.openings.some((o) => o.id === selectedId)) {
+      return <OpeningInspector openingId={selectedId} />;
+    }
+    // 벽 부착 아이템 선택
+    if (selectedId && (plan.wallItems ?? []).some((w) => w.id === selectedId)) {
+      return <WallItemInspector wallItemId={selectedId} />;
+    }
     // 룸 선택이면 마감재 패널
     if (selectedId && plan.rooms.some((r) => r.id === selectedId)) {
       return <RoomInspector roomId={selectedId} />;
@@ -285,10 +467,13 @@ export function Inspector() {
   if (!cat) return null;
 
   const patch = (p: Partial<PlacedItem>) =>
-    updatePlan((pl) => ({
-      ...pl,
-      items: pl.items.map((i) => (i.id === item.id ? { ...i, ...p } : i)),
-    }));
+    updatePlan(
+      (pl) => ({
+        ...pl,
+        items: pl.items.map((i) => (i.id === item.id ? { ...i, ...p } : i)),
+      }),
+      { coalesceKey: `item-${item.id}` },
+    );
 
   return (
     <aside className="float-panel inspector">

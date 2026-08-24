@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { Opening, PlacedItem, Plan, ViewerState, Wall } from '../../model/types';
 import { catalogById } from '../../model/catalog';
-import { floorColor3d, resolveWallColor } from '../../model/finishes';
+import { DEFAULT_WALL_3D, floorColor3d, wallFaceColors } from '../../model/finishes';
 import { isDoorOpen, isPowered } from '../../model/interactions3d';
 import { darken, lampPartColors, lighten } from '../editor2d/symbols';
 import { LIGHT_PRESETS } from './lighting';
@@ -53,8 +53,14 @@ function Walls({ plan }: { plan: Plan }) {
       size: [number, number, number];
       rotY: number;
       color: string;
+      /** 양면 벽지가 다를 때 면별 패널 색 (로컬 +z / -z) */
+      facePanels: { front: string; back: string } | null;
     }[] = [];
-    const glass: typeof solid = [];
+    const glass: {
+      pos: [number, number, number];
+      size: [number, number, number];
+      rotY: number;
+    }[] = [];
     for (const wall of plan.walls) {
       const len = wallLength(wall);
       if (len < 1e-6) continue;
@@ -63,18 +69,27 @@ function Walls({ plan }: { plan: Plan }) {
         const mid = (box.start + box.end) / 2;
         const cx = wall.a.x + Math.cos(angle) * mid;
         const cz = wall.a.y + Math.sin(angle) * mid;
-        const entry = {
-          pos: [cx, (box.bottom + box.top) / 2, cz] as [number, number, number],
-          size: [
-            box.end - box.start,
-            box.top - box.bottom,
-            box.kind === 'glass' ? 0.04 : wall.thickness,
-          ] as [number, number, number],
+        const pos = [cx, (box.bottom + box.top) / 2, cz] as [number, number, number];
+        const size = [
+          box.end - box.start,
+          box.top - box.bottom,
+          box.kind === 'glass' ? 0.04 : wall.thickness,
+        ] as [number, number, number];
+        if (box.kind === 'glass') {
+          glass.push({ pos, size, rotY: -angle });
+          continue;
+        }
+        // 벽지: 면별 색 해석 — 양면이 다르면 면 분리 패널로 렌더
+        const faces = wallFaceColors(plan.rooms, wall, { x: cx, y: cz });
+        const front = faces.front ?? DEFAULT_WALL_3D;
+        const back = faces.back ?? DEFAULT_WALL_3D;
+        solid.push({
+          pos,
+          size,
           rotY: -angle,
-          // 벽지: 세그먼트 중점이 접한 룸의 wallFinish (finishes.ts)
-          color: resolveWallColor(plan.rooms, wall, { x: cx, y: cz }),
-        };
-        (box.kind === 'glass' ? glass : solid).push(entry);
+          color: front === back ? front : DEFAULT_WALL_3D,
+          facePanels: front === back ? null : { front, back },
+        });
       }
     }
     return { solid, glass };
@@ -83,10 +98,24 @@ function Walls({ plan }: { plan: Plan }) {
   return (
     <group>
       {parts.solid.map((p, i) => (
-        <mesh key={`s${i}`} position={p.pos} rotation={[0, p.rotY, 0]} castShadow receiveShadow>
-          <boxGeometry args={p.size} />
-          <meshStandardMaterial color={p.color} roughness={0.9} />
-        </mesh>
+        <group key={`s${i}`} position={p.pos} rotation={[0, p.rotY, 0]}>
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={p.size} />
+            <meshStandardMaterial color={p.color} roughness={0.9} />
+          </mesh>
+          {p.facePanels && (
+            <>
+              <mesh position={[0, 0, p.size[2] / 2 + 0.004]}>
+                <planeGeometry args={[p.size[0], p.size[1]]} />
+                <meshStandardMaterial color={p.facePanels.front} roughness={0.9} />
+              </mesh>
+              <mesh position={[0, 0, -p.size[2] / 2 - 0.004]} rotation={[0, Math.PI, 0]}>
+                <planeGeometry args={[p.size[0], p.size[1]]} />
+                <meshStandardMaterial color={p.facePanels.back} roughness={0.9} />
+              </mesh>
+            </>
+          )}
+        </group>
       ))}
       {parts.glass.map((p, i) => (
         <mesh key={`g${i}`} position={p.pos} rotation={[0, p.rotY, 0]}>
@@ -240,6 +269,87 @@ function Doors({
             />
           );
         })}
+    </group>
+  );
+}
+
+/* ===== 벽 부착 아이템 3D ===== */
+
+function WallItemMesh({ plan, id }: { plan: Plan; id: string }) {
+  const wi = (plan.wallItems ?? []).find((w) => w.id === id);
+  const cat = wi ? catalogById.get(wi.catalogId) : undefined;
+  const wall = wi ? plan.walls.find((w) => w.id === wi.wallId) : undefined;
+  if (!wi || !cat || !wall) return null;
+  const len = wallLength(wall);
+  if (len < 1e-6) return null;
+  const dir = { x: (wall.b.x - wall.a.x) / len, y: (wall.b.y - wall.a.y) / len };
+  const normal = { x: -dir.y, y: dir.x };
+  const sign = wi.side === 'front' ? 1 : -1;
+  const p = {
+    x: wall.a.x + dir.x * wi.t * len,
+    y: wall.a.y + dir.y * wi.t * len,
+  };
+  const off = wall.thickness / 2 + cat.size.d / 2 + 0.005;
+  const angle = Math.atan2(dir.y, dir.x);
+  const rotY = -angle + (wi.side === 'back' ? Math.PI : 0);
+  const { w, d, h } = cat.size;
+  const c = wi.variant.color;
+
+  let body: React.ReactNode;
+  switch (cat.shape) {
+    case 'wall-clock':
+      body = (
+        <group>
+          <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <cylinderGeometry args={[w / 2, w / 2, d, 24]} />
+            <meshStandardMaterial color="#f2efe9" roughness={0.5} />
+          </mesh>
+          <mesh position={[0, h * 0.14, d / 2 + 0.002]}>
+            <boxGeometry args={[0.012, h * 0.3, 0.004]} />
+            <meshStandardMaterial color={darken(c, 0.2)} />
+          </mesh>
+          <mesh position={[w * 0.1, 0, d / 2 + 0.002]} rotation={[0, 0, -Math.PI / 3]}>
+            <boxGeometry args={[0.008, h * 0.22, 0.004]} />
+            <meshStandardMaterial color={darken(c, 0.2)} />
+          </mesh>
+        </group>
+      );
+      break;
+    case 'wall-mirror':
+      body = (
+        <group>
+          <mesh castShadow>
+            <boxGeometry args={[w, h, d]} />
+            <meshStandardMaterial color={c} roughness={0.7} />
+          </mesh>
+          <mesh position={[0, 0, d / 2 + 0.002]}>
+            <planeGeometry args={[w - 0.06, h - 0.06]} />
+            <meshStandardMaterial color="#dfeaf2" metalness={0.85} roughness={0.08} />
+          </mesh>
+        </group>
+      );
+      break;
+    default: // frame
+      body = (
+        <group>
+          <mesh castShadow>
+            <boxGeometry args={[w, h, d]} />
+            <meshStandardMaterial color={c} roughness={0.75} />
+          </mesh>
+          <mesh position={[0, 0, d / 2 + 0.002]}>
+            <planeGeometry args={[w - 0.07, h - 0.07]} />
+            <meshStandardMaterial color="#cfd8ce" roughness={0.9} />
+          </mesh>
+        </group>
+      );
+  }
+
+  return (
+    <group
+      position={[p.x + normal.x * off * sign, wi.heightM, p.y + normal.y * off * sign]}
+      rotation={[0, rotY, 0]}
+    >
+      {body}
     </group>
   );
 }
@@ -778,6 +888,9 @@ export function PlanScene({
       <Floors plan={plan} />
       <Walls plan={plan} />
       <Doors plan={plan} doorGroupRef={doorGroupRef} highlightOpeningId={highlightOpeningId} />
+      {(plan.wallItems ?? []).map((wi) => (
+        <WallItemMesh key={wi.id} plan={plan} id={wi.id} />
+      ))}
       {showCeiling && <Ceiling plan={plan} />}
       <group ref={furnitureGroupRef}>
         {plan.items.map((item) => (

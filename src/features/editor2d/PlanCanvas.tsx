@@ -14,6 +14,85 @@ import { FurnitureSymbol, shapeOf } from './symbols';
 import { w2s, type ViewTransform } from './view';
 
 export type WallDraft = { points: Vec2[]; cursor: Vec2 | null };
+export type WallItemGhost = {
+  catalogId: string;
+  wallId: string;
+  t: number;
+  side: 'front' | 'back';
+  valid: boolean;
+} | null;
+
+/** 벽 부착 아이템의 플랜 뷰 좌표 계산 (world) */
+export function wallItemPose(
+  plan: Plan,
+  wallId: string,
+  t: number,
+  side: 'front' | 'back',
+): { center: Vec2; angleDeg: number } | null {
+  const wall = plan.walls.find((w) => w.id === wallId);
+  if (!wall) return null;
+  const len = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
+  if (len < 1e-6) return null;
+  const dir = { x: (wall.b.x - wall.a.x) / len, y: (wall.b.y - wall.a.y) / len };
+  const normal = { x: -dir.y, y: dir.x };
+  const sign = side === 'front' ? 1 : -1;
+  const p = wallPointAt(wall, t);
+  const off = wall.thickness / 2 + 0.055;
+  return {
+    center: { x: p.x + normal.x * off * sign, y: p.y + normal.y * off * sign },
+    angleDeg: (Math.atan2(dir.y, dir.x) * 180) / Math.PI,
+  };
+}
+
+/** 벽 부착 아이템 플랜 뷰 글리프 */
+export function WallItemGlyph({
+  plan,
+  catalogId,
+  wallId,
+  t,
+  side,
+  color,
+  state,
+}: {
+  plan: Plan;
+  catalogId: string;
+  wallId: string;
+  t: number;
+  side: 'front' | 'back';
+  color: string;
+  state: 'normal' | 'selected' | 'ghost-ok' | 'ghost-bad';
+}) {
+  const cat = catalogById.get(catalogId);
+  const pose = wallItemPose(plan, wallId, t, side);
+  if (!cat || !pose) return null;
+  const w = cat.size.w;
+  const stroke =
+    state === 'selected' ? '#0e9f6e' : state === 'ghost-bad' ? '#e8590c' : state === 'ghost-ok' ? '#0e9f6e' : '#8a7a62';
+  const dash = state.startsWith('ghost') ? '5 4' : undefined;
+  const opacity = state.startsWith('ghost') ? 0.7 : 1;
+  return (
+    <g
+      transform={`translate(${pose.center.x} ${pose.center.y}) rotate(${pose.angleDeg})`}
+      opacity={opacity}
+    >
+      {cat.shape === 'wall-clock' ? (
+        <circle r={w / 2} fill={color} stroke={stroke} strokeWidth={state === 'normal' ? 1.2 : 2} strokeDasharray={dash} {...NSS} />
+      ) : (
+        <rect
+          x={-w / 2}
+          y={-0.045}
+          width={w}
+          height={0.09}
+          fill={cat.shape === 'wall-mirror' ? '#eaf2f6' : color}
+          stroke={stroke}
+          strokeWidth={state === 'normal' ? 1.2 : 2}
+          strokeDasharray={dash}
+          {...NSS}
+        />
+      )}
+    </g>
+  );
+}
 export type OpeningHover = { wallId: string; t: number; kind: 'door' | 'window' };
 export type Measure = { a: Vec2; b: Vec2 };
 export type PlacingGhost = { catalogId: string; pos: Vec2; valid: boolean };
@@ -31,6 +110,7 @@ export type PlanCanvasProps = {
   measure: Measure | null;
   placingGhost: PlacingGhost | null;
   marquee: { a: Vec2; b: Vec2 } | null;
+  wallItemGhost: WallItemGhost;
   rotatingItemId: string | null;
   resizingItemId: string | null;
   svgRef: React.RefObject<SVGSVGElement>;
@@ -54,7 +134,7 @@ export function sortedItems(plan: Plan): PlacedItem[] {
 
 const NSS = { vectorEffect: 'non-scaling-stroke' } as const;
 
-function WallLines({ plan }: { plan: Plan }) {
+export function WallLines({ plan }: { plan: Plan }) {
   return (
     <g>
       {plan.walls.map((w) => (
@@ -73,7 +153,7 @@ function WallLines({ plan }: { plan: Plan }) {
   );
 }
 
-function OpeningGlyph({ plan, opening }: { plan: Plan; opening: Opening }) {
+export function OpeningGlyph({ plan, opening }: { plan: Plan; opening: Opening }) {
   const wall = plan.walls.find((w) => w.id === opening.wallId);
   if (!wall) return null;
   const len = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
@@ -167,7 +247,7 @@ function centroid(poly: Vec2[]): Vec2 {
   return { x: x / poly.length, y: y / poly.length };
 }
 
-function RoomLabels({ plan, t }: { plan: Plan; t: ViewTransform }) {
+export function RoomLabels({ plan, t }: { plan: Plan; t: ViewTransform }) {
   return (
     <g>
       {plan.rooms.map((r) => {
@@ -208,7 +288,7 @@ function DimLabel({ x, y, text }: { x: number; y: number; text: string }) {
 }
 
 /** 도면 외곽 치수선 (상단 폭 / 우측 높이) */
-function BoundsDimensions({ plan, t }: { plan: Plan; t: ViewTransform }) {
+export function BoundsDimensions({ plan, t }: { plan: Plan; t: ViewTransform }) {
   const b = planBounds(plan);
   if (plan.walls.length === 0) return null;
   const tl = w2s(t, b.min);
@@ -261,6 +341,46 @@ function ScreenChip({
       >
         {text}
       </text>
+    </g>
+  );
+}
+
+/**
+ * 휴지통(삭제) 버튼 위치 — 선택된 가구들의 결합 AABB 우상단 바깥 (world 좌표).
+ * 선택에 가구가 없으면 null. Editor2D 히트테스트와 공유한다.
+ */
+export function trashButtonPos(
+  plan: Plan,
+  selection: string[],
+  s: number,
+): Vec2 | null {
+  const items = plan.items.filter((i) => selection.includes(i.id));
+  if (items.length === 0) return null;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  for (const item of items) {
+    const b = itemAabb(item);
+    maxX = Math.max(maxX, b.max.x);
+    minY = Math.min(minY, b.min.y);
+  }
+  return { x: maxX + 16 / s, y: minY - 16 / s };
+}
+
+/** 휴지통 버튼 (world 레이어, 논스케일 스트로크) */
+function TrashButton({ pos, s }: { pos: Vec2; s: number }) {
+  const r = 11 / s;
+  const u = 1 / s; // 1px
+  return (
+    <g transform={`translate(${pos.x} ${pos.y})`}>
+      <circle r={r} fill="#ffffff" stroke="#e8590c" strokeWidth={2} {...NSS} />
+      <g stroke="#e8590c" strokeWidth={1.6} strokeLinecap="round" fill="none">
+        {/* 뚜껑 */}
+        <line x1={-5 * u} y1={-3 * u} x2={5 * u} y2={-3 * u} {...NSS} />
+        <line x1={-2 * u} y1={-5 * u} x2={2 * u} y2={-5 * u} {...NSS} />
+        {/* 몸통 */}
+        <path d={`M ${-3.5 * u} ${-3 * u} L ${-3 * u} ${5 * u} L ${3 * u} ${5 * u} L ${3.5 * u} ${-3 * u}`} {...NSS} />
+        <line x1={0} y1={-1 * u} x2={0} y2={3 * u} {...NSS} />
+      </g>
     </g>
   );
 }
@@ -572,7 +692,7 @@ function OpeningHoverMarker({
 }
 
 /** 영속 치수 주석 — 틱 달린 치수선 + 길이 칩. 선택 시 accent */
-function DimensionNotes({
+export function DimensionNotes({
   plan,
   t,
   selection,
@@ -756,9 +876,92 @@ export function PlanCanvas(props: PlanCanvasProps) {
         {plan.openings.map((o) => (
           <OpeningGlyph key={o.id} plan={plan} opening={o} />
         ))}
+        {/* 벽 부착 아이템 */}
+        {(plan.wallItems ?? []).map((wi) => (
+          <WallItemGlyph
+            key={wi.id}
+            plan={plan}
+            catalogId={wi.catalogId}
+            wallId={wi.wallId}
+            t={wi.t}
+            side={wi.side}
+            color={wi.variant.color}
+            state={selection.includes(wi.id) ? 'selected' : 'normal'}
+          />
+        ))}
+        {props.wallItemGhost && (
+          <WallItemGlyph
+            plan={plan}
+            catalogId={props.wallItemGhost.catalogId}
+            wallId={props.wallItemGhost.wallId}
+            t={props.wallItemGhost.t}
+            side={props.wallItemGhost.side}
+            color={catalogById.get(props.wallItemGhost.catalogId)?.swatches[0]?.color ?? '#c9a882'}
+            state={props.wallItemGhost.valid ? 'ghost-ok' : 'ghost-bad'}
+          />
+        )}
+        {/* 선택된 벽: 하이라이트 + 끝점 핸들 */}
+        {plan.walls
+          .filter((w) => selection.includes(w.id))
+          .map((w) => (
+            <g key={`wsel-${w.id}`}>
+              <line
+                x1={w.a.x}
+                y1={w.a.y}
+                x2={w.b.x}
+                y2={w.b.y}
+                stroke="#0e9f6e"
+                strokeWidth={w.thickness + 0.04}
+                strokeLinecap="square"
+                opacity={0.55}
+              />
+              {(['a', 'b'] as const).map((end) => (
+                <circle
+                  key={end}
+                  cx={w[end].x}
+                  cy={w[end].y}
+                  r={7 / t.s}
+                  fill="#ffffff"
+                  stroke="#0e9f6e"
+                  strokeWidth={2}
+                  {...NSS}
+                />
+              ))}
+            </g>
+          ))}
+        {/* 선택된 개구부: accent 라인 */}
+        {plan.openings
+          .filter((o) => selection.includes(o.id))
+          .map((o) => {
+            const wall = plan.walls.find((w) => w.id === o.wallId);
+            if (!wall) return null;
+            const len = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
+            const dir = { x: (wall.b.x - wall.a.x) / len, y: (wall.b.y - wall.a.y) / len };
+            const c = wallPointAt(wall, o.t);
+            const half = o.width / 2;
+            return (
+              <line
+                key={`osel-${o.id}`}
+                x1={c.x - dir.x * half}
+                y1={c.y - dir.y * half}
+                x2={c.x + dir.x * half}
+                y2={c.y + dir.y * half}
+                stroke="#0e9f6e"
+                strokeWidth={wall.thickness + 0.06}
+                opacity={0.4}
+                strokeLinecap="butt"
+              />
+            );
+          })}
         {/* 선택 UI (world 스케일, 논스케일 스트로크) */}
         {!drag &&
           selectedItems.map((item) => <SelectionUI key={item.id} item={item} t={t} />)}
+        {/* 휴지통(삭제) 버튼 — 선택 가구 결합 AABB 우상단 */}
+        {!drag &&
+          (() => {
+            const pos = trashButtonPos(plan, selection, t.s);
+            return pos ? <TrashButton pos={pos} s={t.s} /> : null;
+          })()}
       </g>
 
       {/* ===== screen 좌표 레이어 (라벨·오버레이) ===== */}

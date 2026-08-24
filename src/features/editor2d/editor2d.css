@@ -325,6 +325,36 @@
   background: var(--warn-tint);
 }
 
+/* ---- 세그먼트 토글 (문 형식·스윙) ---- */
+.seg-row {
+  display: flex;
+  background: var(--neutral-fill);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.seg {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  transition: background var(--ease-color), color var(--ease-color);
+}
+
+.seg:hover {
+  color: var(--ink);
+}
+
+.seg.is-active {
+  background: #ffffff;
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: var(--shadow-tab);
+}
+
 /* ---- 룸 마감 리스트 ---- */
 .finish-list {
   display: flex;

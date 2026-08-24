@@ -135,3 +135,55 @@ describe('timeAgoLabel', () => {
     expect(timeAgoLabel(Date.now() - 2 * 60 * 60_000)).toBe('2시간 전 저장');
   });
 });
+
+describe('히스토리 코얼레싱 (400ms 연타 묶기)', () => {
+  it('같은 coalesceKey 연속 커밋은 히스토리 1개 — undo 한 번에 복원', () => {
+    vi.useFakeTimers();
+    try {
+      const s = useStore.getState();
+      s.openPlan(s.planOrder[0]);
+      const origName = useStore.getState().plans[useStore.getState().currentPlanId].name;
+      const pastLen = () => useStore.getState().history.past.length;
+      const base = pastLen();
+      useStore.getState().updatePlan((pl) => ({ ...pl, name: 'A' }), { coalesceKey: 'k1' });
+      vi.advanceTimersByTime(100);
+      useStore.getState().updatePlan((pl) => ({ ...pl, name: 'B' }), { coalesceKey: 'k1' });
+      vi.advanceTimersByTime(100);
+      useStore.getState().updatePlan((pl) => ({ ...pl, name: 'C' }), { coalesceKey: 'k1' });
+      expect(pastLen()).toBe(base + 1); // 3연타 = 히스토리 1개
+      useStore.getState().undo();
+      expect(useStore.getState().plans[useStore.getState().currentPlanId].name).toBe(origName);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('키가 다르거나 400ms 지나면 별도 엔트리', () => {
+    vi.useFakeTimers();
+    try {
+      const s = useStore.getState();
+      s.openPlan(s.planOrder[0]);
+      const pastLen = () => useStore.getState().history.past.length;
+      const base = pastLen();
+      useStore.getState().updatePlan((pl) => ({ ...pl, name: 'A' }), { coalesceKey: 'k1' });
+      useStore.getState().updatePlan((pl) => ({ ...pl, name: 'B' }), { coalesceKey: 'k2' });
+      expect(pastLen()).toBe(base + 2);
+      vi.advanceTimersByTime(500);
+      useStore.getState().updatePlan((pl) => ({ ...pl, name: 'C' }), { coalesceKey: 'k2' });
+      expect(pastLen()).toBe(base + 3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('undo 후 같은 키 커밋은 코얼레싱되지 않는다 (체인 절단)', () => {
+    const s = useStore.getState();
+    s.openPlan(s.planOrder[0]);
+    const pastLen = () => useStore.getState().history.past.length;
+    useStore.getState().updatePlan((pl) => ({ ...pl, name: 'A' }), { coalesceKey: 'k1' });
+    useStore.getState().undo();
+    const base = pastLen();
+    useStore.getState().updatePlan((pl) => ({ ...pl, name: 'B' }), { coalesceKey: 'k1' });
+    expect(pastLen()).toBe(base + 1);
+  });
+});

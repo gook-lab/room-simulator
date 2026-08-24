@@ -119,6 +119,29 @@ export function importPlan(json: string): ImportResult {
       return { ok: false, error: `가구 데이터가 잘못되었습니다 (id: ${String(i?.id)})` };
     }
   }
+  if (plan.wallItems != null) {
+    if (!Array.isArray(plan.wallItems)) {
+      return { ok: false, error: 'plan.wallItems 가 배열이 아닙니다.' };
+    }
+    for (const wi of plan.wallItems) {
+      if (
+        !isStr(wi.id) ||
+        !isStr(wi.catalogId) ||
+        !isStr(wi.wallId) ||
+        !isNum(wi.t) ||
+        wi.t < 0 ||
+        wi.t > 1 ||
+        !isNum(wi.heightM) ||
+        (wi.side !== 'front' && wi.side !== 'back') ||
+        !isNum(wi.price)
+      ) {
+        return { ok: false, error: `벽 부착 아이템 데이터가 잘못되었습니다 (id: ${String(wi?.id)})` };
+      }
+      if (!plan.walls.some((w) => w.id === wi.wallId)) {
+        return { ok: false, error: `벽 부착 아이템 ${wi.id} 가 존재하지 않는 벽(${wi.wallId})을 참조합니다.` };
+      }
+    }
+  }
   if (plan.dimensions != null) {
     if (
       !Array.isArray(plan.dimensions) ||
