@@ -1,0 +1,351 @@
+/* ===== 3D 워크스루 HUD (1d) ===== */
+
+.walkthrough {
+  position: fixed;
+  inset: 0;
+  background: #2a2521;
+  overflow: hidden;
+}
+
+.walkthrough__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.walkthrough__vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 90% at 50% 45%,
+    rgba(0, 0, 0, 0) 42%,
+    rgba(30, 24, 18, 0.42) 100%
+  );
+  z-index: 1;
+}
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  color: var(--hud-text);
+}
+
+.hud > * {
+  pointer-events: auto;
+}
+
+.hud__tabs {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.hud__esc {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--hud-panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hud-text);
+  box-shadow: var(--shadow-hud-chip);
+}
+
+.hud__esc:hover {
+  background: var(--hud-panel-strong);
+}
+
+/* 크로스헤어 */
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.crosshair span {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 1px;
+}
+
+.crosshair span:nth-child(1) {
+  width: 2px;
+  height: 9px;
+  left: 12px;
+  top: 0;
+}
+
+.crosshair span:nth-child(2) {
+  width: 2px;
+  height: 9px;
+  left: 12px;
+  bottom: 0;
+}
+
+.crosshair span:nth-child(3) {
+  width: 9px;
+  height: 2px;
+  top: 12px;
+  left: 0;
+}
+
+.crosshair span:nth-child(4) {
+  width: 9px;
+  height: 2px;
+  top: 12px;
+  right: 0;
+}
+
+/* 응시 대상 칩 */
+.gaze-chip {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 34px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  background: rgba(247, 244, 239, 0.94);
+  color: var(--ink);
+  border-radius: 10px;
+  box-shadow: var(--shadow-hud-chip);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.gaze-chip__name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gaze-chip__dist {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.gaze-chip__action {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-tint);
+  padding: 3px 7px;
+  border-radius: 5px;
+}
+
+/* 시작 안내 */
+.start-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 80px);
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  background: var(--hud-panel);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hud-text-2);
+  pointer-events: none;
+  box-shadow: var(--shadow-hud-chip);
+  white-space: nowrap;
+}
+
+/* HUD 패널 공통 */
+.hud-panel {
+  position: absolute;
+  background: var(--hud-panel);
+  backdrop-filter: blur(11px);
+  -webkit-backdrop-filter: blur(11px);
+  border-radius: 13px;
+  box-shadow: var(--shadow-hud-chip);
+  padding: 12px 14px;
+}
+
+.hud-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+.hud-panel__title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--hud-text);
+}
+
+.hud-panel__meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hud-mono);
+}
+
+/* 미니맵 */
+.hud__minimap {
+  top: 20px;
+  right: 20px;
+  width: 250px;
+}
+
+/* 조작 안내 */
+.hud__controls {
+  left: 20px;
+  bottom: 20px;
+}
+
+.controls-grid {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+
+.wasd {
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  gap: 4px;
+  justify-items: center;
+}
+
+.wasd .keycap {
+  width: 34px;
+  height: 30px;
+  font-size: 12px;
+}
+
+.controls-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--hud-text-2);
+}
+
+/* 조명·카메라 패널 */
+.hud__light {
+  right: 20px;
+  bottom: 20px;
+  width: 250px;
+}
+
+.light-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  background: rgba(247, 244, 239, 0.1);
+  border-radius: 9px;
+  padding: 3px;
+  margin-bottom: 12px;
+}
+
+.light-presets button {
+  padding: 7px 4px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hud-text-2);
+  transition: background var(--ease-color), color var(--ease-color);
+}
+
+.light-presets button:hover {
+  background: rgba(247, 244, 239, 0.16);
+}
+
+.light-presets button.is-active {
+  background: var(--hud-text);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.hud-slider {
+  margin-bottom: 11px;
+}
+
+.hud-slider__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hud-text-2);
+  margin-bottom: 6px;
+}
+
+.hud-slider__value {
+  font-family: var(--font-mono);
+  color: var(--hud-text);
+}
+
+.hud__divider {
+  height: 1px;
+  background: var(--hud-divider);
+  margin: 10px -14px;
+}
+
+.hud-row-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hud-text-2);
+}
+
+/* E 편집 패널 */
+.gaze-edit {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 250px;
+}
+
+.gaze-edit__swatches {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.gaze-edit__price {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--hud-text);
+}
+
+.gaze-edit__close {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(247, 244, 239, 0.16);
+  color: var(--hud-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gaze-edit__close:hover {
+  background: rgba(247, 244, 239, 0.24);
+}
