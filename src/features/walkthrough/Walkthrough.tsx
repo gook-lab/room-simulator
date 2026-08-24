@@ -358,7 +358,9 @@ export function Walkthrough() {
 
         {locked && gazeDoor && !editItemId && (
           <div className="gaze-chip">
-            <span className="gaze-chip__name">문</span>
+            <span className="gaze-chip__name">
+              {gazeDoor.doorType === 'sliding' ? '미닫이문' : '문'}
+            </span>
             <span className="gaze-chip__dist">{gaze!.distance.toFixed(1)} m</span>
             <span className="gaze-chip__action">
               클릭 · {isDoorOpen(gazeDoor) ? '닫기' : '열기'}

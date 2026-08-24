@@ -54,7 +54,17 @@ function zonesForDoor(wall: Wall, o: Opening): DoorZone[] | null {
   const half = o.width / 2;
   const p1 = { x: center.x - dir.x * half, y: center.y - dir.y * half };
   const p2 = { x: center.x + dir.x * half, y: center.y + dir.y * half };
-  // 2D 스윙 호와 동일 규칙: left → +normal 쪽, right → -normal 쪽
+
+  // 미닫이: 스윙 존 없음 — 양쪽 통행 스트립만
+  if (o.doorType === 'sliding') {
+    const negN = { x: -normal.x, y: -normal.y };
+    return [
+      { openingId: o.id, kind: 'pass', corners: rect(p1, p2, normal, DOOR_PASS_DEPTH) },
+      { openingId: o.id, kind: 'pass', corners: rect(p1, p2, negN, DOOR_PASS_DEPTH) },
+    ];
+  }
+
+  // 여닫이: 2D 스윙 호와 동일 규칙 — left → +normal 쪽, right → -normal 쪽
   const swingSign = o.swing === 'right' ? -1 : 1;
   const swingN = { x: normal.x * swingSign, y: normal.y * swingSign };
   const passN = { x: -swingN.x, y: -swingN.y };

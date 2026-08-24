@@ -103,3 +103,39 @@ describe('문 앞 가구 배치 금지 규칙 — 샘플·템플릿 전수', () 
     });
   }
 });
+
+describe('미닫이문 (sliding) 존', () => {
+  it('스윙 존 없음 — 양쪽 통행 스트립(0.3m)만', () => {
+    const plan = miniPlan();
+    plan.openings.push({
+      id: 'd-slide', wallId: 'w1', t: 0.5, width: 1.2, kind: 'door', doorType: 'sliding',
+    });
+    const zones = doorZones(plan).filter((z) => z.openingId === 'd-slide');
+    expect(zones).toHaveLength(2);
+    expect(zones.every((z) => z.kind === 'pass')).toBe(true);
+    const ys = zones.flatMap((z) => z.corners.map((c) => c.y));
+    expect(Math.max(...ys)).toBeCloseTo(DOOR_PASS_DEPTH);
+    expect(Math.min(...ys)).toBeCloseTo(-DOOR_PASS_DEPTH);
+  });
+
+  it('미닫이도 toggleDoor·충돌 연동 동일 (SSOT)', async () => {
+    const { toggleDoor, isDoorOpen } = await import('../src/model/interactions3d');
+    const { collisionSpans } = await import('../src/features/three/wallGeometry');
+    const plan = miniPlan();
+    const slide = {
+      id: 'd-slide', wallId: 'w1', t: 0.5, width: 1.2,
+      kind: 'door' as const, doorType: 'sliding' as const, open: false,
+    };
+    plan.openings = [slide];
+    const wall = plan.walls[0];
+    // 닫힘: 벽 전체 차단
+    expect(collisionSpans(wall, plan.openings)).toEqual([{ start: 0, end: 10 }]);
+    // 토글 → 열림: 개구부 통과
+    const opened = toggleDoor(plan, 'd-slide');
+    expect(isDoorOpen(opened.openings[0])).toBe(true);
+    expect(collisionSpans(wall, opened.openings)).toEqual([
+      { start: 0, end: 4.4 },
+      { start: 5.6, end: 10 },
+    ]);
+  });
+});
