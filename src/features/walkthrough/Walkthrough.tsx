@@ -7,7 +7,13 @@ import './walkthrough.css';
 import type { Plan, Vec2 } from '../../model/types';
 import { catalogById, formatPrice } from '../../model/catalog';
 import { roomAt } from '../../model/geometry';
-import { isInteractiveItem, isPowered, togglePower } from '../../model/interactions3d';
+import {
+  isDoorOpen,
+  isInteractiveItem,
+  isPowered,
+  toggleDoor,
+  togglePower,
+} from '../../model/interactions3d';
 import { useCurrentPlan, useStore } from '../../state/store';
 import { ViewTabs } from '../../components/ViewTabs';
 import { CanvasBoundary } from '../three/CanvasBoundary';
@@ -28,18 +34,20 @@ function defaultSpawn(plan: Plan): Vec2 {
   return c;
 }
 
-type GazeInfo = { itemId: string; distance: number } | null;
+type GazeInfo = { kind: 'item' | 'door'; id: string; distance: number } | null;
 
 function Player({
   plan,
   poseRef,
   furnitureGroupRef,
+  doorGroupRef,
   onGaze,
   editOpen,
 }: {
   plan: Plan;
   poseRef: React.MutableRefObject<PlayerPose>;
   furnitureGroupRef: React.RefObject<THREE.Group>;
+  doorGroupRef: React.RefObject<THREE.Group>;
   onGaze: (g: GazeInfo) => void;
   editOpen: boolean;
 }) {
@@ -118,25 +126,35 @@ function Player({
       cam.updateProjectionMatrix();
     }
 
-    // 응시 레이캐스트 (3m)
-    const group = furnitureGroupRef.current;
-    if (group) {
+    // 응시 레이캐스트 (3m) — 가구 + 문짝
+    const fGroup = furnitureGroupRef.current;
+    const dGroup = doorGroupRef.current;
+    if (fGroup || dGroup) {
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
       raycaster.far = 3;
-      const hits = raycaster.intersectObjects(group.children, true);
+      const targets = [...(fGroup?.children ?? []), ...(dGroup?.children ?? [])];
+      const hits = raycaster.intersectObjects(targets, true);
       let found: GazeInfo = null;
       for (const hit of hits) {
         let obj: THREE.Object3D | null = hit.object;
-        while (obj && !obj.userData.itemId) obj = obj.parent;
+        while (obj && !obj.userData.itemId && !obj.userData.openingId) obj = obj.parent;
         if (obj?.userData.itemId) {
-          found = { itemId: obj.userData.itemId as string, distance: hit.distance };
+          found = { kind: 'item', id: obj.userData.itemId as string, distance: hit.distance };
+          break;
+        }
+        if (obj?.userData.openingId) {
+          found = { kind: 'door', id: obj.userData.openingId as string, distance: hit.distance };
           break;
         }
       }
       const prev = lastGaze.current;
       const changed =
         (found === null) !== (prev === null) ||
-        (found && prev && (found.itemId !== prev.itemId || Math.abs(found.distance - prev.distance) > 0.1));
+        (found &&
+          prev &&
+          (found.id !== prev.id ||
+            found.kind !== prev.kind ||
+            Math.abs(found.distance - prev.distance) > 0.1));
       if (changed) {
         lastGaze.current = found;
         onGaze(found);
@@ -169,7 +187,7 @@ function Hotkeys({
         a.href = url;
         a.download = `roomcast-${Date.now()}.png`;
         a.click();
-      } else if (e.code === 'KeyE' && gaze) {
+      } else if (e.code === 'KeyE' && gaze?.kind === 'item') {
         onToggleEdit();
       }
     };
@@ -193,6 +211,7 @@ export function Walkthrough() {
     yawDeg: spawn?.yawDeg ?? 0,
   });
   const furnitureGroupRef = useRef<THREE.Group>(null!);
+  const doorGroupRef = useRef<THREE.Group>(null!);
   const controlsRef = useRef<PointerLockControlsImpl>(null!);
   const [locked, setLocked] = useState(false);
   const [gaze, setGaze] = useState<GazeInfo>(null);
@@ -216,15 +235,17 @@ export function Walkthrough() {
     return () => window.removeEventListener('keydown', onKey);
   }, [setView, editItemId]);
 
-  // 락 상태에서 클릭 → 응시 중인 상호작용 사물 반응 (조명 on/off)
+  // 락 상태에서 클릭 → 응시 중인 상호작용 대상 반응 (조명·TV on/off, 문 여닫기)
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 0 || !document.pointerLockElement) return;
-      const target = gaze?.itemId;
-      if (!target) return;
-      const item = plan.items.find((i) => i.id === target);
+      if (e.button !== 0 || !document.pointerLockElement || !gaze) return;
+      if (gaze.kind === 'door') {
+        updatePlan((pl) => toggleDoor(pl, gaze.id));
+        return;
+      }
+      const item = plan.items.find((i) => i.id === gaze.id);
       if (!item || !isInteractiveItem(item.catalogId)) return;
-      updatePlan((pl) => togglePower(pl, target));
+      updatePlan((pl) => togglePower(pl, gaze.id));
     };
     window.addEventListener('mousedown', onMouseDown);
     return () => window.removeEventListener('mousedown', onMouseDown);
@@ -250,14 +271,16 @@ export function Walkthrough() {
         controlsRef.current?.lock();
         return null;
       }
-      const target = gaze?.itemId ?? null;
+      const target = gaze?.kind === 'item' ? gaze.id : null;
       if (target) controlsRef.current?.unlock();
       return target;
     });
   }, [gaze]);
 
-  const gazeItem = gaze ? plan.items.find((i) => i.id === gaze.itemId) : null;
+  const gazeItem = gaze?.kind === 'item' ? plan.items.find((i) => i.id === gaze.id) : null;
   const gazeCat = gazeItem ? catalogById.get(gazeItem.catalogId) : null;
+  const gazeDoor =
+    gaze?.kind === 'door' ? plan.openings.find((o) => o.id === gaze.id) : null;
   const editItem = editItemId ? plan.items.find((i) => i.id === editItemId) : null;
   const editCat = editItem ? catalogById.get(editItem.catalogId) : null;
   const currentRoom = roomAt(plan.rooms, pose.pos);
@@ -276,16 +299,19 @@ export function Walkthrough() {
             viewer={viewer}
             showCeiling
             furnitureGroupRef={furnitureGroupRef}
+            doorGroupRef={doorGroupRef}
             highlightItemId={
               locked && !editItemId && gazeItem && isInteractiveItem(gazeItem.catalogId)
                 ? gazeItem.id
                 : null
             }
+            highlightOpeningId={locked && !editItemId && gazeDoor ? gazeDoor.id : null}
           />
           <Player
             plan={plan}
             poseRef={poseRef}
             furnitureGroupRef={furnitureGroupRef}
+            doorGroupRef={doorGroupRef}
             onGaze={setGaze}
             editOpen={editItemId != null}
           />
@@ -327,6 +353,16 @@ export function Walkthrough() {
               </span>
             )}
             <span className="gaze-chip__action">E · 편집</span>
+          </div>
+        )}
+
+        {locked && gazeDoor && !editItemId && (
+          <div className="gaze-chip">
+            <span className="gaze-chip__name">문</span>
+            <span className="gaze-chip__dist">{gaze!.distance.toFixed(1)} m</span>
+            <span className="gaze-chip__action">
+              클릭 · {isDoorOpen(gazeDoor) ? '닫기' : '열기'}
+            </span>
           </div>
         )}
 

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isDoorOpen,
   isInteractiveItem,
   isLightItem,
   isPowered,
+  isTvItem,
+  toggleDoor,
   togglePower,
 } from '../src/model/interactions3d';
 import { createSamplePlan } from '../src/model/samplePlan';
@@ -73,5 +76,45 @@ describe('lampPartColors (조명 색상 배선 회귀)', () => {
     const { lampPartColors } = await import('../src/features/editor2d/symbols');
     expect(lampPartColors('#3d4742').glow).toBe('#efd9a8');
     expect(lampPartColors('#f2efe9').glow).toBe('#efd9a8');
+  });
+});
+
+describe('문 여닫기 (toggleDoor / isDoorOpen)', () => {
+  it('undefined 는 열림(기본)', () => {
+    expect(isDoorOpen({})).toBe(true);
+    expect(isDoorOpen({ open: false })).toBe(false);
+  });
+
+  it('토글: 닫힘 → 열림 → 닫힘', async () => {
+    const { createSamplePlan } = await import('../src/model/samplePlan');
+    const plan = createSamplePlan();
+    // 샘플의 욕실 문은 기본 닫힘
+    expect(isDoorOpen(plan.openings.find((o) => o.id === 'o-door-bath')!)).toBe(false);
+    const opened = toggleDoor(plan, 'o-door-bath');
+    expect(isDoorOpen(opened.openings.find((o) => o.id === 'o-door-bath')!)).toBe(true);
+    const closed = toggleDoor(opened, 'o-door-bath');
+    expect(isDoorOpen(closed.openings.find((o) => o.id === 'o-door-bath')!)).toBe(false);
+  });
+
+  it('창·없는 개구부는 no-op', async () => {
+    const { createSamplePlan } = await import('../src/model/samplePlan');
+    const plan = createSamplePlan();
+    expect(toggleDoor(plan, 'o-win-living')).toBe(plan);
+    expect(toggleDoor(plan, 'nope')).toBe(plan);
+  });
+});
+
+describe('TV 상호작용', () => {
+  it('tv shape 은 상호작용 대상', () => {
+    expect(isTvItem('tv-standby')).toBe(true);
+    expect(isInteractiveItem('tv-standby')).toBe(true);
+    expect(isTvItem('sofa-linen-3')).toBe(false);
+  });
+
+  it('togglePower 가 TV에도 동작', async () => {
+    const { createSamplePlan } = await import('../src/model/samplePlan');
+    const plan = createSamplePlan();
+    const off = togglePower(plan, 'i-tv');
+    expect(isPowered(off.items.find((i) => i.id === 'i-tv')!)).toBe(false);
   });
 });

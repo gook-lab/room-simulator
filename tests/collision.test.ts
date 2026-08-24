@@ -180,3 +180,31 @@ describe('moveAndSlide (슬라이딩 충돌 응답)', () => {
     expect(p.x).toBeCloseTo(2.2, 1); // 통로 중앙 유지
   });
 });
+
+describe('문 개폐 ↔ 충돌 연동', () => {
+  it('닫힌 문 구간은 충돌 유지', () => {
+    const closedDoor: Opening = { id: 'o1', wallId: 'w1', t: 0.5, width: 1, kind: 'door', open: false };
+    expect(collisionSpans(wall, [closedDoor])).toEqual([{ start: 0, end: 10 }]);
+  });
+
+  it('열린 문 구간은 통과 (기본값 undefined 포함)', () => {
+    const openDoor: Opening = { id: 'o1', wallId: 'w1', t: 0.5, width: 1, kind: 'door', open: true };
+    expect(collisionSpans(wall, [openDoor])).toEqual([
+      { start: 0, end: 4.5 },
+      { start: 5.5, end: 10 },
+    ]);
+  });
+
+  it('샘플 도면: 닫힌 욕실 문은 차단, 열면 통과', async () => {
+    const { toggleDoor } = await import('../src/model/interactions3d');
+    const plan = createSamplePlan();
+    // 욕실 문(w-mid-v, t=0.89 → y≈6.32)은 기본 닫힘 → 밀려남
+    const probeAtDoor = { x: 5.35, y: 6.32 };
+    const blocked = resolveCollisions(probeAtDoor, buildColliders(plan), PLAYER_RADIUS);
+    expect(Math.abs(blocked.x - 5.35)).toBeGreaterThan(0.2);
+    // 문을 열면 통과
+    const opened = toggleDoor(plan, 'o-door-bath');
+    const passed = resolveCollisions(probeAtDoor, buildColliders(opened), PLAYER_RADIUS);
+    expect(passed.x).toBeCloseTo(5.35, 1);
+  });
+});

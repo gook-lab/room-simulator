@@ -182,6 +182,14 @@ export function FurnitureSymbol({ item }: { item: PlacedItem }) {
         </g>
       );
     }
+    case 'tv':
+      return (
+        <g>
+          <circle cy={-hd * 0.25} r={Math.min(hw, hd) * 0.55} fill={fill} stroke={stroke} strokeWidth={1.2} {...SW} />
+          <rect x={-hw} y={hd - 0.09} width={w} height={0.07} rx={0.015} fill="#17201c" stroke="#0c1113" strokeWidth={1} {...SW} />
+          <line x1={0} y1={-hd * 0.25} x2={0} y2={hd - 0.09} stroke={stroke} strokeWidth={1} opacity={0.6} {...SW} />
+        </g>
+      );
     case 'plant':
       return (
         <g>

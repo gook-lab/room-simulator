@@ -60,7 +60,8 @@ export function createSamplePlan(): Plan {
     { id: 'o-door-front', wallId: 'w-s', t: 0.43, width: 1.0, kind: 'door', swing: 'left' },
     { id: 'o-door-bed', wallId: 'w-mid-v', t: 0.41, width: 0.9, kind: 'door', swing: 'right' },
     { id: 'o-door-kitchen', wallId: 'w-mid-v', t: 0.61, width: 0.9, kind: 'door', swing: 'left' },
-    { id: 'o-door-bath', wallId: 'w-mid-v', t: 0.89, width: 0.8, kind: 'door', swing: 'left' },
+    // 욕실 문은 기본 닫힘 — 문 상호작용 데모 겸 워크스루 충돌 케이스
+    { id: 'o-door-bath', wallId: 'w-mid-v', t: 0.89, width: 0.8, kind: 'door', swing: 'left', open: false },
   ];
 
   const rooms = [
@@ -127,6 +128,7 @@ export function createSamplePlan(): Plan {
     item('i-wardrobe', 'storage-wardrobe', { x: 9.97, y: 1.7 }, 90, 'r-bed', 2),
     item('i-table-kitchen', 'table-oak-round', { x: 7.6, y: 4.35 }, 0, 'r-kitchen'),
     item('i-rug-bath', 'rug-runner', { x: 7.0, y: 6.6 }, 0, 'r-bath', 1),
+    item('i-tv', 'tv-standby', { x: 3.9, y: 0.45 }, 0, 'r-living', 1),
   ];
 
   return {
