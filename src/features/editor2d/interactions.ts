@@ -10,8 +10,9 @@ import {
   roomAt,
   snapValue,
 } from '../../model/geometry';
+import { catalogById } from '../../model/catalog';
 import { NON_COLLIDING_SHAPES, shapeOf } from './symbols';
-import { itemLayer, sortedItems } from './PlanCanvas';
+import { itemLayer, sortedItems, wallItemPose } from './PlanCanvas';
 
 function isHorizontal(w: Wall): boolean {
   return Math.abs(w.a.y - w.b.y) < 1e-6;
@@ -235,6 +236,19 @@ export function dimensionNear(
   for (const dim of plan.dimensions ?? []) {
     const d = distToSegment(world, dim.a, dim.b);
     if (d < threshold && (!best || d < best.d)) best = { id: dim.id, d };
+  }
+  return best?.id ?? null;
+}
+
+/** 클릭 지점의 벽 부착 아이템 */
+export function wallItemAt(plan: Plan, world: Vec2): string | null {
+  let best: { id: string; d: number } | null = null;
+  for (const wi of plan.wallItems ?? []) {
+    const pose = wallItemPose(plan, wi.wallId, wi.t, wi.side);
+    if (!pose) continue;
+    const radius = Math.max(0.16, (catalogById.get(wi.catalogId)?.size.w ?? 0.3) / 2);
+    const d = Math.hypot(world.x - pose.center.x, world.y - pose.center.y);
+    if (d < radius && (!best || d < best.d)) best = { id: wi.id, d };
   }
   return best?.id ?? null;
 }

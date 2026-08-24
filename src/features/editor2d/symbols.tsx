@@ -251,6 +251,33 @@ export function FurnitureSymbol({ item }: { item: PlacedItem }) {
           <circle cx={-hw * 0.3} cy={hw * 0.3} r={hw * 0.28} fill={lighten(fill, 0.15)} stroke={stroke} strokeWidth={1} {...SW} />
         </g>
       );
+    // ---- 벽 부착 소품: 카탈로그 썸네일용 정면 뷰 (w × h 박스) ----
+    case 'frame': {
+      const hh = item.size.h / 2;
+      return (
+        <g>
+          <rect x={-hw} y={-hh} width={w} height={item.size.h} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />
+          <rect x={-hw + 0.05} y={-hh + 0.05} width={w - 0.1} height={item.size.h - 0.1} fill="#cfd8ce" stroke={stroke} strokeWidth={0.8} opacity={0.9} {...SW} />
+        </g>
+      );
+    }
+    case 'wall-clock':
+      return (
+        <g>
+          <circle r={hw} fill="#f2efe9" stroke={fill} strokeWidth={2} {...SW} />
+          <line x1={0} y1={0} x2={0} y2={-hw * 0.6} stroke={darken(fill, 0.2)} strokeWidth={1.6} {...SW} />
+          <line x1={0} y1={0} x2={hw * 0.42} y2={hw * 0.12} stroke={darken(fill, 0.2)} strokeWidth={1.2} {...SW} />
+        </g>
+      );
+    case 'wall-mirror': {
+      const hh = item.size.h / 2;
+      return (
+        <g>
+          <rect x={-hw} y={-hh} width={w} height={item.size.h} rx={0.03} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />
+          <rect x={-hw + 0.04} y={-hh + 0.04} width={w - 0.08} height={item.size.h - 0.08} rx={0.02} fill="#eaf2f6" stroke="#a9c4d6" strokeWidth={1} {...SW} />
+        </g>
+      );
+    }
     default:
       return <rect x={-hw} y={-hd} width={w} height={d} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />;
   }

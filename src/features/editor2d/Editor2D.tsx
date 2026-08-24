@@ -13,6 +13,13 @@ import { useCurrentPlan, useStore } from '../../state/store';
 import { blockedDoorIds } from '../../model/doorZones';
 import { toggleDoor } from '../../model/interactions3d';
 import {
+  canPlaceWallItem,
+  clampWallT,
+  createWallItem,
+  isWallCatalogItem,
+  moveWallItem,
+} from '../../model/wallItems';
+import {
   collisionsFor,
   dimensionNear,
   doorNear,
@@ -21,6 +28,7 @@ import {
   itemAtPoint,
   itemsInRect,
   snapItemMove,
+  wallItemAt,
   wallNear,
 } from './interactions';
 import {
@@ -29,6 +37,7 @@ import {
   type OpeningHover,
   type PlacingGhost,
   type WallDraft,
+  type WallItemGhost,
 } from './PlanCanvas';
 import { CatalogPanel, Inspector, StatusBar, ToolDock } from './panels';
 import { wheelTargetsCanvas } from './inputRouting';
@@ -48,6 +57,7 @@ type Gesture =
       moved: boolean;
     }
   | { type: 'marquee'; start: Vec2 }
+  | { type: 'wallItemMove'; id: string; before: Plan; moved: boolean }
   | { type: 'rotate'; itemId: string; before: Plan; moved: boolean }
   | {
       type: 'resize';
@@ -94,6 +104,12 @@ export function Editor2D() {
   const [marquee, setMarquee] = useState<{ a: Vec2; b: Vec2 } | null>(null);
   const marqueeRef = useRef<{ a: Vec2; b: Vec2 } | null>(null);
   marqueeRef.current = marquee;
+  const [wallGhost, setWallGhost] = useState<WallItemGhost>(null);
+  const wallGhostRef = useRef<WallItemGhost>(null);
+  wallGhostRef.current = wallGhost;
+  const [wallMoveInvalid, setWallMoveInvalid] = useState(false);
+  const wallMoveInvalidRef = useRef(false);
+  wallMoveInvalidRef.current = wallMoveInvalid;
   const [placingPos, setPlacingPos] = useState<Vec2 | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
   const [postDrop, setPostDrop] = useState<{ itemId: string } | null>(null);
@@ -184,6 +200,7 @@ export function Editor2D() {
     updatePlan((pl) => ({
       ...pl,
       items: pl.items.filter((i) => !sel.includes(i.id)),
+      wallItems: (pl.wallItems ?? []).filter((w) => !sel.includes(w.id)),
       dimensions: (pl.dimensions ?? []).filter((d) => !sel.includes(d.id)),
     }));
     setSelection([]);
@@ -285,6 +302,18 @@ export function Editor2D() {
 
       // 카탈로그 배치 모드
       if (placingCatalogId) {
+        // 벽 부착 아이템: 유효한 벽 스냅 위치에서만 배치 (개구부 겹침 금지)
+        if (isWallCatalogItem(placingCatalogId)) {
+          const ghost = wallGhostRef.current;
+          if (ghost?.valid) {
+            const wi = createWallItem(ghost.catalogId, ghost.wallId, ghost.t, ghost.side);
+            updatePlan((p) => ({ ...p, wallItems: [...(p.wallItems ?? []), wi] }));
+            setPlacing(null);
+            setWallGhost(null);
+            setSelection([wi.id]);
+          }
+          return;
+        }
         const cat = catalogById.get(placingCatalogId);
         if (!cat) return;
         const snap = useStore.getState().snapping;
@@ -453,6 +482,16 @@ export function Editor2D() {
       }
 
       if (!hit) {
+        // 벽 부착 아이템 클릭 → 선택 + 드래그 이동
+        const wallItemId = wallItemAt(pl, world);
+        if (wallItemId) {
+          setSelection([wallItemId]);
+          setPostDrop(null);
+          gestureRef.current = { type: 'wallItemMove', id: wallItemId, before: pl, moved: false };
+          setGestureKind('wallItemMove');
+          setWallMoveInvalid(false);
+          return;
+        }
         // 문 클릭 → 여닫기 토글 (2D에서도 문 상호작용)
         const door = doorNear(pl, world, tRef.current.s);
         if (door) {
@@ -637,8 +676,52 @@ export function Editor2D() {
         return;
       }
 
+      if (g?.type === 'wallItemMove') {
+        g.moved = true;
+        const wi = (pl.wallItems ?? []).find((x) => x.id === g.id);
+        if (!wi) return;
+        const cat = catalogById.get(wi.catalogId);
+        const near = wallNear(pl, world, tRef.current.s, 40);
+        if (near && cat) {
+          const t = clampWallT(pl, near.wall.id, near.t, cat.size.w);
+          const p = { x: near.wall.a.x + (near.wall.b.x - near.wall.a.x) * t, y: near.wall.a.y + (near.wall.b.y - near.wall.a.y) * t };
+          const nx = -(near.wall.b.y - near.wall.a.y);
+          const ny = near.wall.b.x - near.wall.a.x;
+          const side: 'front' | 'back' =
+            (world.x - p.x) * nx + (world.y - p.y) * ny >= 0 ? 'front' : 'back';
+          updatePlan((plan) => moveWallItem(plan, g.id, { wallId: near.wall.id, t, side }), {
+            commit: false,
+          });
+          setWallMoveInvalid(!canPlaceWallItem(pl, near.wall.id, t, wi.catalogId, wi.id));
+        }
+        return;
+      }
+
       // 제스처 없음 — hover 상태 갱신
       if (placingCatalogId) {
+        // 벽 부착 아이템: 가까운 벽에 스냅되는 고스트
+        if (isWallCatalogItem(placingCatalogId)) {
+          const cat = catalogById.get(placingCatalogId);
+          const near = wallNear(pl, world, tRef.current.s, 40);
+          if (near && cat) {
+            const t = clampWallT(pl, near.wall.id, near.t, cat.size.w);
+            const p = { x: near.wall.a.x + (near.wall.b.x - near.wall.a.x) * t, y: near.wall.a.y + (near.wall.b.y - near.wall.a.y) * t };
+            const nx = -(near.wall.b.y - near.wall.a.y);
+            const ny = near.wall.b.x - near.wall.a.x;
+            const side: 'front' | 'back' =
+              (world.x - p.x) * nx + (world.y - p.y) * ny >= 0 ? 'front' : 'back';
+            setWallGhost({
+              catalogId: placingCatalogId,
+              wallId: near.wall.id,
+              t,
+              side,
+              valid: canPlaceWallItem(pl, near.wall.id, t, placingCatalogId),
+            });
+          } else {
+            setWallGhost(null);
+          }
+          return;
+        }
         const snap = useStore.getState().snapping;
         setPlacingPos(
           snap.enabled
@@ -686,6 +769,18 @@ export function Editor2D() {
           const ids = itemsInRect(planRef.current, m.a, m.b);
           if (ids.length > 0) setSelection(ids);
         }
+        return;
+      }
+      if (g.type === 'wallItemMove') {
+        if (g.moved) {
+          if (wallMoveInvalidRef.current) {
+            // 개구부/타 아이템과 겹침 → 원위치 복원 (배치 금지 정책)
+            updatePlan(() => g.before, { commit: false });
+          } else {
+            pushHistory(g.before);
+          }
+        }
+        setWallMoveInvalid(false);
         return;
       }
       if (g.type === 'groupMove') {
@@ -794,6 +889,7 @@ export function Editor2D() {
         if (useStore.getState().placingCatalogId) {
           setPlacing(null);
           setPlacingPos(null);
+          setWallGhost(null);
         } else if (wallDraft) {
           setWallDraft(null);
         } else {
@@ -852,6 +948,7 @@ export function Editor2D() {
 
   const placingGhost: PlacingGhost | null = (() => {
     if (!placingCatalogId || !placingPos) return null;
+    if (isWallCatalogItem(placingCatalogId)) return null; // 벽 부착은 wallGhost 경로
     const cat = catalogById.get(placingCatalogId);
     const blocked = cat
       ? blockedDoorIds(plan, {
@@ -925,6 +1022,7 @@ export function Editor2D() {
         measure={measure}
         placingGhost={placingGhost}
         marquee={marquee}
+        wallItemGhost={wallGhost}
         rotatingItemId={gestureKind === 'rotate' ? selection[0] ?? null : null}
         resizingItemId={gestureKind === 'resize' ? selection[0] ?? null : null}
         svgRef={svgRef}
