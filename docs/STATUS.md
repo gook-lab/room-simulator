@@ -42,10 +42,16 @@
 - [x] 2) 워크스루 충돌 슬라이딩: `moveAndSlide` — 접촉 법선으로 이동 벡터 접선 투영(속도 보존), 코너 2법선 2패스 순차 투영(양쪽 막힘일 때만 정지), 최종 침투 해소로 관통 방지. 가구 유효 반경 0.25→0.18m 완화(FURNITURE_PAD −0.07, 벽은 스펙대로 0.25 유지), h≤0.4m 낮은 오브젝트(러그·커피 테이블) 충돌 제외. 슬라이딩/코너/좁은 통로/패딩 테스트 8개 추가(총 51개). 빌드+테스트 통과.
 - [x] 3) 3D 뷰 undo/redo: `useUndoShortcut` 전역 훅(App 마운트)으로 이동 — 2D·워크스루·조감도 전 화면에서 Cmd+Z/Cmd+Shift+Z 동작(포인터 락 중 keydown도 수신, input/textarea 포커스 시 제외). Editor2D의 중복 핸들러 제거(이중 실행 방지). E-편집 소재 변경은 updatePlan commit 경로라 자동으로 명령 단위 히스토리에 쌓임. 브라우저 검증: 2D 삭제 → 3D 뷰에서 Cmd+Z → 복원 확인. 빌드+테스트(51개) 통과.
 
+### 2차 피드백 (2026-08-24, 실기기 확인 후 toy-c7 경유 3건)
+
+- [x] 1) 포인터 락 UX: **Tab**으로 커서 모드 ↔ 이동 모드 토글 (ESC도 기존대로 해제). 커서 모드에선 일반 커서로 HUD 패널 조작 가능. 조작 안내 패널에 TAB 키캡 힌트(상태별 라벨), E-편집 패널 열림 중 재락 방지.
+- [x] 2) 사물 상호작용: 락 상태에서 크로스헤어 조준+클릭 → **조명 on/off** (emissive+PointLight 실소등, `PlacedItem.powered` 필드·`togglePower` 순수 모듈). 상호작용 가능 사물 응시 시 와이어프레임 하이라이트 + "클릭 · 켜기/끄기" 칩. updatePlan commit 경로라 undo 대상. 테스트 7개. **문 여닫기·TV 켜기는 후속** (문은 개구부가 벽 모델 소속이라 충돌·메시 분할 연동 필요).
+- [x] 3) 가구 추가 확충: 22→**35종** — 침실(싱글 베드·협탁·화장대), 주방(아일랜드 카운터·바 스툴·냉장고), 욕실(수납장·드럼 세탁기), 사무(오피스 체어·파일 캐비닛), 조명(테이블 램프)·러그(샤기)·소품(선인장). 카탈로그 무결성 테스트 4개(id 유일성·카테고리 균형·표기 규칙). 총 테스트 62개.
+
 ## 현재 상태
 
-- 프로젝트: `/Users/kyb-ontact/sonix/toy/roomcast` (git 미초기화)
-- `npm run build` **통과** ✅
+- 프로젝트: `/Users/kyb-ontact/sonix/toy/roomcast` (git 초기화됨, 리모트 없음)
+- `npm run build` / `npm test`(62개) **통과** ✅
 - 스택: React 18.3 + TS + Vite 8 / three 0.170 + r3f 8 + drei 9 / zustand 5
 - SSOT `Plan` 모델·카탈로그·샘플 도면·지오메트리 유틸·스토어(undo/localStorage 저장) 완성
 - 화면 셸: 상태 기반 라우팅(dashboard/editor/upload × 2d/walkthrough/birdseye), 상단바·뷰 탭 구현
