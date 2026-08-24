@@ -278,6 +278,17 @@ export function FurnitureSymbol({ item }: { item: PlacedItem }) {
         </g>
       );
     }
+    case 'wall-ac': {
+      // 벽걸이 에어컨 정면 뷰 — 본체 + 하단 송풍구 라인
+      const hh = item.size.h / 2;
+      return (
+        <g>
+          <rect x={-hw} y={-hh} width={w} height={item.size.h} rx={0.05} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />
+          <line x1={-hw + 0.08} y1={hh - 0.08} x2={hw - 0.08} y2={hh - 0.08} stroke={darken(fill, 0.25)} strokeWidth={1.6} {...SW} />
+          <circle cx={hw - 0.12} cy={-hh + 0.1} r={0.025} fill={darken(fill, 0.3)} />
+        </g>
+      );
+    }
     default:
       return <rect x={-hw} y={-hd} width={w} height={d} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />;
   }

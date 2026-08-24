@@ -3,7 +3,12 @@ import { wallLength } from './geometry';
 import type { CatalogShape, Plan, WallItem } from './types';
 
 /** 벽 부착 shape — 바닥 배치 대신 wallId+t+높이 좌표계 사용 */
-export const WALL_SHAPES = new Set<CatalogShape>(['frame', 'wall-clock', 'wall-mirror']);
+export const WALL_SHAPES = new Set<CatalogShape>([
+  'frame',
+  'wall-clock',
+  'wall-mirror',
+  'wall-ac',
+]);
 
 export function isWallCatalogItem(catalogId: string): boolean {
   const shape = catalogById.get(catalogId)?.shape;
@@ -17,6 +22,8 @@ export function defaultMountHeight(catalogId: string): number {
       return 1.85;
     case 'wall-mirror':
       return 1.35;
+    case 'wall-ac':
+      return 2.05; // 천장 근처 (본체 높이 0.35m 기준 상단 여유)
     default:
       return 1.5; // frame
   }

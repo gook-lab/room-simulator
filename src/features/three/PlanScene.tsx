@@ -330,6 +330,21 @@ function WallItemMesh({ plan, id }: { plan: Plan; id: string }) {
         </group>
       );
       break;
+    case 'wall-ac':
+      // 벽걸이 에어컨 — 본체 박스 + 하단 송풍구 슬릿
+      body = (
+        <group>
+          <mesh castShadow>
+            <boxGeometry args={[w, h, d]} />
+            <meshStandardMaterial color={c} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, -h / 2 + 0.035, d / 2 + 0.002]}>
+            <planeGeometry args={[w - 0.12, 0.045]} />
+            <meshStandardMaterial color={darken(c, 0.3)} roughness={0.6} />
+          </mesh>
+        </group>
+      );
+      break;
     default: // frame
       body = (
         <group>

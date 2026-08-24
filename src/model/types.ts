@@ -116,6 +116,7 @@ export type CatalogCategory =
   | 'table'
   | 'bed'
   | 'storage'
+  | 'appliance'
   | 'lighting'
   | 'rug'
   | 'kids'
@@ -145,7 +146,8 @@ export type CatalogShape =
   | 'cat-tower'
   | 'frame'
   | 'wall-clock'
-  | 'wall-mirror';
+  | 'wall-mirror'
+  | 'wall-ac';
 
 export type Swatch = { id: string; label: string; color: string };
 
