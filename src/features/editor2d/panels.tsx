@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CatalogCategory, PlacedItem, Tool } from '../../model/types';
+import { isInteractiveItem, isPowered, togglePower } from '../../model/interactions3d';
 import {
   CATALOG,
   CATEGORY_LABELS,
@@ -211,7 +212,12 @@ export function Inspector() {
   const plan = useCurrentPlan();
   const selection = useStore((s) => s.selection);
   const updatePlan = useStore((s) => s.updatePlan);
-  const item = selection.length === 1 ? plan.items.find((i) => i.id === selection[0]) : undefined;
+  const setSelection = useStore((s) => s.setSelection);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const selectedId = selection.length === 1 ? selection[0] : undefined;
+  // 선택이 바뀌면 상세 옵션 접기
+  useEffect(() => setDetailOpen(false), [selectedId]);
+  const item = selectedId ? plan.items.find((i) => i.id === selectedId) : undefined;
   if (!item) return null;
   const cat = catalogById.get(item.catalogId);
   if (!cat) return null;
@@ -270,8 +276,69 @@ export function Inspector() {
       </div>
       <div className="inspector__footer">
         <span className="inspector__price">{formatPrice(item.price)}</span>
-        <button className="btn btn--outline">상세 옵션</button>
+        <button
+          className="btn btn--outline"
+          aria-expanded={detailOpen}
+          onClick={() => setDetailOpen((v) => !v)}
+        >
+          {detailOpen ? '상세 옵션 닫기' : '상세 옵션'}
+        </button>
       </div>
+      {detailOpen && (
+        <div className="inspector__detail">
+          <div className="inspector__detail-section">
+            <span className="inspector__swatch-label">{cat.materialLabel} 선택</span>
+            {cat.swatches.map((sw) => (
+              <button
+                key={sw.id}
+                className={`detail-option${item.variant.material === sw.id ? ' is-active' : ''}`}
+                onClick={() => patch({ variant: { material: sw.id, color: sw.color } })}
+              >
+                <span className="detail-option__dot" style={{ background: sw.color }} />
+                {sw.label}
+                {item.variant.material === sw.id && <span className="detail-option__check">✓</span>}
+              </button>
+            ))}
+          </div>
+          {isInteractiveItem(item.catalogId) && (
+            <div className="inspector__detail-section inspector__detail-row">
+              <span className="inspector__swatch-label" style={{ marginBottom: 0 }}>
+                전원
+              </span>
+              <button
+                className={`toggle${isPowered(item) ? ' is-on' : ''}`}
+                aria-pressed={isPowered(item)}
+                onClick={() => updatePlan((pl) => togglePower(pl, item.id))}
+              />
+            </div>
+          )}
+          <div className="inspector__detail-actions">
+            <button
+              className="btn btn--outline"
+              onClick={() => {
+                const copy: PlacedItem = {
+                  ...item,
+                  id: `item-${Date.now().toString(36)}`,
+                  position: { x: item.position.x + 0.3, y: item.position.y + 0.3 },
+                };
+                updatePlan((pl) => ({ ...pl, items: [...pl.items, copy] }));
+                setSelection([copy.id]);
+              }}
+            >
+              복제
+            </button>
+            <button
+              className="btn btn--outline detail-danger"
+              onClick={() => {
+                updatePlan((pl) => ({ ...pl, items: pl.items.filter((i) => i.id !== item.id) }));
+                setSelection([]);
+              }}
+            >
+              삭제
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

@@ -22,6 +22,20 @@ export function lighten(hex: string, amt: number): string {
 const SW = { vectorEffect: 'non-scaling-stroke' } as const;
 
 /**
+ * 조명 기구 부위별 색 (2D 심볼·3D 메시 공용).
+ * 마감 스와치(variant)는 몸체(폴·베이스·프레임)에, 발광부는 warm 고정.
+ */
+export function lampPartColors(variantColor: string) {
+  return {
+    body: variantColor,
+    bodyDark: darken(variantColor, 0.25),
+    glow: '#efd9a8',
+    glowPool: '#fff3d6',
+    glowStroke: '#d9bc82',
+  };
+}
+
+/**
  * 가구 top-view 심볼. 부모가 translate(position)·rotate(rotationDeg)를 적용한
  * world 좌표(meter) 그룹 안에서, 중심 (0,0) 기준 w×d 박스에 그린다.
  */
@@ -112,20 +126,24 @@ export function FurnitureSymbol({ item }: { item: PlacedItem }) {
           <rect x={-hw + 0.12} y={-hd + 0.12} width={w - 0.24} height={d - 0.24} rx={0.03} fill="none" stroke={stroke} strokeWidth={0.75} opacity={0.6} {...SW} />
         </g>
       );
-    case 'floor-lamp':
+    case 'floor-lamp': {
+      const lp = lampPartColors(fill);
       return (
         <g>
-          <circle r={hw} fill="#efd9a8" opacity={0.9} stroke="#d9bc82" strokeWidth={1.5} {...SW} />
-          <circle r={0.03} fill={darken('#efd9a8', 0.4)} />
+          <circle r={hw} fill={lp.glow} opacity={0.9} stroke={lp.glowStroke} strokeWidth={1.5} {...SW} />
+          <circle r={Math.max(0.05, hw * 0.3)} fill={lp.body} stroke={lp.bodyDark} strokeWidth={1} {...SW} />
         </g>
       );
-    case 'pendant-lamp':
+    }
+    case 'pendant-lamp': {
+      const lp = lampPartColors(fill);
       return (
         <g>
-          <circle r={hw} fill="#fff3d6" opacity={0.8} stroke="#e3c77e" strokeWidth={1.2} strokeDasharray="3 3" {...SW} />
-          <circle r={hw * 0.4} fill="#efd9a8" stroke="#d9bc82" strokeWidth={1.2} {...SW} />
+          <circle r={hw} fill={lp.glowPool} opacity={0.8} stroke="#e3c77e" strokeWidth={1.2} strokeDasharray="3 3" {...SW} />
+          <circle r={hw * 0.4} fill={lp.body} stroke={lp.bodyDark} strokeWidth={1.2} {...SW} />
         </g>
       );
+    }
     case 'desk':
       return (
         <g>

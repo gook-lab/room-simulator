@@ -17,6 +17,8 @@ export type Opening = {
   width: number; // m
   kind: 'door' | 'window';
   swing?: 'left' | 'right';
+  /** 문 개폐 상태 — undefined 는 열림(기본). 닫힌 문은 워크스루 통과 불가 */
+  open?: boolean;
 };
 
 export type FloorKind = 'living' | 'kitchen' | 'bath';
@@ -89,7 +91,8 @@ export type CatalogShape =
   | 'chair'
   | 'desk'
   | 'dining-set'
-  | 'plant';
+  | 'plant'
+  | 'tv';
 
 export type Swatch = { id: string; label: string; color: string };
 

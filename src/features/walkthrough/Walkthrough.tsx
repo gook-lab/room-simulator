@@ -453,6 +453,16 @@ export function Walkthrough() {
                 />
               ))}
             </div>
+            {isInteractiveItem(editItem.catalogId) && (
+              <div className="gaze-edit__power">
+                <span>전원</span>
+                <button
+                  className={`toggle${isPowered(editItem) ? ' is-on' : ''}`}
+                  aria-pressed={isPowered(editItem)}
+                  onClick={() => updatePlan((pl) => togglePower(pl, editItem.id))}
+                />
+              </div>
+            )}
             <div className="gaze-edit__price">{formatPrice(editItem.price)}</div>
             <button className="gaze-edit__close" onClick={toggleEdit}>
               닫기 (E)

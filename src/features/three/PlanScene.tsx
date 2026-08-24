@@ -4,7 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import type { PlacedItem, Plan, ViewerState } from '../../model/types';
 import { catalogById } from '../../model/catalog';
 import { isPowered } from '../../model/interactions3d';
-import { darken, lighten } from '../editor2d/symbols';
+import { darken, lampPartColors, lighten } from '../editor2d/symbols';
 import { LIGHT_PRESETS } from './lighting';
 import { planCenter, wallBoxes, wallLength } from './wallGeometry';
 
@@ -270,21 +270,22 @@ function FurnitureMesh({
         </mesh>
       );
       break;
-    case 'floor-lamp':
+    case 'floor-lamp': {
+      const lp = lampPartColors(c);
       body = (
         <group>
           <mesh position={[0, 0.015, 0]} castShadow>
             <cylinderGeometry args={[0.14, 0.16, 0.03, 20]} />
-            <meshStandardMaterial color="#3d4742" roughness={0.6} />
+            <meshStandardMaterial color={lp.body} roughness={0.6} />
           </mesh>
           <mesh position={[0, h / 2, 0]}>
             <cylinderGeometry args={[0.015, 0.015, h - 0.35, 8]} />
-            <meshStandardMaterial color="#3d4742" roughness={0.6} />
+            <meshStandardMaterial color={lp.body} roughness={0.6} />
           </mesh>
           <mesh position={[0, h - 0.18, 0]} castShadow>
             <cylinderGeometry args={[0.12, 0.17, 0.3, 20, 1, true]} />
             <meshStandardMaterial
-              color="#efd9a8"
+              color={lp.glow}
               emissive="#ffe9b8"
               emissiveIntensity={eff * 0.9}
               side={THREE.DoubleSide}
@@ -301,18 +302,20 @@ function FurnitureMesh({
         </group>
       );
       break;
+    }
     case 'pendant-lamp': {
       const ceilingH = 2.4;
+      const lp = lampPartColors(c);
       body = (
         <group>
           <mesh position={[0, (ceilingH + (ceilingH - 0.6)) / 2, 0]}>
             <cylinderGeometry args={[0.006, 0.006, 0.6, 6]} />
-            <meshStandardMaterial color="#3d4742" />
+            <meshStandardMaterial color={lp.body} />
           </mesh>
           <mesh position={[0, ceilingH - 0.6 - 0.1, 0]} castShadow>
             <cylinderGeometry args={[0.05, w / 2, 0.22, 24, 1, true]} />
             <meshStandardMaterial
-              color="#efd9a8"
+              color={lp.body}
               emissive="#ffe9b8"
               emissiveIntensity={eff * 0.9}
               side={THREE.DoubleSide}
