@@ -20,10 +20,16 @@ import {
   moveWallItem,
 } from '../../model/wallItems';
 import {
+  deleteWalls,
+  isWallId,
+  moveWallVertex,
+  translateWall,
+} from '../../model/wallEdit';
+import {
   collisionsFor,
   dimensionNear,
-  doorNear,
   findFreeSpot,
+  openingNear,
   groupProblems,
   itemAtPoint,
   itemsInRect,
@@ -59,6 +65,8 @@ type Gesture =
     }
   | { type: 'marquee'; start: Vec2 }
   | { type: 'wallItemMove'; id: string; before: Plan; moved: boolean }
+  | { type: 'wallEndpointMove'; wallId: string; end: 'a' | 'b'; before: Plan; moved: boolean }
+  | { type: 'wallBodyMove'; wallId: string; grabWorld: Vec2; before: Plan; moved: boolean }
   | { type: 'rotate'; itemId: string; before: Plan; moved: boolean }
   | {
       type: 'resize';
@@ -198,12 +206,18 @@ export function Editor2D() {
   const deleteSelection = useCallback(() => {
     const sel = useStore.getState().selection;
     if (sel.length === 0) return;
-    updatePlan((pl) => ({
-      ...pl,
-      items: pl.items.filter((i) => !sel.includes(i.id)),
-      wallItems: (pl.wallItems ?? []).filter((w) => !sel.includes(w.id)),
-      dimensions: (pl.dimensions ?? []).filter((d) => !sel.includes(d.id)),
-    }));
+    updatePlan((pl) => {
+      // 벽 삭제는 개구부·벽 부착 아이템 연쇄 삭제 포함
+      const wallIds = sel.filter((id) => pl.walls.some((w) => w.id === id));
+      const base = wallIds.length > 0 ? deleteWalls(pl, wallIds) : pl;
+      return {
+        ...base,
+        items: base.items.filter((i) => !sel.includes(i.id)),
+        openings: base.openings.filter((o) => !sel.includes(o.id)),
+        wallItems: (base.wallItems ?? []).filter((w) => !sel.includes(w.id)),
+        dimensions: (base.dimensions ?? []).filter((d) => !sel.includes(d.id)),
+      };
+    });
     setSelection([]);
     setPostDrop(null);
   }, [updatePlan, setSelection]);
@@ -401,6 +415,39 @@ export function Editor2D() {
         }
       }
       const selectedId = selection.length === 1 ? selection[0] : null;
+
+      // 선택된 벽: 끝점 핸들 드래그(길이/방향) 또는 몸통 드래그(평행 이동)
+      if (selectedId && isWallId(pl, selectedId)) {
+        const wall = pl.walls.find((w) => w.id === selectedId)!;
+        const cs = toScreen(e);
+        for (const end of ['a', 'b'] as const) {
+          const sp = w2s(tRef.current, wall[end]);
+          if (Math.hypot(sp.x - cs.x, sp.y - cs.y) < 12) {
+            gestureRef.current = {
+              type: 'wallEndpointMove',
+              wallId: wall.id,
+              end,
+              before: pl,
+              moved: false,
+            };
+            setGestureKind('wallEndpointMove');
+            return;
+          }
+        }
+        const near = wallNear(pl, world, tRef.current.s, 10);
+        if (near?.wall.id === wall.id) {
+          gestureRef.current = {
+            type: 'wallBodyMove',
+            wallId: wall.id,
+            grabWorld: world,
+            before: pl,
+            moved: false,
+          };
+          setGestureKind('wallBodyMove');
+          return;
+        }
+      }
+
       const selected = selectedId ? pl.items.find((i) => i.id === selectedId) : null;
       if (selected) {
         const s = tRef.current.s;
@@ -505,16 +552,31 @@ export function Editor2D() {
           setWallMoveInvalid(false);
           return;
         }
-        // 문 클릭 → 여닫기 토글 (2D에서도 문 상호작용)
-        const door = doorNear(pl, world, tRef.current.s);
-        if (door) {
-          updatePlan((p) => toggleDoor(p, door.opening.id));
+        // 개구부(문·창) 클릭 → 선택. 이미 선택된 문을 다시 클릭하면 여닫기 토글
+        const opening = openingNear(pl, world, tRef.current.s);
+        if (opening) {
+          if (
+            opening.opening.kind === 'door' &&
+            useStore.getState().selection.includes(opening.opening.id)
+          ) {
+            updatePlan((p) => toggleDoor(p, opening.opening.id));
+          } else {
+            setSelection([opening.opening.id]);
+            setPostDrop(null);
+          }
           return;
         }
         // 치수 주석 클릭 → 선택 (Delete로 삭제 가능)
         const dimId = dimensionNear(pl, world, tRef.current.s);
         if (dimId) {
           setSelection([dimId]);
+          setPostDrop(null);
+          return;
+        }
+        // 벽 클릭 → 선택 (끝점 핸들·몸통 드래그 편집)
+        const nearWall = wallNear(pl, world, tRef.current.s, 10);
+        if (nearWall) {
+          setSelection([nearWall.wall.id]);
           setPostDrop(null);
           return;
         }
@@ -689,6 +751,29 @@ export function Editor2D() {
         return;
       }
 
+      if (g?.type === 'wallEndpointMove') {
+        g.moved = true;
+        const before = g.before;
+        const wall = before.walls.find((w) => w.id === g.wallId);
+        if (!wall) return;
+        const opposite = g.end === 'a' ? wall.b : wall.a;
+        const pt = snapWallPoint(world, opposite);
+        updatePlan(() => moveWallVertex(before, g.wallId, g.end, pt), { commit: false });
+        return;
+      }
+
+      if (g?.type === 'wallBodyMove') {
+        g.moved = true;
+        const snap = useStore.getState().snapping;
+        let delta = { x: world.x - g.grabWorld.x, y: world.y - g.grabWorld.y };
+        if (snap.enabled) {
+          const grid = snap.gridCm / 100;
+          delta = { x: snapValue(delta.x, grid), y: snapValue(delta.y, grid) };
+        }
+        updatePlan(() => translateWall(g.before, g.wallId, delta), { commit: false });
+        return;
+      }
+
       if (g?.type === 'wallItemMove') {
         g.moved = true;
         const wi = (pl.wallItems ?? []).find((x) => x.id === g.id);
@@ -756,7 +841,7 @@ export function Editor2D() {
       if (tool === 'select') {
         const hover = itemAtPoint(pl, world);
         setHoverItemId(hover?.id ?? null);
-        setHoverDoor(!hover && doorNear(pl, world, tRef.current.s) != null);
+        setHoverDoor(!hover && openingNear(pl, world, tRef.current.s) != null);
       }
     },
     [toWorld, tool, wallDraft, placingCatalogId, patchItem, setDrag, setCamera2d, snapWallPoint],
@@ -782,6 +867,10 @@ export function Editor2D() {
           const ids = itemsInRect(planRef.current, m.a, m.b);
           if (ids.length > 0) setSelection(ids);
         }
+        return;
+      }
+      if (g.type === 'wallEndpointMove' || g.type === 'wallBodyMove') {
+        if (g.moved) pushHistory(g.before);
         return;
       }
       if (g.type === 'wallItemMove') {
