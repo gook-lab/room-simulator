@@ -136,6 +136,27 @@ export type CatalogShape =
 
 export type Swatch = { id: string; label: string; color: string };
 
+/**
+ * 실제 판매 상품 연동 정보 — 카탈로그 레벨 (도면 저장에는 포함되지 않음).
+ * spec* 이 있으면 카탈로그 치수를 실제원으로 대체한다 (신규 배치부터 적용).
+ */
+export type ProductInfo = {
+  /** 상품 페이지 URL — 실제 확인된 출처만 입력 */
+  url: string;
+  /** 실판매가 (원) — 확인 시점 기준 */
+  priceKrw: number;
+  mall: string;
+  brand?: string;
+  /** 실측 제원 (m) */
+  specW?: number;
+  specD?: number;
+  specH?: number;
+  /** 데이터 출처 — 'browse'(상품 페이지 직접 확인) 또는 어댑터 이름 */
+  source?: string;
+  /** 가격·링크 확인 시점 (ISO) */
+  fetchedAt: string;
+};
+
 export type CatalogItem = {
   id: string;
   name: string;
@@ -146,6 +167,8 @@ export type CatalogItem = {
   /** 소재군 라벨 (인스펙터 스와치 섹션 제목) */
   materialLabel: string;
   swatches: Swatch[];
+  /** 실제 판매 상품 연동 (있으면 price=실판매가, size=실제원) */
+  product?: ProductInfo;
 };
 
 /* ===== Editor / Viewer state ===== */

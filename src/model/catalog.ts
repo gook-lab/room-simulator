@@ -1,4 +1,5 @@
-import type { CatalogCategory, CatalogItem } from './types';
+import type { CatalogCategory, CatalogItem, ProductInfo } from './types';
+import productsJson from './products.json';
 
 export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
   sofa: '소파',
@@ -564,6 +565,36 @@ export const CATALOG: CatalogItem[] = [
     swatches: metalSwatches,
   },
 ];
+
+/**
+ * 상품 연동 머지: products.json 에 확인된 상품이 있으면 실판매가·실제원을 적용한다.
+ * (배치 시 size/price 가 복사되므로 기존 도면 아이템은 불변 — 신규 배치부터 반영)
+ */
+export function applyProducts(
+  items: CatalogItem[],
+  products: Record<string, ProductInfo>,
+): CatalogItem[] {
+  return items.map((item) => {
+    const product = products[item.id];
+    if (!product) return item;
+    return {
+      ...item,
+      product,
+      price: product.priceKrw,
+      size: {
+        w: product.specW ?? item.size.w,
+        d: product.specD ?? item.size.d,
+        h: product.specH ?? item.size.h,
+      },
+    };
+  });
+}
+
+const PRODUCTS = productsJson as Record<string, ProductInfo>;
+for (let i = 0; i < CATALOG.length; i++) {
+  // in-place 머지 (CATALOG 참조를 유지 — 카테고리 필터 등 기존 사용처 호환)
+  CATALOG[i] = applyProducts([CATALOG[i]], PRODUCTS)[0];
+}
 
 export const catalogById = new Map(CATALOG.map((c) => [c.id, c]));
 

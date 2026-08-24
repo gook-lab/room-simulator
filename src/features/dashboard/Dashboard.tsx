@@ -7,6 +7,7 @@ import { exportPlan, importPlan } from '../../model/planIO';
 import { renderPlanSvgString } from '../editor2d/ExportSvg';
 import { useStore } from '../../state/store';
 import { MiniPlan } from '../../components/MiniPlan';
+import { catalogById } from '../../model/catalog';
 
 function planArea(plan: Plan): number {
   return plan.rooms.reduce((s, r) => s + r.areaSqm, 0);
@@ -115,6 +116,13 @@ export function Dashboard() {
   const estimatePlan = plans[currentPlanId] ?? orderedPlans[0];
   const rows = estimatePlan ? priceByRoom(estimatePlan) : [];
   const furnitureTotal = estimatePlan ? totalPrice(estimatePlan) : 0;
+  const realPriceCount = estimatePlan
+    ? estimatePlan.items.filter((i) => catalogById.get(i.catalogId)?.product).length +
+      (estimatePlan.wallItems ?? []).filter((i) => catalogById.get(i.catalogId)?.product).length
+    : 0;
+  const estPriceCount = estimatePlan
+    ? estimatePlan.items.length + (estimatePlan.wallItems ?? []).length - realPriceCount
+    : 0;
   const finish = estimatePlan ? finishCost(estimatePlan) : { rows: [], total: 0 };
   const total = furnitureTotal + finish.total;
   const shareUrl = estimatePlan
@@ -196,6 +204,11 @@ export function Dashboard() {
             <div className="estimate-card__total">
               ₩ {total.toLocaleString('ko-KR')}
             </div>
+            {realPriceCount > 0 && (
+              <div className="estimate-card__caption">
+                실판매가 {realPriceCount}점 · 추정가 {estPriceCount}점 기준 — 가격은 조회 시점 기준
+              </div>
+            )}
             <div className="estimate-card__divider" />
             {rows.map((r) => (
               <div className="estimate-row" key={r.roomId ?? 'etc'}>

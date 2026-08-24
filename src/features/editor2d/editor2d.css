@@ -449,3 +449,38 @@
   z-index: 12;
   pointer-events: none;
 }
+
+/* ---- 상품 연동 ---- */
+.catalog-item__price {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-deep);
+}
+
+.catalog-item__link {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.catalog-item__link:hover {
+  color: var(--accent-deep);
+}
+
+.inspector__product-link {
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-tint);
+  padding: 3px 7px;
+  border-radius: 5px;
+  text-decoration: none;
+}
+
+.inspector__product-link:hover {
+  color: var(--accent-deep);
+}

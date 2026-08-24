@@ -54,7 +54,7 @@ function buildStudio(): Plan {
     rooms,
     items: [
       item('st-bed', 'bed-single', { x: 0.7, y: 1.15 }, 0, 'r-main', 3),
-      item('st-desk', 'desk-oak', { x: 2.6, y: 0.5 }, 0, 'r-main'),
+      item('st-desk', 'desk-oak', { x: 2.4, y: 0.5 }, 0, 'r-main'),
       item('st-chair', 'office-chair', { x: 2.6, y: 1.3 }, 180, 'r-main', 2),
       item('st-shelf', 'storage-shelf-slim', { x: 0.28, y: 2.9 }, 90, 'r-main'),
       item('st-tv', 'tv-standby', { x: 0.5, y: 3.65 }, 180, 'r-main', 1),

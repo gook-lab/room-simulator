@@ -1,0 +1,89 @@
+{
+  "sofa-linen-3": {
+    "url": "https://www.ikea.com/kr/ko/p/kivik-3-seat-sofa-tresund-light-beige-s49482832/",
+    "priceKrw": 749000,
+    "mall": "IKEA 한국",
+    "brand": "IKEA",
+    "specW": 2.28,
+    "specD": 0.95,
+    "specH": 0.83,
+    "source": "browse",
+    "fetchedAt": "2026-08-25T00:00:00+09:00"
+  },
+  "table-coffee": {
+    "url": "https://www.ikea.com/kr/ko/p/lack-coffee-table-white-70449906/",
+    "priceKrw": 29900,
+    "mall": "IKEA 한국",
+    "brand": "IKEA",
+    "specW": 0.9,
+    "specD": 0.55,
+    "specH": 0.45,
+    "source": "browse",
+    "fetchedAt": "2026-08-25T00:00:00+09:00"
+  },
+  "storage-shelf-slim": {
+    "url": "https://www.ikea.com/kr/ko/p/billy-bookcase-white-00522047/",
+    "priceKrw": 89900,
+    "mall": "IKEA 한국",
+    "brand": "IKEA",
+    "specW": 0.8,
+    "specD": 0.28,
+    "specH": 2.02,
+    "source": "browse",
+    "fetchedAt": "2026-08-25T00:00:00+09:00"
+  },
+  "bed-queen": {
+    "url": "https://www.ikea.com/kr/ko/p/slattum-upholstered-bed-frame-vissle-dark-grey-80571246/",
+    "priceKrw": 159000,
+    "mall": "IKEA 한국",
+    "brand": "IKEA",
+    "specW": 1.54,
+    "specD": 2.06,
+    "source": "browse",
+    "fetchedAt": "2026-08-25T00:00:00+09:00"
+  },
+  "desk-oak": {
+    "url": "https://www.ikea.com/kr/ko/p/malm-desk-with-pull-out-panel-white-20361152/",
+    "priceKrw": 152000,
+    "mall": "IKEA 한국",
+    "brand": "IKEA",
+    "specW": 1.51,
+    "specD": 0.65,
+    "specH": 0.73,
+    "source": "browse",
+    "fetchedAt": "2026-08-25T00:00:00+09:00"
+  },
+  "chair-dining": {
+    "url": "https://www.ikea.com/kr/ko/p/teodores-chair-white-70350938/",
+    "priceKrw": 39900,
+    "mall": "IKEA 한국",
+    "brand": "IKEA",
+    "specW": 0.46,
+    "specD": 0.54,
+    "specH": 0.8,
+    "source": "browse",
+    "fetchedAt": "2026-08-25T00:00:00+09:00"
+  },
+  "tv-stand-1800": {
+    "url": "https://www.ikea.com/kr/ko/p/besta-tv-bench-with-doors-white-lappviken-white-s19299137/",
+    "priceKrw": 209000,
+    "mall": "IKEA 한국",
+    "brand": "IKEA",
+    "specW": 1.8,
+    "specD": 0.42,
+    "specH": 0.38,
+    "source": "browse",
+    "fetchedAt": "2026-08-25T00:00:00+09:00"
+  },
+  "wardrobe-hinged": {
+    "url": "https://www.ikea.com/kr/ko/p/kleppstad-wardrobe-with-3-doors-white-80441759/",
+    "priceKrw": 169000,
+    "mall": "IKEA 한국",
+    "brand": "IKEA",
+    "specW": 1.17,
+    "specD": 0.55,
+    "specH": 1.76,
+    "source": "browse",
+    "fetchedAt": "2026-08-25T00:00:00+09:00"
+  }
+}

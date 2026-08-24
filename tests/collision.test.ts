@@ -109,14 +109,22 @@ describe('resolveCollisions (캡슐 0.25m)', () => {
     expect(res).toEqual(probe);
   });
 
-  it('낮은 오브젝트(러그·커피 테이블 h≤0.4)는 충돌 제외', () => {
+  it('낮은 오브젝트(러그 h≤0.4)는 충돌 제외, 실측 커피 테이블(h=0.45)은 충돌체', () => {
     const plan = createSamplePlan();
     const cs = buildColliders(plan);
+    // 러그(h≈0.02)는 걸어 넘을 수 있다 — 중심 위에 서도 밀리지 않는다
+    // (거실 러그는 커피 테이블 충돌체와 겹치므로 단독 배치된 욕실 러너로 검증)
+    const rug = plan.items.find((i) => i.id === 'i-rug-bath')!;
+    expect(rug.size.h).toBeLessThanOrEqual(0.4);
+    const resRug = resolveCollisions({ ...rug.position }, cs, PLAYER_RADIUS);
+    expect(resRug).toEqual(rug.position);
+    // 커피 테이블은 실측(LACK 45cm) 반영으로 임계 0.4m를 넘어 충돌체가 된다
+    // — 패딩 적용 우측 모서리 바로 밖(캡슐 반경 안)에 서면 밀려난다
     const coffee = plan.items.find((i) => i.id === 'i-coffee')!;
-    expect(coffee.size.h).toBeLessThanOrEqual(0.4);
-    // 커피 테이블 중심 위에 서도 밀리지 않는다 (소파·러그와도 무관)
-    const res = resolveCollisions({ ...coffee.position }, cs, PLAYER_RADIUS);
-    expect(res).toEqual(coffee.position);
+    expect(coffee.size.h).toBeGreaterThan(0.4);
+    const probeC = { x: coffee.position.x + coffee.size.w / 2 + 0.03, y: coffee.position.y };
+    const resCoffee = resolveCollisions({ ...probeC }, cs, PLAYER_RADIUS);
+    expect(resCoffee.x).toBeGreaterThan(probeC.x);
   });
 });
 

@@ -169,6 +169,21 @@ export function CatalogPanel() {
               </span>
               <span className="catalog-item__name">{c.name}</span>
               <span className="catalog-item__size mono">{formatSize(c)}</span>
+              {c.product && (
+                <span className="catalog-item__price mono">
+                  {formatPrice(c.price)}
+                  <span
+                    className="catalog-item__link"
+                    title={`${c.product.mall}에서 보기`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(c.product!.url, '_blank', 'noopener');
+                    }}
+                  >
+                    ↗
+                  </span>
+                </span>
+              )}
             </button>
           );
         })}
@@ -541,7 +556,20 @@ export function Inspector() {
         </div>
       </div>
       <div className="inspector__footer">
-        <span className="inspector__price">{formatPrice(item.price)}</span>
+        <span className="inspector__price">
+          {formatPrice(item.price)}
+          {cat.product && (
+            <a
+              className="inspector__product-link"
+              href={cat.product.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`${cat.product.mall} 실판매가 (${cat.product.fetchedAt.slice(0, 10)} 기준)`}
+            >
+              실제가 ↗
+            </a>
+          )}
+        </span>
         <button
           className="btn btn--outline"
           aria-expanded={detailOpen}
