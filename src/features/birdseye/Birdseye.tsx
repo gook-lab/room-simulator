@@ -8,7 +8,7 @@ import { useCurrentPlan, useStore } from '../../state/store';
 import { ViewTabs } from '../../components/ViewTabs';
 import { CanvasBoundary } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
-import { PRESET_LABELS } from '../three/lighting';
+import { PRESET_LABELS, toggleDayNight } from '../three/lighting';
 import { planCenter } from '../three/wallGeometry';
 
 const PRESETS: LightPreset[] = ['afternoon', 'sunset', 'overcast', 'night'];
@@ -234,6 +234,14 @@ export function Birdseye() {
               {label}
             </button>
           ))}
+          <span className="be-camera-bar__divider" />
+          <button
+            className="chip-toggle"
+            onClick={() => setLighting({ preset: toggleDayNight(viewer.lighting.preset) })}
+            title="주간/야간 전환"
+          >
+            {viewer.lighting.preset === 'night' ? '주간' : '야간'}
+          </button>
           <span className="be-camera-bar__divider" />
           <button className="btn--text-accent" onClick={startWalkthrough}>
             이 시점에서 워크스루 시작

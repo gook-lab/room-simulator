@@ -58,3 +58,11 @@ export const PRESET_LABELS: Record<LightPreset, string> = {
   overcast: '흐린 날',
   night: '밤',
 };
+
+/**
+ * 주간/야간 원클릭 토글 — 야간이면 주간(오후)으로, 그 외는 야간으로.
+ * 야간 프리셋은 태양·앰비언트를 낮춰 켜진 조명·무드등·TV 화면광이 주광원이 됩니다.
+ */
+export function toggleDayNight(current: LightPreset): LightPreset {
+  return current === 'night' ? 'afternoon' : 'night';
+}
