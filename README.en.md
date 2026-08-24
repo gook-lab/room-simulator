@@ -22,7 +22,7 @@ spec.
 | 2D editor | Hand-rolled SVG rendering (no canvas library) |
 | 3D | Three.js 0.170 · React Three Fiber 8 · Drei 9 |
 | State | Zustand 5 (single store, command-level undo) |
-| Tests | Vitest — 162 pure-logic tests (as of 2026-08-24) |
+| Tests | Vitest — 168 pure-logic tests (as of 2026-08-24) |
 | Persistence | localStorage + JSON export/import |
 
 ## Features
