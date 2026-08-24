@@ -1,8 +1,8 @@
 {
-  "pid": 53335,
-  "port": 57315,
-  "token": "d7a397a1-4e1b-4e60-a7d3-fb7b202022ed",
-  "startedAt": "2026-08-24T09:45:57.058Z",
+  "pid": 41962,
+  "port": 43325,
+  "token": "f25bd4d3-6295-4208-837e-832c8d75b6f3",
+  "startedAt": "2026-08-24T11:43:44.510Z",
   "serverPath": "/Users/kyb-ontact/.claude/skills/gstack/browse/src/server.ts",
   "mode": "launched",
   "configHash": "303a7eeccc03078b"

@@ -275,6 +275,78 @@
   color: var(--text-2);
 }
 
+/* 템플릿 선택 (1단계) */
+.tpl-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.tpl-section__title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+.tpl-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 10px;
+  text-align: left;
+  transition: border-color var(--ease-color), transform var(--ease-move);
+}
+
+.tpl-card:hover {
+  border-color: rgba(14, 159, 110, 0.5);
+  transform: translateY(-1px);
+}
+
+.tpl-card__thumb {
+  flex: none;
+  background: var(--inset-b);
+  border-radius: 7px;
+  overflow: hidden;
+  display: flex;
+}
+
+.tpl-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tpl-card__name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.tpl-card__meta {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-deep);
+  letter-spacing: 0.06em;
+}
+
+.tpl-card__desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.tpl-section .link-plain {
+  align-self: center;
+  margin-top: 2px;
+}
+
 .upload__side-footer {
   margin-top: auto;
   display: flex;

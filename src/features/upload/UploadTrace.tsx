@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import './upload.css';
 import type { Plan, Room, Vec2, Wall } from '../../model/types';
 import { polygonArea } from '../../model/geometry';
+import { TEMPLATES } from '../../model/templates';
 import { useStore } from '../../state/store';
+import { MiniPlan } from '../../components/MiniPlan';
 
 const PAPER_W = 780;
 const PAPER_H = 560;
@@ -463,6 +465,35 @@ export function UploadTrace() {
                 기존 도면 이미지를 올리면 그 위에 벽을 트레이싱해 편집 가능한 평면도를
                 만듭니다. 스캔본·사진 모두 가능합니다.
               </p>
+              <div className="tpl-section">
+                <div className="tpl-section__title">또는 템플릿에서 시작</div>
+                {TEMPLATES.map((tpl) => {
+                  const preview = tpl.build();
+                  return (
+                    <button
+                      key={tpl.id}
+                      className="tpl-card"
+                      onClick={() => {
+                        const plan = tpl.build();
+                        addPlan(plan);
+                        openPlan(plan.id);
+                      }}
+                    >
+                      <span className="tpl-card__thumb">
+                        <MiniPlan plan={preview} width={104} height={68} />
+                      </span>
+                      <span className="tpl-card__body">
+                        <span className="tpl-card__name">{tpl.name}</span>
+                        <span className="tpl-card__meta mono">{tpl.sizeLabel}</span>
+                        <span className="tpl-card__desc">{tpl.desc}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+                <button className="link-plain" onClick={() => buildAndOpen(true)}>
+                  빈 도면에서 시작
+                </button>
+              </div>
             </>
           )}
 
