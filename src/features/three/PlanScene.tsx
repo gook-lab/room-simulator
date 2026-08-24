@@ -1,12 +1,12 @@
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import type { PlacedItem, Plan, ViewerState } from '../../model/types';
+import type { Opening, PlacedItem, Plan, ViewerState, Wall } from '../../model/types';
 import { catalogById } from '../../model/catalog';
-import { isPowered } from '../../model/interactions3d';
+import { isDoorOpen, isPowered } from '../../model/interactions3d';
 import { darken, lampPartColors, lighten } from '../editor2d/symbols';
 import { LIGHT_PRESETS } from './lighting';
-import { planCenter, wallBoxes, wallLength } from './wallGeometry';
+import { DOOR_HEIGHT, planCenter, wallBoxes, wallLength } from './wallGeometry';
 
 const FLOOR_3D: Record<string, string> = {
   living: '#c9ae86',
@@ -120,6 +120,101 @@ function Ceiling({ plan }: { plan: Plan }) {
           <meshStandardMaterial color={CEILING_COLOR} roughness={0.95} side={THREE.DoubleSide} />
         </mesh>
       ))}
+    </group>
+  );
+}
+
+/* ===== 문짝 (개폐 스윙) ===== */
+
+function DoorLeaf({
+  wall,
+  opening,
+  highlighted,
+}: {
+  wall: Wall;
+  opening: Opening;
+  highlighted: boolean;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const angleRef = useRef(isDoorOpen(opening) ? -deg2rad3(95) : 0);
+  const len = wallLength(wall);
+  const dir = { x: (wall.b.x - wall.a.x) / len, y: (wall.b.y - wall.a.y) / len };
+  const wallAngle = Math.atan2(dir.y, dir.x);
+  const half = opening.width / 2;
+  const center = {
+    x: wall.a.x + dir.x * opening.t * len,
+    y: wall.a.y + dir.y * opening.t * len,
+  };
+  // 경첩: swing left → 구간 시작점, right → 구간 끝점
+  const hinge =
+    opening.swing === 'right'
+      ? { x: center.x + dir.x * half, y: center.y + dir.y * half }
+      : { x: center.x - dir.x * half, y: center.y - dir.y * half };
+  const baseRotY = -wallAngle + (opening.swing === 'right' ? Math.PI : 0);
+
+  useFrame((_, dt) => {
+    const target = isDoorOpen(opening) ? -deg2rad3(95) : 0;
+    angleRef.current += (target - angleRef.current) * Math.min(1, dt / 0.12);
+    if (groupRef.current) {
+      groupRef.current.rotation.y = baseRotY + angleRef.current;
+    }
+  });
+
+  return (
+    <group
+      ref={groupRef}
+      position={[hinge.x, 0, hinge.y]}
+      rotation={[0, baseRotY + angleRef.current, 0]}
+      userData={{ openingId: opening.id }}
+    >
+      <mesh position={[opening.width / 2, DOOR_HEIGHT / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[opening.width, DOOR_HEIGHT, 0.045]} />
+        <meshStandardMaterial color="#c9a882" roughness={0.75} />
+      </mesh>
+      {/* 손잡이 */}
+      <mesh position={[opening.width * 0.86, 1.02, 0.04]}>
+        <sphereGeometry args={[0.025, 10, 8]} />
+        <meshStandardMaterial color="#8a6a4c" roughness={0.4} />
+      </mesh>
+      {highlighted && (
+        <mesh position={[opening.width / 2, DOOR_HEIGHT / 2, 0]}>
+          <boxGeometry args={[opening.width + 0.06, DOOR_HEIGHT + 0.06, 0.11]} />
+          <meshBasicMaterial color="#0e9f6e" wireframe transparent opacity={0.45} depthWrite={false} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+function deg2rad3(d: number): number {
+  return (d * Math.PI) / 180;
+}
+
+function Doors({
+  plan,
+  doorGroupRef,
+  highlightOpeningId,
+}: {
+  plan: Plan;
+  doorGroupRef?: React.RefObject<THREE.Group>;
+  highlightOpeningId: string | null;
+}) {
+  return (
+    <group ref={doorGroupRef}>
+      {plan.openings
+        .filter((o) => o.kind === 'door')
+        .map((o) => {
+          const wall = plan.walls.find((w) => w.id === o.wallId);
+          if (!wall || wallLength(wall) < 1e-6) return null;
+          return (
+            <DoorLeaf
+              key={o.id}
+              wall={wall}
+              opening={o}
+              highlighted={o.id === highlightOpeningId}
+            />
+          );
+        })}
     </group>
   );
 }
@@ -407,6 +502,44 @@ function FurnitureMesh({
       );
       break;
     }
+    case 'tv': {
+      const screenH = Math.min(h * 0.45, (w * 9) / 16);
+      const screenY = h - screenH / 2;
+      const on = isPowered(item);
+      body = (
+        <group>
+          <mesh position={[0, 0.015, 0]} castShadow>
+            <cylinderGeometry args={[0.22, 0.24, 0.03, 20]} />
+            <meshStandardMaterial color={c} roughness={0.5} />
+          </mesh>
+          <Box args={[0.05, h - screenH, 0.05]} position={[0, (h - screenH) / 2, 0]} color={c} />
+          {/* 스크린 (앞면 +z = 평면도 +y 방향) */}
+          <mesh position={[0, screenY, 0.02]} castShadow>
+            <boxGeometry args={[w, screenH, 0.035]} />
+            <meshStandardMaterial color="#11181a" roughness={0.35} />
+          </mesh>
+          <mesh position={[0, screenY, 0.042]}>
+            <planeGeometry args={[w * 0.94, screenH * 0.88]} />
+            <meshStandardMaterial
+              color={on ? '#aebfd6' : '#0c1113'}
+              emissive="#dfe8ff"
+              emissiveIntensity={on ? 1.1 : 0}
+              roughness={0.3}
+            />
+          </mesh>
+          {on && (
+            <pointLight
+              position={[0, screenY, 0.35]}
+              color="#cfe0ff"
+              intensity={0.4}
+              distance={2.8}
+              decay={1.8}
+            />
+          )}
+        </group>
+      );
+      break;
+    }
     default:
       body = <Box args={[w, h, d]} position={[0, h / 2, 0]} color={c} />;
   }
@@ -508,16 +641,21 @@ export function PlanScene({
   viewer,
   showCeiling,
   furnitureGroupRef,
+  doorGroupRef,
   darkBackground = true,
   highlightItemId = null,
+  highlightOpeningId = null,
 }: {
   plan: Plan;
   viewer: ViewerState;
   showCeiling: boolean;
   furnitureGroupRef?: React.RefObject<THREE.Group>;
+  doorGroupRef?: React.RefObject<THREE.Group>;
   darkBackground?: boolean;
   /** 응시 중 상호작용 가능 사물 하이라이트 */
   highlightItemId?: string | null;
+  /** 응시 중 문 하이라이트 */
+  highlightOpeningId?: string | null;
 }) {
   const spec = LIGHT_PRESETS[viewer.lighting.preset];
   const lampIntensity = spec.lampBase * viewer.lighting.indoorIntensity * 1.6;
@@ -526,6 +664,7 @@ export function PlanScene({
       <LightRig plan={plan} viewer={viewer} setBackground={darkBackground} />
       <Floors plan={plan} />
       <Walls plan={plan} />
+      <Doors plan={plan} doorGroupRef={doorGroupRef} highlightOpeningId={highlightOpeningId} />
       {showCeiling && <Ceiling plan={plan} />}
       <group ref={furnitureGroupRef}>
         {plan.items.map((item) => (

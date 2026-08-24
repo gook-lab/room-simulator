@@ -412,6 +412,16 @@ export const CATALOG: CatalogItem[] = [
     swatches: rugSwatches,
   },
   {
+    id: 'tv-standby',
+    name: '스탠드형 TV',
+    category: 'decor',
+    shape: 'tv',
+    size: { w: 0.7, d: 0.4, h: 1.3 },
+    price: 1_190_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
     id: 'plant-cactus',
     name: '선인장 화분',
     category: 'decor',

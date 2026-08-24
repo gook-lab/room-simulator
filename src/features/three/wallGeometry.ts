@@ -1,4 +1,5 @@
 import type { Opening, Plan, Wall } from '../../model/types';
+import { isDoorOpen } from '../../model/interactions3d';
 
 export const DOOR_HEIGHT = 2.0;
 export const WINDOW_SILL = 0.9;
@@ -52,11 +53,14 @@ export function wallBoxes(wall: Wall, openings: Opening[]): WallBox[] {
   return boxes.filter((b) => b.end - b.start > 1e-4 && b.top - b.bottom > 1e-4);
 }
 
-/** 통행 가능(문) 구간을 제외한, 충돌용 벽 서브 세그먼트 (2D, 벽 길이 방향) */
+/**
+ * 통행 가능 구간(= **열린** 문)을 제외한, 충돌용 벽 서브 세그먼트 (2D, 벽 길이 방향).
+ * 닫힌 문은 벽과 동일하게 통과 불가.
+ */
 export function collisionSpans(wall: Wall, openings: Opening[]): { start: number; end: number }[] {
   const len = wallLength(wall);
   const doors = openings
-    .filter((o) => o.wallId === wall.id && o.kind === 'door')
+    .filter((o) => o.wallId === wall.id && o.kind === 'door' && isDoorOpen(o))
     .map((o) => ({
       start: Math.max(0, o.t * len - o.width / 2),
       end: Math.min(len, o.t * len + o.width / 2),

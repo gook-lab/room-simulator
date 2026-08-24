@@ -97,7 +97,15 @@ function OpeningGlyph({ plan, opening }: { plan: Plan; opening: Opening }) {
     );
   }
 
-  // 문: 벽을 바닥색으로 지우고 90° 스윙 호
+  // 문: 벽을 바닥색으로 지운다. 닫힘 = 문짝 슬래브, 열림 = 90° 스윙 호
+  if (opening.open === false) {
+    return (
+      <g>
+        <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#fbf8f3" strokeWidth={wall.thickness + 0.01} />
+        <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#c9a882" strokeWidth={5} {...NSS} />
+      </g>
+    );
+  }
   const hinge = opening.swing === 'right' ? p2 : p1;
   const leaf = opening.swing === 'right' ? p1 : p2;
   const normal = { x: -dir.y, y: dir.x };
