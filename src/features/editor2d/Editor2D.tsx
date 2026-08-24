@@ -37,6 +37,7 @@ import {
   unmountItem,
 } from '../../model/surfaces';
 import {
+  alignmentTargets,
   collisionsFor,
   dimensionNear,
   findFreeSpot,
@@ -61,6 +62,7 @@ import { CatalogPanel, Inspector, StatusBar, ToolDock } from './panels';
 import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
 import { sketchDraftPoints } from './sketchDraft';
 import { dragOriginPoses, type DragOriginPoses } from './dragPreview';
+import { alignmentSnap, axisLock, type AlignmentGuide } from './alignGuides';
 import { fitCamera, makeTransform, s2w, w2s } from './view';
 
 let idSeq = 0;
@@ -799,10 +801,53 @@ export function Editor2D() {
       if (g?.type === 'groupMove') {
         g.moved = true;
         const snap = useStore.getState().snapping;
-        let delta = { x: world.x - g.grabWorld.x, y: world.y - g.grabWorld.y };
+        // Shift 축 잠금 — 그랩 지점 기준 직선 이동
+        const target = e.shiftKey ? axisLock(g.grabWorld, world) : world;
+        let delta = { x: target.x - g.grabWorld.x, y: target.y - g.grabWorld.y };
+        let groupGuides: AlignmentGuide[] = [];
         if (snap.enabled) {
+          // 그룹 바운즈 기준 정렬 스냅 (정렬 > 데드존 > 그리드 — 상대 배치 유지)
+          let minX = Infinity;
+          let minY = Infinity;
+          let maxX = -Infinity;
+          let maxY = -Infinity;
+          for (const id of g.itemIds) {
+            const bi = g.before.items.find((i) => i.id === id);
+            const start = g.starts[id];
+            if (!bi || !start) continue;
+            const ab = itemAabb({
+              position: { x: start.x + delta.x, y: start.y + delta.y },
+              rotationDeg: bi.rotationDeg,
+              size: bi.size,
+            });
+            minX = Math.min(minX, ab.min.x);
+            minY = Math.min(minY, ab.min.y);
+            maxX = Math.max(maxX, ab.max.x);
+            maxY = Math.max(maxY, ab.max.y);
+          }
           const grid = snap.gridCm / 100;
-          delta = { x: snapValue(delta.x, grid), y: snapValue(delta.y, grid) };
+          if (Number.isFinite(minX)) {
+            const s = tRef.current.s;
+            const targets = alignmentTargets(
+              pl,
+              { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
+              new Set(g.itemIds),
+              500 / s,
+            );
+            const align = alignmentSnap(
+              { min: { x: minX, y: minY }, max: { x: maxX, y: maxY } },
+              targets,
+              6 / s,
+              12 / s,
+            );
+            delta = {
+              x: align.dx != null ? delta.x + align.dx : align.freeX ? delta.x : snapValue(delta.x, grid),
+              y: align.dy != null ? delta.y + align.dy : align.freeY ? delta.y : snapValue(delta.y, grid),
+            };
+            groupGuides = align.guides;
+          } else {
+            delta = { x: snapValue(delta.x, grid), y: snapValue(delta.y, grid) };
+          }
         }
         updatePlan(
           (p) => {
@@ -828,6 +873,7 @@ export function Editor2D() {
           collisions,
           blockedDoors,
           isNew: false,
+          alignGuides: groupGuides,
         });
         return;
       }
@@ -836,14 +882,22 @@ export function Editor2D() {
         const item = pl.items.find((i) => i.id === g.itemId);
         if (!item) return;
         g.moved = true;
-        const candidate = { x: world.x - g.grabOffset.x, y: world.y - g.grabOffset.y };
+        let candidate = { x: world.x - g.grabOffset.x, y: world.y - g.grabOffset.y };
+        // Shift 축 잠금: 시작 위치 기준 수평/수직 직선 이동
+        if (e.shiftKey) {
+          const start = g.before.items.find((i) => i.id === g.itemId)?.position;
+          if (start) candidate = axisLock(start, candidate);
+        }
         const snap = useStore.getState().snapping;
-        const { position, snap: snapResult } = snapItemMove(
+        // 정렬 대상에서 자기 자신 + 함께 움직이는 적층 자식 제외
+        const childIds = pl.items.filter((i) => i.parentId === g.itemId).map((i) => i.id);
+        const { position, snap: snapResult, guides } = snapItemMove(
           pl,
           item,
           candidate,
           tRef.current.s,
           snap,
+          childIds,
         );
         // 표면 적층: mountable 아이템이 표면 가구 위에 있으면 표면 드롭 후보
         const cat = catalogById.get(item.catalogId);
@@ -870,6 +924,7 @@ export function Editor2D() {
           isNew: false,
           surfaceTargetId: surf?.id ?? null,
           surfaceInvalid,
+          alignGuides: guides,
         });
         return;
       }

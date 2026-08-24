@@ -219,6 +219,14 @@ export type DragState = {
   surfaceTargetId?: string | null;
   /** 표면 위지만 상판 이탈·형제 겹침으로 드롭 불가 */
   surfaceInvalid?: boolean;
+  /** 정렬 가이드 라인 (다른 가구 엣지/센터와 수평·수직 정렬) */
+  alignGuides?: {
+    axis: 'x' | 'y';
+    line: number;
+    from: number;
+    to: number;
+    targetIds: string[];
+  }[];
 };
 
 export type LightPreset = 'afternoon' | 'sunset' | 'overcast' | 'night';

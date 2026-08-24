@@ -559,6 +559,34 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
       {drag.snap && (
         <SnapGuides plan={plan} item={item} t={t} snap={drag.snap} />
       )}
+      {/* 정렬 가이드 — 다른 가구의 엣지/센터와 수평·수직 정렬 (accent 얇은 선) */}
+      {drag.alignGuides?.map((g, i) =>
+        g.axis === 'x' ? (
+          <line
+            key={`ag-${i}`}
+            x1={g.line * t.s + t.ox}
+            y1={g.from * t.s + t.oy}
+            x2={g.line * t.s + t.ox}
+            y2={g.to * t.s + t.oy}
+            stroke="#0e9f6e"
+            strokeWidth={1.2}
+            strokeDasharray="4 3"
+            {...NSS}
+          />
+        ) : (
+          <line
+            key={`ag-${i}`}
+            x1={g.from * t.s + t.ox}
+            y1={g.line * t.s + t.oy}
+            x2={g.to * t.s + t.ox}
+            y2={g.line * t.s + t.oy}
+            stroke="#0e9f6e"
+            strokeWidth={1.2}
+            strokeDasharray="4 3"
+            {...NSS}
+          />
+        ),
+      )}
       {/* 고스트 외곽 dashed (1c-1) / 충돌 시 warn (1c-4) */}
       <g transform={`translate(${item.position.x * t.s + t.ox} ${item.position.y * t.s + t.oy}) rotate(${item.rotationDeg}) scale(${t.s})`}>
         <rect

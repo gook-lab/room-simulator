@@ -13,6 +13,27 @@ import {
 import { catalogById } from '../../model/catalog';
 import { NON_COLLIDING_SHAPES, shapeOf } from './symbols';
 import { itemLayer, sortedItems, wallItemPose } from './PlanCanvas';
+import { alignmentSnap, type AlignmentGuide } from './alignGuides';
+
+/**
+ * 정렬 스냅 대상 수집 — 같은 방이거나 근접 반경(스크린 500px) 이내의
+ * 바닥 가구만 비교한다 (표면 적층 자식·제외 목록은 대상 아님).
+ */
+export function alignmentTargets(
+  plan: Plan,
+  center: Vec2,
+  excludeIds: Set<string>,
+  proximityM: number,
+): { id: string; aabb: { min: Vec2; max: Vec2 } }[] {
+  const roomId = roomAt(plan.rooms, center)?.id ?? null;
+  return plan.items
+    .filter((i) => {
+      if (excludeIds.has(i.id) || i.parentId) return false;
+      const d = Math.hypot(i.position.x - center.x, i.position.y - center.y);
+      return (roomId != null && i.roomId === roomId) || d <= proximityM;
+    })
+    .map((i) => ({ id: i.id, aabb: itemAabb(i) }));
+}
 
 function isHorizontal(w: Wall): boolean {
   return Math.abs(w.a.y - w.b.y) < 1e-6;
@@ -27,8 +48,9 @@ function spanOverlap(a1: number, a2: number, b1: number, b2: number): boolean {
 }
 
 /**
- * 가구 이동 스냅: 그리드(10cm) + 벽 면(스크린 12px 이내).
- * 반환된 position은 스냅 적용 후 좌표.
+ * 가구 이동 스냅: 우선순위 벽 면(12px) > 정렬 가이드(6px, 다른 가구
+ * 엣지/센터) > 데드존(12px — 그리드 억제, 자유 이동) > 그리드(10cm).
+ * 반환된 position은 스냅 적용 후 좌표 = 프리뷰 = 커밋 (미리보기=커밋 계약).
  */
 export function snapItemMove(
   plan: Plan,
@@ -36,13 +58,24 @@ export function snapItemMove(
   candidate: Vec2,
   pxPerM: number,
   snapping: { enabled: boolean; gridCm: number },
-): { position: Vec2; snap: SnapResult | null } {
-  let pos = { ...candidate };
-  if (snapping.enabled) {
-    const grid = snapping.gridCm / 100;
-    pos = { x: snapValue(pos.x, grid), y: snapValue(pos.y, grid) };
-  }
-  if (!snapping.enabled) return { position: pos, snap: null };
+  excludeIds?: string[],
+): { position: Vec2; snap: SnapResult | null; guides: AlignmentGuide[] } {
+  if (!snapping.enabled) return { position: { ...candidate }, snap: null, guides: [] };
+
+  // 1) 정렬 가이드 — 그리드 적용 전 원시 후보 기준
+  const exclude = new Set(excludeIds ?? []);
+  if (item.id) exclude.add(item.id);
+  const rawAabb = itemAabb({ position: candidate, rotationDeg: item.rotationDeg, size: item.size });
+  const targets = alignmentTargets(plan, candidate, exclude, 500 / pxPerM);
+  const align = alignmentSnap(rawAabb, targets, 6 / pxPerM, 12 / pxPerM);
+
+  // 2) 축별 조합: 정렬 > 데드존(자유) > 그리드
+  const grid = snapping.gridCm / 100;
+  let pos = {
+    x: align.dx != null ? candidate.x + align.dx : align.freeX ? candidate.x : snapValue(candidate.x, grid),
+    y: align.dy != null ? candidate.y + align.dy : align.freeY ? candidate.y : snapValue(candidate.y, grid),
+  };
+  let guides = align.guides;
 
   const threshold = 12 / pxPerM;
   const probe = { position: pos, rotationDeg: item.rotationDeg, size: item.size };
@@ -105,7 +138,9 @@ export function snapItemMove(
     }
   }
 
-  if (!best) return { position: pos, snap: null };
+  if (!best) return { position: pos, snap: null, guides };
+  // 3) 벽 면 스냅이 잡히면 해당 축은 벽이 우선 — 그 축의 정렬 가이드는 내린다
+  guides = guides.filter((g) => g.axis !== best!.snap.axis);
   const snapped = { x: pos.x + best.delta.x, y: pos.y + best.delta.y };
 
   // 반대편 여유: 같은 룸 bounding box 기준
@@ -129,7 +164,7 @@ export function snapItemMove(
     best.snap.clearance = Math.max(0, best.snap.clearance - 0.075);
   }
 
-  return { position: snapped, snap: best.snap };
+  return { position: snapped, snap: best.snap, guides };
 }
 
 export function collisionsFor(
