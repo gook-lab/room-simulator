@@ -57,6 +57,24 @@ src/
 - 충돌(1인칭): 반경 0.25m 캡슐 vs 벽 세그먼트(개구부 구간 제외) + 가구 AABB.
 - 조명 프리셋: 태양 방향·색온도·앰비언트 3종 보간(0.4s), 실내등 슬라이더 실시간.
 
+## 입력 라우팅 규칙 (wheel / 제스처)
+
+원칙: **포인터가 떠 있는 표면이 이벤트의 주인이다.** (`src/features/editor2d/inputRouting.ts`)
+
+1. 캔버스 줌/팬은 포인터가 캔버스 위에 있을 때만. 오버레이(카탈로그·인스펙터·마감
+   패널·툴독·상태바·뷰 탭·상단바) 위의 wheel은 그 패널의 스크롤로만 소비된다 —
+   에디터 wheel 핸들러가 `wheelTargetsCanvas(e.target)` 가드로 오버레이 서브트리를
+   거른다 (`OVERLAY_SELECTOR`).
+2. 패널 스크롤이 끝에 닿아도 캔버스로 체이닝하지 않는다 — 스크롤 컨테이너 공용
+   클래스 `.scroll-y`에 `overscroll-behavior: contain`.
+3. 줌 시맨틱: 캔버스 위 휠 = **커서 기준 줌** (핸드오프 README 준수, 트랙패드 핀치
+   ctrlKey-wheel 포함). 팬은 Space+드래그 / 휠클릭 드래그.
+4. 3D 뷰: 워크스루는 wheel 미사용(포인터 락 + 슬라이더), 조감도 OrbitControls는
+   drei 기본대로 **gl canvas 요소에만** 리스너를 붙이므로 HUD/패널 위 휠이 카메라로
+   새지 않는다. window 단위 wheel 리스너는 어디에도 두지 않는다.
+5. **새 오버레이 패널을 추가하면 `OVERLAY_SELECTOR`에 클래스를 등록**하고, 스크롤
+   영역엔 `.scroll-y`를 쓴다.
+
 ## 빌드
 
 `npm run build` = `tsc -b && vite build`. 항상 통과 상태 유지 (STATUS.md 참조).

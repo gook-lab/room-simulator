@@ -406,6 +406,8 @@ input {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
+  /* 입력 라우팅 규칙: 스크롤 끝에 닿아도 캔버스로 체이닝 금지 */
+  overscroll-behavior: contain;
 }
 
 /* Screen container under topbar */
