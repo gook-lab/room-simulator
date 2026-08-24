@@ -6,9 +6,17 @@ export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
   storage: '수납',
   lighting: '조명',
   rug: '러그',
+  decor: '소품',
 };
 
-export const CATEGORY_ORDER: CatalogCategory[] = ['sofa', 'table', 'storage', 'lighting', 'rug'];
+export const CATEGORY_ORDER: CatalogCategory[] = [
+  'sofa',
+  'table',
+  'storage',
+  'lighting',
+  'rug',
+  'decor',
+];
 
 const fabricSwatches = [
   { id: 'sand', label: '샌드', color: '#dcc7ae' },
@@ -33,6 +41,12 @@ const rugSwatches = [
   { id: 'sage', label: '세이지', color: '#8fa396' },
   { id: 'ivory', label: '아이보리', color: '#e9e2d4' },
   { id: 'terra', label: '테라코타', color: '#c98a66' },
+];
+
+const potSwatches = [
+  { id: 'terra', label: '테라코타', color: '#c98a66' },
+  { id: 'ceramic', label: '세라믹', color: '#f2efe9' },
+  { id: 'charcoal', label: '차콜', color: '#3d4742' },
 ];
 
 export const CATALOG: CatalogItem[] = [
@@ -160,6 +174,106 @@ export const CATALOG: CatalogItem[] = [
     materialLabel: '컬러',
     swatches: rugSwatches,
   },
+  {
+    id: 'desk-oak',
+    name: '오크 책상 1400',
+    category: 'table',
+    shape: 'desk',
+    size: { w: 1.4, d: 0.7, h: 0.75 },
+    price: 420_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'chair-dining',
+    name: '원목 다이닝 체어',
+    category: 'sofa',
+    shape: 'chair',
+    size: { w: 0.46, d: 0.52, h: 0.82 },
+    price: 120_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'dining-set-4',
+    name: '4인 식탁 세트',
+    category: 'table',
+    shape: 'dining-set',
+    size: { w: 1.7, d: 1.7, h: 0.75 },
+    price: 980_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'table-side',
+    name: '사이드 테이블',
+    category: 'table',
+    shape: 'round-table',
+    size: { w: 0.45, d: 0.45, h: 0.55 },
+    price: 85_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'bookcase-wide',
+    name: '와이드 책장',
+    category: 'storage',
+    shape: 'shelf',
+    size: { w: 1.2, d: 0.4, h: 2.0 },
+    price: 390_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'tv-stand-1800',
+    name: '로우 TV장 1800',
+    category: 'storage',
+    shape: 'console',
+    size: { w: 1.8, d: 0.45, h: 0.5 },
+    price: 520_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'wardrobe-hinged',
+    name: '여닫이 옷장',
+    category: 'storage',
+    shape: 'wardrobe',
+    size: { w: 1.0, d: 0.6, h: 2.2 },
+    price: 760_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'lamp-stand-3',
+    name: '3구 스탠드 조명',
+    category: 'lighting',
+    shape: 'floor-lamp',
+    size: { w: 0.45, d: 0.45, h: 1.7 },
+    price: 230_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'plant-olive',
+    name: '올리브 화분',
+    category: 'decor',
+    shape: 'plant',
+    size: { w: 0.5, d: 0.5, h: 1.6 },
+    price: 95_000,
+    materialLabel: '화분',
+    swatches: potSwatches,
+  },
+  {
+    id: 'plant-monstera',
+    name: '몬스테라 화분',
+    category: 'decor',
+    shape: 'plant',
+    size: { w: 0.4, d: 0.4, h: 1.1 },
+    price: 68_000,
+    materialLabel: '화분',
+    swatches: potSwatches,
+  },
 ];
 
 export const catalogById = new Map(CATALOG.map((c) => [c.id, c]));
@@ -168,7 +282,7 @@ export function formatSize(item: CatalogItem): string {
   const { w, d, h } = item.size;
   const cm = (v: number) => Math.round(v * 100);
   if (item.shape === 'round-table') return `Ø ${cm(w)} cm`;
-  if (item.shape === 'floor-lamp' || item.shape === 'pendant-lamp')
+  if (item.shape === 'floor-lamp' || item.shape === 'pendant-lamp' || item.shape === 'plant')
     return `Ø ${cm(w)} · H ${cm(h)}`;
   return `${cm(w)} × ${cm(d)} cm`;
 }

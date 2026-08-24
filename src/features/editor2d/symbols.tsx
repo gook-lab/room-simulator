@@ -126,6 +126,53 @@ export function FurnitureSymbol({ item }: { item: PlacedItem }) {
           <circle r={hw * 0.4} fill="#efd9a8" stroke="#d9bc82" strokeWidth={1.2} {...SW} />
         </g>
       );
+    case 'desk':
+      return (
+        <g>
+          <rect x={-hw} y={-hd} width={w} height={d} rx={0.03} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />
+          <line x1={-hw} y1={-hd + d * 0.3} x2={hw} y2={-hd + d * 0.3} stroke={stroke} strokeWidth={0.75} opacity={0.5} {...SW} />
+          <rect x={hw - w * 0.28} y={-hd + d * 0.34} width={w * 0.24} height={d * 0.6} fill="none" stroke={stroke} strokeWidth={0.75} opacity={0.4} {...SW} />
+        </g>
+      );
+    case 'dining-set': {
+      // 중앙 테이블 + 4방향 의자
+      const tw = w * 0.55;
+      const td = d * 0.55;
+      const cw = w * 0.2;
+      const cd = d * 0.16;
+      const chair = (x: number, y: number, horizontal: boolean) => (
+        <rect
+          x={x - (horizontal ? cd : cw) / 2}
+          y={y - (horizontal ? cw : cd) / 2}
+          width={horizontal ? cd : cw}
+          height={horizontal ? cw : cd}
+          rx={0.04}
+          fill={darken(fill, 0.1)}
+          stroke={stroke}
+          strokeWidth={1}
+          {...SW}
+        />
+      );
+      return (
+        <g>
+          {chair(0, -hd + cd / 2, false)}
+          {chair(0, hd - cd / 2, false)}
+          {chair(-hw + cd / 2, 0, true)}
+          {chair(hw - cd / 2, 0, true)}
+          <rect x={-tw / 2} y={-td / 2} width={tw} height={td} rx={0.04} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />
+          <rect x={-tw / 2 + 0.08} y={-td / 2 + 0.08} width={tw - 0.16} height={td - 0.16} fill="none" stroke={stroke} strokeWidth={0.75} opacity={0.4} {...SW} />
+        </g>
+      );
+    }
+    case 'plant':
+      return (
+        <g>
+          <circle r={hw * 0.7} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />
+          <circle cx={-hw * 0.3} cy={-hw * 0.25} r={hw * 0.55} fill="#8fa396" opacity={0.85} stroke="#6d8175" strokeWidth={1} {...SW} />
+          <circle cx={hw * 0.35} cy={-hw * 0.1} r={hw * 0.45} fill="#9db2a4" opacity={0.85} stroke="#6d8175" strokeWidth={1} {...SW} />
+          <circle cx={hw * 0.05} cy={hw * 0.38} r={hw * 0.4} fill="#87a08f" opacity={0.85} stroke="#6d8175" strokeWidth={1} {...SW} />
+        </g>
+      );
     default:
       return <rect x={-hw} y={-hd} width={w} height={d} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />;
   }

@@ -70,7 +70,7 @@ export type Plan = {
 
 /* ===== Catalog ===== */
 
-export type CatalogCategory = 'sofa' | 'table' | 'storage' | 'lighting' | 'rug';
+export type CatalogCategory = 'sofa' | 'table' | 'storage' | 'lighting' | 'rug' | 'decor';
 
 /** 2D 심볼 / 3D 프리미티브 선택용 형태 힌트 */
 export type CatalogShape =
@@ -84,7 +84,10 @@ export type CatalogShape =
   | 'bed'
   | 'console'
   | 'wardrobe'
-  | 'chair';
+  | 'chair'
+  | 'desk'
+  | 'dining-set'
+  | 'plant';
 
 export type Swatch = { id: string; label: string; color: string };
 
