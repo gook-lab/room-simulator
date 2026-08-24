@@ -25,7 +25,7 @@ import {
   moveWallVertex,
   translateWall,
 } from '../../model/wallEdit';
-import { splitRoomByPolyline } from '../../model/roomSplit';
+import { splitRoomByPolyline, trimPolylineToRooms } from '../../model/roomSplit';
 import {
   collisionsFor,
   dimensionNear,
@@ -295,8 +295,9 @@ export function Editor2D() {
       const draft = wallDraft;
       setWallDraft(null);
       if (!draft || draft.points.length < 2) return;
-      const pts = draft.points;
       updatePlan((pl) => {
+        // 열린 폴리라인은 룸 경계 오버슛을 트리밍 (돌출 벽토막 방지 + 분할 인정)
+        const pts = close ? draft.points : trimPolylineToRooms(pl, draft.points);
         const walls = [...pl.walls];
         const segs = close ? pts.length : pts.length - 1;
         for (let i = 0; i < segs; i++) {

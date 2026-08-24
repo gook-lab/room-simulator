@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitRoomByPolyline } from '../src/model/roomSplit';
+import { splitRoomByPolyline, trimPolylineToRooms } from '../src/model/roomSplit';
 import type { Plan } from '../src/model/types';
 
 function rectRoomPlan(): Plan {
@@ -116,5 +116,40 @@ describe('splitRoomByPolyline (내벽으로 룸 분할)', () => {
         { x: 6, y: 1 },
       ]),
     ).toBe(plan);
+  });
+});
+
+describe('오버슛 트리밍 (경계 관통 시 분할 인정)', () => {
+  it('양 끝이 경계를 관통해도 교차점에서 트리밍 후 분할', () => {
+    const plan = rectRoomPlan();
+    // 룸 y=1..7 을 위아래로 0.5m 씩 관통하는 수직 절단
+    const split = splitRoomByPolyline(plan, [
+      { x: 5, y: 0.5 },
+      { x: 5, y: 7.5 },
+    ]);
+    expect(split.rooms).toHaveLength(2);
+    const total = split.rooms.reduce((s, r) => s + r.areaSqm, 0);
+    expect(total).toBeCloseTo(48, 1);
+  });
+
+  it('trimPolylineToRooms: 끝점을 경계 교차점으로 이동, 중간 점 불변', () => {
+    const plan = rectRoomPlan();
+    const trimmed = trimPolylineToRooms(plan, [
+      { x: 5, y: 0.2 },
+      { x: 5, y: 4 },
+      { x: 5, y: 7.9 },
+    ]);
+    expect(trimmed[0].y).toBeCloseTo(1);
+    expect(trimmed[1]).toEqual({ x: 5, y: 4 });
+    expect(trimmed[2].y).toBeCloseTo(7);
+  });
+
+  it('한쪽만 관통(반대쪽은 경계 위)도 분할', () => {
+    const plan = rectRoomPlan();
+    const split = splitRoomByPolyline(plan, [
+      { x: 5, y: 1 },
+      { x: 5, y: 7.6 },
+    ]);
+    expect(split.rooms).toHaveLength(2);
   });
 });
