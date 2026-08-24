@@ -93,7 +93,37 @@ function OpeningGlyph({ plan, opening }: { plan: Plan; opening: Opening }) {
     );
   }
 
-  // 문: 벽을 바닥색으로 지운다. 닫힘 = 문짝 슬래브, 열림 = 90° 스윙 호
+  // 미닫이문: 레일 2줄 + 문짝 슬래브 (닫힘 = 전체 폭, 열림 = 파킹측 절반)
+  if (opening.doorType === 'sliding') {
+    const normal = { x: -dir.y, y: dir.x };
+    const railOff = 0.045;
+    const park = opening.swing === 'right' ? p2 : p1;
+    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    const isOpen = opening.open !== false;
+    const leafFrom = park;
+    const leafTo = isOpen ? mid : opening.swing === 'right' ? p1 : p2;
+    return (
+      <g>
+        <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#fbf8f3" strokeWidth={wall.thickness + 0.01} />
+        {[1, -1].map((s) => (
+          <line
+            key={s}
+            x1={p1.x + normal.x * railOff * s}
+            y1={p1.y + normal.y * railOff * s}
+            x2={p2.x + normal.x * railOff * s}
+            y2={p2.y + normal.y * railOff * s}
+            stroke="#8b948e"
+            strokeWidth={1}
+            opacity={0.6}
+            {...NSS}
+          />
+        ))}
+        <line x1={leafFrom.x} y1={leafFrom.y} x2={leafTo.x} y2={leafTo.y} stroke="#c9a882" strokeWidth={5} {...NSS} />
+      </g>
+    );
+  }
+
+  // 여닫이문: 벽을 바닥색으로 지운다. 닫힘 = 문짝 슬래브, 열림 = 90° 스윙 호
   if (opening.open === false) {
     return (
       <g>

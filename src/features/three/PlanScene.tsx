@@ -136,8 +136,11 @@ function DoorLeaf({
   opening: Opening;
   highlighted: boolean;
 }) {
+  const sliding = opening.doorType === 'sliding';
   const groupRef = useRef<THREE.Group>(null);
-  const angleRef = useRef(isDoorOpen(opening) ? -deg2rad3(95) : 0);
+  const leafRef = useRef<THREE.Group>(null);
+  const angleRef = useRef(!sliding && isDoorOpen(opening) ? -deg2rad3(95) : 0);
+  const slideRef = useRef(sliding && isDoorOpen(opening) ? opening.width * 0.92 : 0);
   const len = wallLength(wall);
   const dir = { x: (wall.b.x - wall.a.x) / len, y: (wall.b.y - wall.a.y) / len };
   const wallAngle = Math.atan2(dir.y, dir.x);
@@ -154,10 +157,18 @@ function DoorLeaf({
   const baseRotY = -wallAngle + (opening.swing === 'right' ? Math.PI : 0);
 
   useFrame((_, dt) => {
-    const target = isDoorOpen(opening) ? -deg2rad3(95) : 0;
-    angleRef.current += (target - angleRef.current) * Math.min(1, dt / 0.12);
-    if (groupRef.current) {
-      groupRef.current.rotation.y = baseRotY + angleRef.current;
+    const k = Math.min(1, dt / 0.12);
+    if (sliding) {
+      // 미닫이: 파킹측(-x, 경첩 뒤 벽면 위)으로 슬라이드
+      const target = isDoorOpen(opening) ? -opening.width * 0.92 : 0;
+      slideRef.current += (target - slideRef.current) * k;
+      if (leafRef.current) leafRef.current.position.x = slideRef.current;
+    } else {
+      const target = isDoorOpen(opening) ? -deg2rad3(95) : 0;
+      angleRef.current += (target - angleRef.current) * k;
+      if (groupRef.current) {
+        groupRef.current.rotation.y = baseRotY + angleRef.current;
+      }
     }
   });
 
@@ -165,22 +176,35 @@ function DoorLeaf({
     <group
       ref={groupRef}
       position={[hinge.x, 0, hinge.y]}
-      rotation={[0, baseRotY + angleRef.current, 0]}
+      rotation={[0, baseRotY + (sliding ? 0 : angleRef.current), 0]}
       userData={{ openingId: opening.id }}
     >
-      <mesh position={[opening.width / 2, DOOR_HEIGHT / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[opening.width, DOOR_HEIGHT, 0.045]} />
-        <meshStandardMaterial color="#c9a882" roughness={0.75} />
-      </mesh>
-      {/* 손잡이 */}
-      <mesh position={[opening.width * 0.86, 1.02, 0.04]}>
-        <sphereGeometry args={[0.025, 10, 8]} />
-        <meshStandardMaterial color="#8a6a4c" roughness={0.4} />
-      </mesh>
-      {highlighted && (
-        <mesh position={[opening.width / 2, DOOR_HEIGHT / 2, 0]}>
-          <boxGeometry args={[opening.width + 0.06, DOOR_HEIGHT + 0.06, 0.11]} />
-          <meshBasicMaterial color="#0e9f6e" wireframe transparent opacity={0.45} depthWrite={false} />
+      <group ref={leafRef} position={[sliding ? slideRef.current : 0, 0, 0]}>
+        <mesh
+          position={[opening.width / 2, DOOR_HEIGHT / 2, sliding ? 0.055 : 0]}
+          castShadow
+          receiveShadow
+        >
+          <boxGeometry args={[opening.width, DOOR_HEIGHT, 0.045]} />
+          <meshStandardMaterial color="#c9a882" roughness={0.75} />
+        </mesh>
+        {/* 손잡이 */}
+        <mesh position={[opening.width * 0.86, 1.02, sliding ? 0.095 : 0.04]}>
+          <sphereGeometry args={[0.025, 10, 8]} />
+          <meshStandardMaterial color="#8a6a4c" roughness={0.4} />
+        </mesh>
+        {highlighted && (
+          <mesh position={[opening.width / 2, DOOR_HEIGHT / 2, sliding ? 0.055 : 0]}>
+            <boxGeometry args={[opening.width + 0.06, DOOR_HEIGHT + 0.06, 0.11]} />
+            <meshBasicMaterial color="#0e9f6e" wireframe transparent opacity={0.45} depthWrite={false} />
+          </mesh>
+        )}
+      </group>
+      {/* 미닫이 상단 레일 */}
+      {sliding && (
+        <mesh position={[0, DOOR_HEIGHT + 0.03, 0.055]}>
+          <boxGeometry args={[opening.width * 2, 0.05, 0.06]} />
+          <meshStandardMaterial color="#8a6a4c" roughness={0.6} />
         </mesh>
       )}
     </group>

@@ -145,7 +145,7 @@ function build59(): Plan {
       { id: 'o-door-bath', wallId: 'w-mid-v', t: 0.421, width: 0.7, kind: 'door', swing: 'right', open: false },
       { id: 'o-door-master', wallId: 'w-mid-v', t: 0.643, width: 0.9, kind: 'door', swing: 'left' },
       // 안방 욕실 — 안방에서만 진입
-      { id: 'o-door-mbath', wallId: 'w-mb-h', t: 0.79, width: 0.7, kind: 'door', swing: 'left' },
+      { id: 'o-door-mbath', wallId: 'w-mb-h', t: 0.79, width: 0.7, kind: 'door', swing: 'left', doorType: 'sliding' },
       { id: 'o-win-living', wallId: 'w-s', t: 0.677, width: 2.6, kind: 'window' },
       { id: 'o-win-master', wallId: 'w-w', t: 0.657, width: 1.4, kind: 'window' },
       { id: 'o-win-bed', wallId: 'w-n', t: 0.172, width: 1.4, kind: 'window' },
@@ -284,7 +284,7 @@ function build84(): Plan {
       { id: 'o-door-master', wallId: 'w-k-b', t: 0.25, width: 0.9, kind: 'door', swing: 'right' },
       // 안방 욕실 — 안방에서만 진입 (w-k-b 위 문, 안방↔욕실)
       { id: 'o-door-mbath', wallId: 'w-k-b', t: 0.75, width: 0.7, kind: 'door', swing: 'left' },
-      { id: 'o-door-pantry', wallId: 'w-p-h', t: 0.5, width: 0.8, kind: 'door', swing: 'right' },
+      { id: 'o-door-pantry', wallId: 'w-p-h', t: 0.5, width: 0.8, kind: 'door', swing: 'right', doorType: 'sliding' },
       { id: 'o-win-living', wallId: 'w-s', t: 0.596, width: 3.0, kind: 'window' },
       { id: 'o-win-master', wallId: 'w-n', t: 0.817, width: 1.8, kind: 'window' },
       { id: 'o-win-bed2', wallId: 'w-n', t: 0.165, width: 1.5, kind: 'window' },

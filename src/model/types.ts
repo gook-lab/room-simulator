@@ -17,6 +17,8 @@ export type Opening = {
   width: number; // m
   kind: 'door' | 'window';
   swing?: 'left' | 'right';
+  /** 문 형식 — undefined 는 여닫이(hinged). sliding = 미닫이(레일 슬라이드) */
+  doorType?: 'hinged' | 'sliding';
   /** 문 개폐 상태 — undefined 는 열림(기본). 닫힌 문은 워크스루 통과 불가 */
   open?: boolean;
 };

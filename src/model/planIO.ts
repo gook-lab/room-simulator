@@ -79,7 +79,8 @@ export function importPlan(json: string): ImportResult {
       o.t > 1 ||
       !isNum(o.width) ||
       o.width <= 0 ||
-      (o.kind !== 'door' && o.kind !== 'window')
+      (o.kind !== 'door' && o.kind !== 'window') ||
+      (o.doorType != null && o.doorType !== 'hinged' && o.doorType !== 'sliding')
     ) {
       return { ok: false, error: `개구부 데이터가 잘못되었습니다 (id: ${String(o?.id)})` };
     }
