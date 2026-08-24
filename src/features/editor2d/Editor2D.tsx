@@ -36,6 +36,7 @@ import {
   type Measure,
   type OpeningHover,
   type PlacingGhost,
+  trashButtonPos,
   type WallDraft,
   type WallItemGhost,
 } from './PlanCanvas';
@@ -387,6 +388,18 @@ export function Editor2D() {
       }
 
       // ---- select 도구 ----
+      // 휴지통 버튼 클릭 → 선택 전체 삭제 (Delete 키와 동일 경로, undo 대상)
+      {
+        const tPos = trashButtonPos(pl, useStore.getState().selection, tRef.current.s);
+        if (tPos) {
+          const sp = w2s(tRef.current, tPos);
+          const cs = toScreen(e);
+          if (Math.hypot(sp.x - cs.x, sp.y - cs.y) < 13) {
+            deleteSelection();
+            return;
+          }
+        }
+      }
       const selectedId = selection.length === 1 ? selection[0] : null;
       const selected = selectedId ? pl.items.find((i) => i.id === selectedId) : null;
       if (selected) {
