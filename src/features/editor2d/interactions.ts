@@ -166,6 +166,32 @@ export function wallNear(
   return best ? { wall: best.wall, t: best.t } : null;
 }
 
+/** 점→선분 거리 */
+function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  return Math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y);
+}
+
+/** 클릭 지점의 치수 주석 (선택용) */
+export function dimensionNear(
+  plan: Plan,
+  world: Vec2,
+  pxPerM: number,
+  thresholdPx = 10,
+): string | null {
+  const threshold = thresholdPx / pxPerM;
+  let best: { id: string; d: number } | null = null;
+  for (const dim of plan.dimensions ?? []) {
+    const d = distToSegment(world, dim.a, dim.b);
+    if (d < threshold && (!best || d < best.d)) best = { id: dim.id, d };
+  }
+  return best?.id ?? null;
+}
+
 /** 클릭 지점의 문 개구부 (2D 문 여닫기 토글용) */
 export function doorNear(
   plan: Plan,

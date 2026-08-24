@@ -546,6 +546,50 @@ function OpeningHoverMarker({
   );
 }
 
+/** 영속 치수 주석 — 틱 달린 치수선 + 길이 칩. 선택 시 accent */
+function DimensionNotes({
+  plan,
+  t,
+  selection,
+}: {
+  plan: Plan;
+  t: ViewTransform;
+  selection: string[];
+}) {
+  const dims = plan.dimensions ?? [];
+  if (dims.length === 0) return null;
+  return (
+    <g>
+      {dims.map((dim) => {
+        const a = w2s(t, dim.a);
+        const b = w2s(t, dim.b);
+        const len = Math.hypot(dim.b.x - dim.a.x, dim.b.y - dim.a.y);
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const sl = Math.hypot(dx, dy) || 1;
+        const nx = (-dy / sl) * 8;
+        const ny = (dx / sl) * 8;
+        const selected = selection.includes(dim.id);
+        const color = selected ? '#0e9f6e' : '#8b948e';
+        return (
+          <g key={dim.id}>
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={selected ? 1.8 : 1.2} />
+            <line x1={a.x - nx} y1={a.y - ny} x2={a.x + nx} y2={a.y + ny} stroke={color} strokeWidth={selected ? 1.8 : 1.2} />
+            <line x1={b.x - nx} y1={b.y - ny} x2={b.x + nx} y2={b.y + ny} stroke={color} strokeWidth={selected ? 1.8 : 1.2} />
+            <ScreenChip
+              x={(a.x + b.x) / 2}
+              y={(a.y + b.y) / 2 - 14}
+              text={`${len.toFixed(2)} m`}
+              bg={selected ? '#0e9f6e' : '#f2eee7'}
+              color={selected ? '#ffffff' : '#4a544e'}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 function MeasureOverlay({ measure, t }: { measure: Measure; t: ViewTransform }) {
   const a = w2s(t, measure.a);
   const b = w2s(t, measure.b);
@@ -679,6 +723,7 @@ export function PlanCanvas(props: PlanCanvasProps) {
       {/* ===== screen 좌표 레이어 (라벨·오버레이) ===== */}
       <RoomLabels plan={plan} t={t} />
       <BoundsDimensions plan={plan} t={t} />
+      <DimensionNotes plan={plan} t={t} selection={selection} />
       {drag && <DragOverlay plan={plan} drag={drag} t={t} />}
       {props.rotatingItemId &&
         (() => {

@@ -49,6 +49,13 @@ export type PlacedItem = {
   powered?: boolean;
 };
 
+/** 도면에 고정되는 치수 주석 (치수 도구로 생성, 선택·삭제·undo 대상) */
+export type DimensionNote = {
+  id: string;
+  a: Vec2;
+  b: Vec2;
+};
+
 export type Tracing = {
   imageUrl: string;
   opacity: number;
@@ -68,6 +75,8 @@ export type Plan = {
   openings: Opening[];
   rooms: Room[];
   items: PlacedItem[];
+  /** 영속 치수 주석 — README 원 타입에 없는 실용적 추가 (optional, 기존 저장본 호환) */
+  dimensions?: DimensionNote[];
   tracing?: Tracing;
   updatedAt: string;
 };

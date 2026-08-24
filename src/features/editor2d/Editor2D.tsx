@@ -14,6 +14,7 @@ import { blockedDoorIds } from '../../model/doorZones';
 import { toggleDoor } from '../../model/interactions3d';
 import {
   collisionsFor,
+  dimensionNear,
   doorNear,
   findFreeSpot,
   itemAtPoint,
@@ -76,6 +77,8 @@ export function Editor2D() {
   const [wallDraft, setWallDraft] = useState<WallDraft | null>(null);
   const [openingHover, setOpeningHover] = useState<OpeningHover | null>(null);
   const [measure, setMeasure] = useState<Measure | null>(null);
+  const measureRef = useRef<Measure | null>(null);
+  measureRef.current = measure;
   const [placingPos, setPlacingPos] = useState<Vec2 | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
   const [postDrop, setPostDrop] = useState<{ itemId: string } | null>(null);
@@ -163,7 +166,11 @@ export function Editor2D() {
   const deleteSelection = useCallback(() => {
     const sel = useStore.getState().selection;
     if (sel.length === 0) return;
-    updatePlan((pl) => ({ ...pl, items: pl.items.filter((i) => !sel.includes(i.id)) }));
+    updatePlan((pl) => ({
+      ...pl,
+      items: pl.items.filter((i) => !sel.includes(i.id)),
+      dimensions: (pl.dimensions ?? []).filter((d) => !sel.includes(d.id)),
+    }));
     setSelection([]);
     setPostDrop(null);
   }, [updatePlan, setSelection]);
@@ -398,6 +405,13 @@ export function Editor2D() {
           updatePlan((p) => toggleDoor(p, door.opening.id));
           return;
         }
+        // 치수 주석 클릭 → 선택 (Delete로 삭제 가능)
+        const dimId = dimensionNear(pl, world, tRef.current.s);
+        if (dimId) {
+          setSelection([dimId]);
+          setPostDrop(null);
+          return;
+        }
       }
       if (hit) {
         setSelection([hit.id]);
@@ -562,7 +576,19 @@ export function Editor2D() {
       }
 
       if (!g) return;
-      if (g.type === 'pan' || g.type === 'measure') return;
+      if (g.type === 'pan') return;
+      if (g.type === 'measure') {
+        // 측정 확정 → 영속 치수 주석으로 도면에 고정 (undo 대상)
+        const m = measureRef.current;
+        if (m && Math.hypot(m.b.x - m.a.x, m.b.y - m.a.y) >= 0.05) {
+          updatePlan((pl) => ({
+            ...pl,
+            dimensions: [...(pl.dimensions ?? []), { id: newId('dim'), a: m.a, b: m.b }],
+          }));
+        }
+        setMeasure(null);
+        return;
+      }
 
       if (g.type === 'move' || g.type === 'rotate' || g.type === 'resize') {
         const pl = planRef.current;
