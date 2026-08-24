@@ -118,3 +118,10 @@ describe('TV 상호작용', () => {
     expect(isPowered(off.items.find((i) => i.id === 'i-tv')!)).toBe(false);
   });
 });
+
+describe('무드등 (소품 조명 배선)', () => {
+  it('floor-lamp shape이라 상호작용·전원 토글 대상', () => {
+    expect(isLightItem('mood-lamp')).toBe(true);
+    expect(isInteractiveItem('mood-lamp')).toBe(true);
+  });
+});
