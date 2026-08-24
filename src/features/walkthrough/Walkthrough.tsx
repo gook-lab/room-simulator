@@ -215,6 +215,20 @@ export function Walkthrough() {
     return () => window.removeEventListener('keydown', onKey);
   }, [setView, editItemId]);
 
+  // Tab: 포인터 락 ↔ 커서 모드 토글 (락 해제 상태에서 패널을 마우스로 조작)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Tab') return;
+      e.preventDefault();
+      const c = controlsRef.current;
+      if (!c) return;
+      if (c.isLocked) c.unlock();
+      else if (!editItemId) c.lock();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editItemId]);
+
   const toggleEdit = useCallback(() => {
     setEditItemId((cur) => {
       if (cur) {
@@ -292,7 +306,9 @@ export function Walkthrough() {
         )}
 
         {!locked && !editItemId && (
-          <div className="start-hint">클릭하여 이동 시작 — WASD 이동 · 마우스 시선</div>
+          <div className="start-hint">
+            커서 모드 — 패널을 마우스로 조작하거나, 클릭 / Tab 으로 이동 모드
+          </div>
         )}
 
         {/* 미니맵 */}
@@ -324,6 +340,9 @@ export function Walkthrough() {
               </div>
               <div className="controls-row">
                 <span className="keycap">SPACE</span> 앉은 시점 / 선 시점
+              </div>
+              <div className="controls-row">
+                <span className="keycap">TAB</span> {locked ? '커서 모드' : '이동 모드'}
               </div>
             </div>
           </div>
