@@ -420,6 +420,19 @@
   box-shadow: var(--shadow-dock);
 }
 
+/* ---- 인스펙터 검증 경고 ---- */
+.inspector__warn {
+  margin: 0 16px 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--warn-deep);
+  background: var(--warn-tint);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+}
+
 /* ---- 도구 미스 클릭 안내 ---- */
 .miss-hint {
   position: absolute;

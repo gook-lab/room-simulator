@@ -4,6 +4,7 @@ import type { Plan } from '../../model/types';
 import { priceByRoom, totalPrice } from '../../model/geometry';
 import { finishCost } from '../../model/finishes';
 import { exportPlan, importPlan } from '../../model/planIO';
+import { renderPlanSvgString } from '../editor2d/ExportSvg';
 import { useStore } from '../../state/store';
 import { MiniPlan } from '../../components/MiniPlan';
 
@@ -46,6 +47,53 @@ export function Dashboard() {
     a.download = `${plan.name.replace(/[\\/:*?"<>|]/g, '_')}.roomcast.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const safeName = (plan: Plan) => plan.name.replace(/[\\/:*?"<>|]/g, '_');
+
+  const downloadPng = async (plan: Plan) => {
+    const svgStr = renderPlanSvgString(plan);
+    const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    try {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('svg load'));
+        img.src = url;
+      });
+      const scale = 2; // 인쇄 품질용 2x
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${safeName(plan)}.png`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, 'image/png');
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const printPlan = (plan: Plan) => {
+    const svgStr = renderPlanSvgString(plan);
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(
+      `<!doctype html><html><head><meta charset="utf-8"><title>${safeName(plan)}</title>` +
+        `<style>@page{margin:10mm}body{margin:0;display:flex;justify-content:center}svg{max-width:100%;height:auto}</style>` +
+        `</head><body>${svgStr}</body></html>`,
+    );
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 350);
   };
 
   const onImportFile = (file: File) => {
@@ -198,7 +246,21 @@ export function Dashboard() {
           </div>
 
           <div className="share-card">
-            <div className="share-card__title">백업</div>
+            <div className="share-card__title">내보내기 · 백업</div>
+            <div className="backup-actions" style={{ marginBottom: 8 }}>
+              <button
+                className="btn btn--outline"
+                onClick={() => estimatePlan && downloadPng(estimatePlan)}
+              >
+                PNG 저장
+              </button>
+              <button
+                className="btn btn--outline"
+                onClick={() => estimatePlan && printPlan(estimatePlan)}
+              >
+                인쇄 (PDF)
+              </button>
+            </div>
             <div className="backup-actions">
               <button
                 className="btn btn--outline"

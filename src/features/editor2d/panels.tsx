@@ -15,7 +15,8 @@ import {
 } from '../../model/catalog';
 import { useCurrentPlan, useStore } from '../../state/store';
 import { FurnitureSymbol } from './symbols';
-import { occupancyPct } from './interactions';
+import { collisionsFor, occupancyPct } from './interactions';
+import { blockedDoorIds } from '../../model/doorZones';
 import { scaleRatioLabel, type ViewTransform } from './view';
 
 /* ===== 툴 독 ===== */
@@ -477,6 +478,11 @@ export function Inspector() {
       { coalesceKey: `item-${item.id}` },
     );
 
+  // 수치 입력·드래그 결과에 대한 반응형 검증 — 드래그와 동일한 비파괴 정책
+  // (입력값은 정밀하게 유지하고 문제만 경고. 그리드 스냅은 정밀 입력을 위해 미적용)
+  const numCollisions = collisionsFor(plan, item).length;
+  const numBlockedDoors = blockedDoorIds(plan, item).length;
+
   return (
     <aside className="float-panel inspector">
       <div className="panel-header">
@@ -509,6 +515,17 @@ export function Inspector() {
           onCommit={(v) => patch({ size: { ...item.size, h: Math.max(0.02, v) } })}
         />
       </div>
+      {(numCollisions > 0 || numBlockedDoors > 0) && (
+        <div className="inspector__warn">
+          {[
+            numCollisions > 0 ? `가구 겹침 ${numCollisions}건` : null,
+            numBlockedDoors > 0 ? `문 앞 공간 침범 ${numBlockedDoors}곳` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}{' '}
+          — 배치는 유지됩니다
+        </div>
+      )}
       <div className="inspector__swatches">
         <span className="inspector__swatch-label">{cat.materialLabel}</span>
         <div className="inspector__swatch-row">
