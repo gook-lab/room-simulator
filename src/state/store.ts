@@ -31,6 +31,8 @@ function loadPlans(): PersistShape {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let lastCommitKey: string | null = null;
+let lastCommitAt = 0;
 
 export interface AppStore {
   /* ---- routing ---- */
@@ -46,8 +48,15 @@ export interface AppStore {
   savedAt: number;
   openPlan: (id: string) => void;
   addPlan: (plan: Plan) => void;
-  /** 현재 도면을 변경. commit=true(기본)면 undo 히스토리에 스냅샷 push */
-  updatePlan: (mutate: (plan: Plan) => Plan, opts?: { commit?: boolean }) => void;
+  /**
+   * 현재 도면을 변경. commit=true(기본)면 undo 히스토리에 스냅샷 push.
+   * coalesceKey: 같은 키의 커밋이 400ms 내 연속되면 히스토리를 1개로 묶는다
+   * (스와치 연타·수치 입력 등 — undo 한 번으로 묶음 전체가 되돌아감).
+   */
+  updatePlan: (
+    mutate: (plan: Plan) => Plan,
+    opts?: { commit?: boolean; coalesceKey?: string },
+  ) => void;
   undo: () => void;
   redo: () => void;
   history: { past: Plan[]; future: Plan[] };
@@ -140,19 +149,31 @@ export const useStore = create<AppStore>((set, get) => {
       if (!current) return;
       const next = { ...mutate(current), updatedAt: new Date().toISOString() };
       const commit = opts?.commit !== false;
+      const now = Date.now();
+      const coalesced =
+        commit &&
+        opts?.coalesceKey != null &&
+        opts.coalesceKey === lastCommitKey &&
+        now - lastCommitAt < 400;
+      if (commit) {
+        lastCommitKey = opts?.coalesceKey ?? null;
+        lastCommitAt = now;
+      }
       set({
         plans: { ...plans, [currentPlanId]: next },
-        history: commit
-          ? {
-              past: [...history.past.slice(-HISTORY_LIMIT + 1), current],
-              future: [],
-            }
-          : history,
+        history:
+          commit && !coalesced
+            ? {
+                past: [...history.past.slice(-HISTORY_LIMIT + 1), current],
+                future: [],
+              }
+            : history,
       });
       scheduleSave();
     },
 
     pushHistory: (before) => {
+      lastCommitKey = null;
       const { history } = get();
       set({
         history: {
@@ -164,6 +185,7 @@ export const useStore = create<AppStore>((set, get) => {
     },
 
     undo: () => {
+      lastCommitKey = null;
       const { plans, currentPlanId, history } = get();
       const prev = history.past[history.past.length - 1];
       if (!prev) return;
@@ -179,6 +201,7 @@ export const useStore = create<AppStore>((set, get) => {
     },
 
     redo: () => {
+      lastCommitKey = null;
       const { plans, currentPlanId, history } = get();
       const next = history.future[0];
       if (!next) return;

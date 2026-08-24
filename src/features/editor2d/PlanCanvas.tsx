@@ -45,7 +45,7 @@ export function wallItemPose(
 }
 
 /** 벽 부착 아이템 플랜 뷰 글리프 */
-function WallItemGlyph({
+export function WallItemGlyph({
   plan,
   catalogId,
   wallId,
@@ -134,7 +134,7 @@ export function sortedItems(plan: Plan): PlacedItem[] {
 
 const NSS = { vectorEffect: 'non-scaling-stroke' } as const;
 
-function WallLines({ plan }: { plan: Plan }) {
+export function WallLines({ plan }: { plan: Plan }) {
   return (
     <g>
       {plan.walls.map((w) => (
@@ -153,7 +153,7 @@ function WallLines({ plan }: { plan: Plan }) {
   );
 }
 
-function OpeningGlyph({ plan, opening }: { plan: Plan; opening: Opening }) {
+export function OpeningGlyph({ plan, opening }: { plan: Plan; opening: Opening }) {
   const wall = plan.walls.find((w) => w.id === opening.wallId);
   if (!wall) return null;
   const len = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
@@ -247,7 +247,7 @@ function centroid(poly: Vec2[]): Vec2 {
   return { x: x / poly.length, y: y / poly.length };
 }
 
-function RoomLabels({ plan, t }: { plan: Plan; t: ViewTransform }) {
+export function RoomLabels({ plan, t }: { plan: Plan; t: ViewTransform }) {
   return (
     <g>
       {plan.rooms.map((r) => {
@@ -288,7 +288,7 @@ function DimLabel({ x, y, text }: { x: number; y: number; text: string }) {
 }
 
 /** 도면 외곽 치수선 (상단 폭 / 우측 높이) */
-function BoundsDimensions({ plan, t }: { plan: Plan; t: ViewTransform }) {
+export function BoundsDimensions({ plan, t }: { plan: Plan; t: ViewTransform }) {
   const b = planBounds(plan);
   if (plan.walls.length === 0) return null;
   const tl = w2s(t, b.min);
@@ -692,7 +692,7 @@ function OpeningHoverMarker({
 }
 
 /** 영속 치수 주석 — 틱 달린 치수선 + 길이 칩. 선택 시 accent */
-function DimensionNotes({
+export function DimensionNotes({
   plan,
   t,
   selection,
@@ -900,6 +900,59 @@ export function PlanCanvas(props: PlanCanvasProps) {
             state={props.wallItemGhost.valid ? 'ghost-ok' : 'ghost-bad'}
           />
         )}
+        {/* 선택된 벽: 하이라이트 + 끝점 핸들 */}
+        {plan.walls
+          .filter((w) => selection.includes(w.id))
+          .map((w) => (
+            <g key={`wsel-${w.id}`}>
+              <line
+                x1={w.a.x}
+                y1={w.a.y}
+                x2={w.b.x}
+                y2={w.b.y}
+                stroke="#0e9f6e"
+                strokeWidth={w.thickness + 0.04}
+                strokeLinecap="square"
+                opacity={0.55}
+              />
+              {(['a', 'b'] as const).map((end) => (
+                <circle
+                  key={end}
+                  cx={w[end].x}
+                  cy={w[end].y}
+                  r={7 / t.s}
+                  fill="#ffffff"
+                  stroke="#0e9f6e"
+                  strokeWidth={2}
+                  {...NSS}
+                />
+              ))}
+            </g>
+          ))}
+        {/* 선택된 개구부: accent 라인 */}
+        {plan.openings
+          .filter((o) => selection.includes(o.id))
+          .map((o) => {
+            const wall = plan.walls.find((w) => w.id === o.wallId);
+            if (!wall) return null;
+            const len = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
+            const dir = { x: (wall.b.x - wall.a.x) / len, y: (wall.b.y - wall.a.y) / len };
+            const c = wallPointAt(wall, o.t);
+            const half = o.width / 2;
+            return (
+              <line
+                key={`osel-${o.id}`}
+                x1={c.x - dir.x * half}
+                y1={c.y - dir.y * half}
+                x2={c.x + dir.x * half}
+                y2={c.y + dir.y * half}
+                stroke="#0e9f6e"
+                strokeWidth={wall.thickness + 0.06}
+                opacity={0.4}
+                strokeLinecap="butt"
+              />
+            );
+          })}
         {/* 선택 UI (world 스케일, 논스케일 스트로크) */}
         {!drag &&
           selectedItems.map((item) => <SelectionUI key={item.id} item={item} t={t} />)}

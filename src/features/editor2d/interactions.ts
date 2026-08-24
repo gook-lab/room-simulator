@@ -253,17 +253,18 @@ export function wallItemAt(plan: Plan, world: Vec2): string | null {
   return best?.id ?? null;
 }
 
-/** 클릭 지점의 문 개구부 (2D 문 여닫기 토글용) */
-export function doorNear(
+/** 클릭 지점의 개구부 (문·창 — 선택/토글용) */
+export function openingNear(
   plan: Plan,
   world: Vec2,
   pxPerM: number,
   thresholdPx = 14,
+  kind?: 'door' | 'window',
 ): { opening: Plan['openings'][number] } | null {
   const threshold = thresholdPx / pxPerM;
   let best: { opening: Plan['openings'][number]; d: number } | null = null;
   for (const o of plan.openings) {
-    if (o.kind !== 'door') continue;
+    if (kind && o.kind !== kind) continue;
     const wall = plan.walls.find((w) => w.id === o.wallId);
     if (!wall) continue;
     const len = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
@@ -278,6 +279,16 @@ export function doorNear(
     }
   }
   return best ? { opening: best.opening } : null;
+}
+
+/** 클릭 지점의 문 개구부 (하위 호환) */
+export function doorNear(
+  plan: Plan,
+  world: Vec2,
+  pxPerM: number,
+  thresholdPx = 14,
+): { opening: Plan['openings'][number] } | null {
+  return openingNear(plan, world, pxPerM, thresholdPx, 'door');
 }
 
 /** 충돌·문 클리어런스 침범 시 "빈 자리로 이동": 나선형 오프셋 탐색 */
