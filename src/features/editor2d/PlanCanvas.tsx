@@ -345,6 +345,46 @@ function ScreenChip({
   );
 }
 
+/**
+ * 휴지통(삭제) 버튼 위치 — 선택된 가구들의 결합 AABB 우상단 바깥 (world 좌표).
+ * 선택에 가구가 없으면 null. Editor2D 히트테스트와 공유한다.
+ */
+export function trashButtonPos(
+  plan: Plan,
+  selection: string[],
+  s: number,
+): Vec2 | null {
+  const items = plan.items.filter((i) => selection.includes(i.id));
+  if (items.length === 0) return null;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  for (const item of items) {
+    const b = itemAabb(item);
+    maxX = Math.max(maxX, b.max.x);
+    minY = Math.min(minY, b.min.y);
+  }
+  return { x: maxX + 16 / s, y: minY - 16 / s };
+}
+
+/** 휴지통 버튼 (world 레이어, 논스케일 스트로크) */
+function TrashButton({ pos, s }: { pos: Vec2; s: number }) {
+  const r = 11 / s;
+  const u = 1 / s; // 1px
+  return (
+    <g transform={`translate(${pos.x} ${pos.y})`}>
+      <circle r={r} fill="#ffffff" stroke="#e8590c" strokeWidth={2} {...NSS} />
+      <g stroke="#e8590c" strokeWidth={1.6} strokeLinecap="round" fill="none">
+        {/* 뚜껑 */}
+        <line x1={-5 * u} y1={-3 * u} x2={5 * u} y2={-3 * u} {...NSS} />
+        <line x1={-2 * u} y1={-5 * u} x2={2 * u} y2={-5 * u} {...NSS} />
+        {/* 몸통 */}
+        <path d={`M ${-3.5 * u} ${-3 * u} L ${-3 * u} ${5 * u} L ${3 * u} ${5 * u} L ${3.5 * u} ${-3 * u}`} {...NSS} />
+        <line x1={0} y1={-1 * u} x2={0} y2={3 * u} {...NSS} />
+      </g>
+    </g>
+  );
+}
+
 /** 선택 상태: 4px 오프셋 accent 박스 + 코너 핸들 + 회전 핸들 */
 function SelectionUI({ item, t }: { item: PlacedItem; t: ViewTransform }) {
   const s = t.s;
@@ -863,6 +903,12 @@ export function PlanCanvas(props: PlanCanvasProps) {
         {/* 선택 UI (world 스케일, 논스케일 스트로크) */}
         {!drag &&
           selectedItems.map((item) => <SelectionUI key={item.id} item={item} t={t} />)}
+        {/* 휴지통(삭제) 버튼 — 선택 가구 결합 AABB 우상단 */}
+        {!drag &&
+          (() => {
+            const pos = trashButtonPos(plan, selection, t.s);
+            return pos ? <TrashButton pos={pos} s={t.s} /> : null;
+          })()}
       </g>
 
       {/* ===== screen 좌표 레이어 (라벨·오버레이) ===== */}
