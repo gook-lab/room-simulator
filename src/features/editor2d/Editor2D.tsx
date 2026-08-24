@@ -58,7 +58,7 @@ import {
   type WallItemGhost,
 } from './PlanCanvas';
 import { CatalogPanel, Inspector, StatusBar, ToolDock } from './panels';
-import { wheelTargetsCanvas } from './inputRouting';
+import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
 import { fitCamera, makeTransform, s2w, w2s } from './view';
 
 let idSeq = 0;
@@ -355,7 +355,8 @@ export function Editor2D() {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
-      if (e.button === 1 || (e.button === 0 && spaceDown)) {
+      // Hand 도구(H)는 지속 팬 모드 — 어떤 대상 위에서든 드래그=팬, 선택/배치 없음
+      if (e.button === 1 || (e.button === 0 && (spaceDown || tool === 'hand'))) {
         gestureRef.current = {
           type: 'pan',
           startScreen: { x: e.clientX, y: e.clientY },
@@ -1136,6 +1137,8 @@ export function Editor2D() {
           setWallGhost(null);
         } else if (wallDraft) {
           setWallDraft(null);
+        } else if (useStore.getState().tool === 'hand') {
+          setTool('select'); // Hand 모드 복귀
         } else {
           setSelection([]);
           setPostDrop(null);
@@ -1152,12 +1155,11 @@ export function Editor2D() {
       if (e.key === 'ArrowUp') return moveSelection(0, -arrowStep);
       if (e.key === 'ArrowDown') return moveSelection(0, arrowStep);
 
-      const k = e.key.toLowerCase();
-      if (k === 'v') setTool('select');
-      else if (k === 'w') setTool('wall');
-      else if (k === 'd') setTool('door');
-      else if (k === 'n') setTool('window');
-      else if (k === 'm') setTool('dimension');
+      // 도구 단축키 — IME 조합 상태와 무관하도록 물리 키(e.code) 기준 매핑.
+      // 수정키 조합(Cmd+S 등)은 도구 전환으로 오인하지 않는다.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const nextTool = toolForKeyCode(e.code);
+      if (nextTool) setTool(nextTool);
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') setSpaceDown(false);
@@ -1222,7 +1224,7 @@ export function Editor2D() {
   const cursor =
     gestureKind === 'pan'
       ? 'grabbing'
-      : spaceDown
+      : spaceDown || tool === 'hand'
         ? 'grab'
         : placingCatalogId
           ? 'copy'

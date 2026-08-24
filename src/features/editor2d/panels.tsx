@@ -39,6 +39,11 @@ const STROKE = {
 } as const;
 
 const ICONS: Record<string, React.ReactNode> = {
+  hand: (
+    <svg width="20" height="20" viewBox="0 0 20 20" {...STROKE}>
+      <path d="M7 10.5V5.2a1.1 1.1 0 0 1 2.2 0v4.1V4.1a1.1 1.1 0 0 1 2.2 0v5.2V5.6a1.1 1.1 0 0 1 2.2 0v4.8l1.6-1.9a1.05 1.05 0 0 1 1.6 1.35l-3.1 4.6a4.4 4.4 0 0 1-3.65 1.95H9.4a4.4 4.4 0 0 1-3.5-1.75L4 12.4a1.1 1.1 0 0 1 1.7-1.4z" />
+    </svg>
+  ),
   select: (
     <svg width="20" height="20" viewBox="0 0 20 20" {...STROKE}>
       <path d="M5 3l10 7-4.2 1.2L9.5 16z" />
@@ -81,7 +86,8 @@ const ICONS: Record<string, React.ReactNode> = {
 
 const TOOLS: { tool: Tool; icon: string; label: string; key: string }[] = [
   { tool: 'select', icon: 'select', label: '선택 (V)', key: 'V' },
-  { tool: 'wall', icon: 'wall', label: '벽 그리기 (W)', key: 'W' },
+  { tool: 'hand', icon: 'hand', label: '이동 (H)', key: 'H' },
+  { tool: 'wall', icon: 'wall', label: '선 그리기 (S)', key: 'S' },
   { tool: 'door', icon: 'door', label: '문 (D)', key: 'D' },
   { tool: 'window', icon: 'window', label: '창 (N)', key: 'N' },
   { tool: 'dimension', icon: 'dimension', label: '치수 (M)', key: 'M' },

@@ -192,7 +192,7 @@ export type CatalogItem = {
 
 /* ===== Editor / Viewer state ===== */
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'dimension';
+export type Tool = 'select' | 'hand' | 'wall' | 'door' | 'window' | 'dimension';
 
 export type SnapResult = {
   kind: 'wall' | 'item';

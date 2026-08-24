@@ -30,3 +30,17 @@ describe('wheelTargetsCanvas (입력 라우팅 가드)', () => {
     }
   });
 });
+
+describe('toolForKeyCode (도구 단축키 — 물리 키코드)', () => {
+  it('V/H/S/W/D/N/M 매핑, S·W 는 모두 선 그리기', async () => {
+    const { toolForKeyCode } = await import('../src/features/editor2d/inputRouting');
+    expect(toolForKeyCode('KeyV')).toBe('select');
+    expect(toolForKeyCode('KeyH')).toBe('hand');
+    expect(toolForKeyCode('KeyS')).toBe('wall');
+    expect(toolForKeyCode('KeyW')).toBe('wall');
+    expect(toolForKeyCode('KeyD')).toBe('door');
+    expect(toolForKeyCode('KeyN')).toBe('window');
+    expect(toolForKeyCode('KeyM')).toBe('dimension');
+    expect(toolForKeyCode('KeyZ')).toBeNull();
+  });
+});

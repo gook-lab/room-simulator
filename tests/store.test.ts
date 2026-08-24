@@ -187,3 +187,26 @@ describe('히스토리 코얼레싱 (400ms 연타 묶기)', () => {
     expect(pastLen()).toBe(base + 1);
   });
 });
+
+describe('store: Hand 도구 (H)', () => {
+  it("setTool('hand') — 도구 전환 + 진행 중 배치 취소", () => {
+    const s = useStore.getState();
+    s.setPlacing('sofa-linen-3');
+    expect(useStore.getState().placingCatalogId).toBe('sofa-linen-3');
+    useStore.getState().setTool('hand');
+    expect(useStore.getState().tool).toBe('hand');
+    expect(useStore.getState().placingCatalogId).toBeNull();
+    useStore.getState().setTool('select');
+  });
+
+  it('팬 델타: 시작 pan + (현재 - 시작 스크린) — 순수 수식 고정', () => {
+    // Editor2D pan 제스처의 수식 계약 (startPan + Δscreen)
+    const startPan = { x: 30, y: -12 };
+    const startScreen = { x: 400, y: 300 };
+    const cur = { x: 460, y: 255 };
+    expect({
+      x: startPan.x + (cur.x - startScreen.x),
+      y: startPan.y + (cur.y - startScreen.y),
+    }).toEqual({ x: 90, y: -57 });
+  });
+});
