@@ -26,7 +26,7 @@ localStorage 자동 저장이 함께 동작합니다. 디자인 핸드오프 문
 | 2D 에디터 | SVG 직접 렌더 (라이브러리 없음) |
 | 3D | Three.js 0.170 · React Three Fiber 8 · Drei 9 |
 | 상태 | Zustand 5 (단일 스토어 + 명령 단위 undo) |
-| 테스트 | Vitest — 순수 로직 162개 (2026-08-24 기준) |
+| 테스트 | Vitest — 순수 로직 168개 (2026-08-24 기준) |
 | 저장 | localStorage + JSON 내보내기/가져오기 |
 
 ## 주요 기능
