@@ -73,3 +73,64 @@ describe('평형 템플릿', () => {
     });
   }
 });
+
+describe('템플릿 현실화 (안목치수·욕실 구성)', () => {
+  const byId = Object.fromEntries(TEMPLATES.map((t) => [t.id, t.build()]));
+
+  it('욕실 개수: 원룸 1 / 25평 2(공용+안방) / 34평 2(공용+안방)', () => {
+    const baths = (id: string) => byId[id].rooms.filter((r) => r.floor === 'bath');
+    expect(baths('tpl-studio')).toHaveLength(1);
+    expect(baths('tpl-59')).toHaveLength(2);
+    expect(baths('tpl-84')).toHaveLength(2);
+  });
+
+  it('34평 욕실은 각각 3.5~5㎡', () => {
+    for (const r of byId['tpl-84'].rooms.filter((r) => r.floor === 'bath')) {
+      expect(r.areaSqm).toBeGreaterThanOrEqual(3.5);
+      expect(r.areaSqm).toBeLessThanOrEqual(5.0);
+    }
+  });
+
+  it('안방 부속욕실 문 존재 (25평·34평)', () => {
+    for (const id of ['tpl-59', 'tpl-84']) {
+      const door = byId[id].openings.find((o) => o.id === 'o-door-mbath');
+      expect(door, id).toBeTruthy();
+      expect(door!.kind).toBe('door');
+    }
+  });
+
+  it('문 상호작용 데모용 기본 닫힘 문이 템플릿마다 1개 이상', () => {
+    for (const tpl of TEMPLATES) {
+      const closed = byId[tpl.id].openings.filter(
+        (o) => o.kind === 'door' && o.open === false,
+      );
+      expect(closed.length, tpl.id).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('현관 분리 (25평·34평)', () => {
+    for (const id of ['tpl-59', 'tpl-84']) {
+      expect(byId[id].rooms.some((r) => r.name === '현관'), id).toBe(true);
+    }
+  });
+
+  it('34평 팬트리 존재', () => {
+    expect(byId['tpl-84'].rooms.some((r) => r.name === '팬트리')).toBe(true);
+  });
+
+  it('침실 크기 배분: 안방 > 침실2 > 침실3 (34평)', () => {
+    const area = (name: string) =>
+      byId['tpl-84'].rooms.find((r) => r.name === name)!.areaSqm;
+    expect(area('안방')).toBeGreaterThan(area('침실 2'));
+    expect(area('침실 2')).toBeGreaterThan(area('침실 3'));
+  });
+
+  it('룸 폴리곤이 안목치수(내벽면) 기준 — 벽 중심선보다 안쪽', () => {
+    // 원룸 외곽 벽 중심선 (0,0)~(6.2,4.0) 대비 폴리곤 최소 좌표가 0.075 인셋
+    const main = byId['tpl-studio'].rooms.find((r) => r.id === 'r-main')!;
+    const minX = Math.min(...main.polygon.map((p) => p.x));
+    const minY = Math.min(...main.polygon.map((p) => p.y));
+    expect(minX).toBeCloseTo(0.075, 3);
+    expect(minY).toBeCloseTo(0.075, 3);
+  });
+});
