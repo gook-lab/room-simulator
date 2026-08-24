@@ -30,6 +30,7 @@ export type PlanCanvasProps = {
   openingHover: OpeningHover | null;
   measure: Measure | null;
   placingGhost: PlacingGhost | null;
+  marquee: { a: Vec2; b: Vec2 } | null;
   rotatingItemId: string | null;
   resizingItemId: string | null;
   svgRef: React.RefObject<SVGSVGElement>;
@@ -694,7 +695,8 @@ export function PlanCanvas(props: PlanCanvasProps) {
         )}
         {/* 가구 (러그 → 가구 → 조명) */}
         {items.map((item) => {
-          const isGhost = drag?.itemId === item.id;
+          const isGhost =
+            drag != null && (drag.itemId === item.id || drag.groupIds?.includes(item.id) === true);
           const isHover = hoverItemId === item.id && !isGhost;
           return (
             <g
@@ -760,6 +762,24 @@ export function PlanCanvas(props: PlanCanvasProps) {
         <OpeningHoverMarker plan={plan} hover={props.openingHover} t={t} />
       )}
       {props.measure && <MeasureOverlay measure={props.measure} t={t} />}
+      {props.marquee &&
+        (() => {
+          const a = w2s(t, props.marquee!.a);
+          const b = w2s(t, props.marquee!.b);
+          return (
+            <rect
+              x={Math.min(a.x, b.x)}
+              y={Math.min(a.y, b.y)}
+              width={Math.abs(b.x - a.x)}
+              height={Math.abs(b.y - a.y)}
+              fill="#0e9f6e"
+              opacity={0.08}
+              stroke="#0e9f6e"
+              strokeWidth={1.5}
+              strokeDasharray="6 4"
+            />
+          );
+        })()}
       {props.placingGhost && <PlacingGhostPreview ghost={props.placingGhost} t={t} />}
     </svg>
   );

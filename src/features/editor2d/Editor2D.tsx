@@ -17,7 +17,9 @@ import {
   dimensionNear,
   doorNear,
   findFreeSpot,
+  groupProblems,
   itemAtPoint,
+  itemsInRect,
   snapItemMove,
   wallNear,
 } from './interactions';
@@ -36,6 +38,15 @@ const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${idSeq+
 
 type Gesture =
   | { type: 'move'; itemId: string; grabOffset: Vec2; before: Plan; moved: boolean }
+  | {
+      type: 'groupMove';
+      itemIds: string[];
+      grabWorld: Vec2;
+      starts: Record<string, Vec2>;
+      before: Plan;
+      moved: boolean;
+    }
+  | { type: 'marquee'; start: Vec2 }
   | { type: 'rotate'; itemId: string; before: Plan; moved: boolean }
   | {
       type: 'resize';
@@ -79,6 +90,9 @@ export function Editor2D() {
   const [measure, setMeasure] = useState<Measure | null>(null);
   const measureRef = useRef<Measure | null>(null);
   measureRef.current = measure;
+  const [marquee, setMarquee] = useState<{ a: Vec2; b: Vec2 } | null>(null);
+  const marqueeRef = useRef<{ a: Vec2; b: Vec2 } | null>(null);
+  marqueeRef.current = marquee;
   const [placingPos, setPlacingPos] = useState<Vec2 | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
   const [postDrop, setPostDrop] = useState<{ itemId: string } | null>(null);
@@ -398,6 +412,45 @@ export function Editor2D() {
       }
 
       const hit = itemAtPoint(pl, world);
+
+      // Shift: 다중 선택 토글 / 빈 공간 Shift+드래그 = 마퀴 박스
+      if (e.shiftKey) {
+        if (hit) {
+          const cur = useStore.getState().selection.filter((id) =>
+            pl.items.some((i) => i.id === id),
+          );
+          setSelection(
+            cur.includes(hit.id) ? cur.filter((id) => id !== hit.id) : [...cur, hit.id],
+          );
+          setPostDrop(null);
+        } else {
+          gestureRef.current = { type: 'marquee', start: world };
+          setGestureKind('marquee');
+          setMarquee({ a: world, b: world });
+        }
+        return;
+      }
+
+      // 다중 선택 상태에서 선택된 아이템을 잡으면 그룹 이동
+      if (hit && selection.length > 1 && selection.includes(hit.id)) {
+        const itemIds = selection.filter((id) => pl.items.some((i) => i.id === id));
+        const starts: Record<string, Vec2> = {};
+        for (const id of itemIds) {
+          const it = pl.items.find((i) => i.id === id)!;
+          starts[id] = { ...it.position };
+        }
+        gestureRef.current = {
+          type: 'groupMove',
+          itemIds,
+          grabWorld: world,
+          starts,
+          before: pl,
+          moved: false,
+        };
+        setGestureKind('groupMove');
+        return;
+      }
+
       if (!hit) {
         // 문 클릭 → 여닫기 토글 (2D에서도 문 상호작용)
         const door = doorNear(pl, world, tRef.current.s);
@@ -472,6 +525,47 @@ export function Editor2D() {
 
       if (g?.type === 'measure') {
         setMeasure((m) => (m ? { ...m, b: world } : m));
+        return;
+      }
+
+      if (g?.type === 'marquee') {
+        setMarquee({ a: g.start, b: world });
+        return;
+      }
+
+      if (g?.type === 'groupMove') {
+        g.moved = true;
+        const snap = useStore.getState().snapping;
+        let delta = { x: world.x - g.grabWorld.x, y: world.y - g.grabWorld.y };
+        if (snap.enabled) {
+          const grid = snap.gridCm / 100;
+          delta = { x: snapValue(delta.x, grid), y: snapValue(delta.y, grid) };
+        }
+        updatePlan(
+          (p) => {
+            // 시작 위치 기준으로 재계산 (누적 오차 방지)
+            const items = p.items.map((i) => {
+              const start = g.starts[i.id];
+              if (!start) return i;
+              const position = { x: start.x + delta.x, y: start.y + delta.y };
+              return { ...i, position };
+            });
+            return { ...p, items };
+          },
+          { commit: false },
+        );
+        const after = useStore.getState().plans[useStore.getState().currentPlanId];
+        const { collisions, blockedDoors } = groupProblems(after, g.itemIds);
+        const leader = after.items.find((i) => i.id === g.itemIds[0]);
+        setDrag({
+          itemId: g.itemIds[0],
+          groupIds: g.itemIds,
+          ghost: leader?.position ?? world,
+          snap: null,
+          collisions,
+          blockedDoors,
+          isNew: false,
+        });
         return;
       }
 
@@ -584,6 +678,34 @@ export function Editor2D() {
 
       if (!g) return;
       if (g.type === 'pan') return;
+      if (g.type === 'marquee') {
+        const m = marqueeRef.current;
+        setMarquee(null);
+        if (m) {
+          const ids = itemsInRect(planRef.current, m.a, m.b);
+          if (ids.length > 0) setSelection(ids);
+        }
+        return;
+      }
+      if (g.type === 'groupMove') {
+        if (g.moved) {
+          pushHistory(g.before);
+          // roomId 재배정 (비커밋 마무리 패치)
+          updatePlan(
+            (p) => ({
+              ...p,
+              items: p.items.map((i) =>
+                g.itemIds.includes(i.id)
+                  ? { ...i, roomId: roomAt(p.rooms, i.position)?.id ?? i.roomId }
+                  : i,
+              ),
+            }),
+            { commit: false },
+          );
+        }
+        setDrag(null);
+        return;
+      }
       if (g.type === 'measure') {
         // 측정 확정 → 영속 치수 주석으로 도면에 고정 (undo 대상)
         const m = measureRef.current;
@@ -799,6 +921,7 @@ export function Editor2D() {
         openingHover={openingHover}
         measure={measure}
         placingGhost={placingGhost}
+        marquee={marquee}
         rotatingItemId={gestureKind === 'rotate' ? selection[0] ?? null : null}
         resizingItemId={gestureKind === 'resize' ? selection[0] ?? null : null}
         svgRef={svgRef}
