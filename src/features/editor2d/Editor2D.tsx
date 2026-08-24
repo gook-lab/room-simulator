@@ -587,12 +587,7 @@ export function Editor2D() {
         setSpaceDown(true);
         return;
       }
-      if (meta && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-        return;
-      }
+      // Cmd+Z / Cmd+Shift+Z 는 전역 useUndoShortcut 이 처리 (중복 등록 금지)
       if (meta && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateSelection();
