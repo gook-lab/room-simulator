@@ -319,6 +319,80 @@ function FurnitureMesh({ item, lampIntensity }: { item: PlacedItem; lampIntensit
       );
       break;
     }
+    case 'desk': {
+      const panelT = 0.03;
+      body = (
+        <group>
+          <Box args={[w, 0.04, d]} position={[0, h - 0.02, 0]} color={c} />
+          <Box args={[panelT, h - 0.04, d * 0.9]} position={[-w / 2 + panelT / 2, (h - 0.04) / 2, 0]} color={cDark} />
+          <Box args={[panelT, h - 0.04, d * 0.9]} position={[w / 2 - panelT / 2, (h - 0.04) / 2, 0]} color={cDark} />
+          {/* 서랍 유닛 */}
+          <Box args={[w * 0.26, h * 0.5, d * 0.85]} position={[w * 0.32, h - 0.04 - h * 0.25, 0]} color={darken(c, 0.08)} />
+        </group>
+      );
+      break;
+    }
+    case 'dining-set': {
+      const tw = w * 0.55;
+      const td = d * 0.55;
+      const legT = 0.05;
+      const chairSeatH = 0.45;
+      const chairW = w * 0.2;
+      const chairD = d * 0.16;
+      const chairs: [number, number, number][] = [
+        [0, -d / 2 + chairD / 2 + 0.02, 0],
+        [0, d / 2 - chairD / 2 - 0.02, 180],
+        [-w / 2 + chairD / 2 + 0.02, 0, 270],
+        [w / 2 - chairD / 2 - 0.02, 0, 90],
+      ];
+      body = (
+        <group>
+          <Box args={[tw, 0.04, td]} position={[0, h - 0.02, 0]} color={c} />
+          {[
+            [-tw / 2 + legT, -td / 2 + legT],
+            [tw / 2 - legT, -td / 2 + legT],
+            [tw / 2 - legT, td / 2 - legT],
+            [-tw / 2 + legT, td / 2 - legT],
+          ].map(([x, z], i) => (
+            <Box key={i} args={[legT, h - 0.04, legT]} position={[x, (h - 0.04) / 2, z]} color={cDark} />
+          ))}
+          {chairs.map(([x, z, rot], i) => (
+            <group key={`c${i}`} position={[x, 0, z]} rotation={[0, (-rot * Math.PI) / 180, 0]}>
+              <Box args={[chairW, chairSeatH, chairD]} position={[0, chairSeatH / 2, 0]} color={darken(c, 0.1)} />
+              <Box args={[chairW, 0.4, 0.03]} position={[0, chairSeatH + 0.2, -chairD / 2 + 0.015]} color={cDark} />
+            </group>
+          ))}
+        </group>
+      );
+      break;
+    }
+    case 'plant': {
+      const potH = h * 0.28;
+      const foliageBase = potH + h * 0.18;
+      body = (
+        <group>
+          <mesh position={[0, potH / 2, 0]} castShadow>
+            <cylinderGeometry args={[w * 0.32, w * 0.26, potH, 18]} />
+            <meshStandardMaterial color={c} roughness={0.85} />
+          </mesh>
+          <mesh position={[0, potH + (h - potH) * 0.3, 0]} castShadow>
+            <cylinderGeometry args={[0.015, 0.025, (h - potH) * 0.6, 8]} />
+            <meshStandardMaterial color="#7a6248" roughness={0.9} />
+          </mesh>
+          {[
+            [0, foliageBase + (h - foliageBase) * 0.55, 0, 0.5],
+            [w * 0.22, foliageBase + (h - foliageBase) * 0.3, w * 0.1, 0.36],
+            [-w * 0.2, foliageBase + (h - foliageBase) * 0.42, -w * 0.12, 0.4],
+          ].map(([x, y, z, r], i) => (
+            <mesh key={i} position={[x, y, z]} castShadow>
+              <sphereGeometry args={[(w / 2) * (r * 2), 12, 10]} />
+              <meshStandardMaterial color={i === 1 ? '#87a08f' : '#8fa396'} roughness={1} />
+            </mesh>
+          ))}
+        </group>
+      );
+      break;
+    }
     default:
       body = <Box args={[w, h, d]} position={[0, h / 2, 0]} color={c} />;
   }
