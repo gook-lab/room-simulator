@@ -1,42 +1,5 @@
-import { catalogById } from './catalog';
-import { polygonArea } from './geometry';
-import type { Plan, PlacedItem, Room, Vec2 } from './types';
-
-const T = 0.15; // wall thickness (m)
-const H = 2.4; // wall height (m)
-
-const wall = (id: string, a: Vec2, b: Vec2) => ({ id, a, b, thickness: T, height: H });
-
-const room = (
-  id: string,
-  name: string,
-  wallIds: string[],
-  polygon: Vec2[],
-  floor: Room['floor'],
-): Room => ({ id, name, wallIds, polygon, areaSqm: polygonArea(polygon), floor });
-
-function item(
-  id: string,
-  catalogId: string,
-  position: Vec2,
-  rotationDeg: number,
-  roomId: string | null,
-  swatchIndex = 0,
-): PlacedItem {
-  const cat = catalogById.get(catalogId);
-  if (!cat) throw new Error(`unknown catalog id: ${catalogId}`);
-  const swatch = cat.swatches[swatchIndex] ?? cat.swatches[0];
-  return {
-    id,
-    catalogId,
-    position,
-    rotationDeg,
-    size: { ...cat.size },
-    variant: { material: swatch.id, color: swatch.color },
-    roomId,
-    price: cat.price,
-  };
-}
+import type { Plan, PlacedItem } from './types';
+import { item, room, wall } from './planBuilder';
 
 /**
  * 핸드오프 1a 도면을 meter 좌표로 옮긴 샘플 도면.
