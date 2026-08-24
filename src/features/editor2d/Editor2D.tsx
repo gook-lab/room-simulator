@@ -25,6 +25,7 @@ import {
   moveWallVertex,
   translateWall,
 } from '../../model/wallEdit';
+import { splitRoomByPolyline } from '../../model/roomSplit';
 import {
   collisionsFor,
   dimensionNear,
@@ -242,8 +243,36 @@ export function Editor2D() {
   const snapWallPoint = useCallback(
     (raw: Vec2, prev: Vec2 | null): Vec2 => {
       const snap = useStore.getState().snapping;
+      const pl = planRef.current;
+      const s = tRef.current.s;
+
+      // 기존 벽에 스냅: 끝점(12px) 우선, 그다음 벽 선상 최근접점(12px)
+      const snapToWalls = (p: Vec2): Vec2 => {
+        if (!snap.enabled) return p;
+        const threshold = 18 / s;
+        let bestEnd: { pt: Vec2; d: number } | null = null;
+        for (const w of pl.walls) {
+          for (const end of [w.a, w.b]) {
+            const d = Math.hypot(end.x - p.x, end.y - p.y);
+            if (d < threshold && (!bestEnd || d < bestEnd.d)) bestEnd = { pt: end, d };
+          }
+        }
+        if (bestEnd) return { ...bestEnd.pt };
+        const near = wallNear(pl, p, s, 18);
+        if (near) {
+          const w = near.wall;
+          return {
+            x: w.a.x + (w.b.x - w.a.x) * near.t,
+            y: w.a.y + (w.b.y - w.a.y) * near.t,
+          };
+        }
+        return p;
+      };
+
       if (!snap.enabled) return raw;
-      if (!prev) return { x: snapValue(raw.x, 0.1), y: snapValue(raw.y, 0.1) };
+      if (!prev) {
+        return snapToWalls({ x: snapValue(raw.x, 0.1), y: snapValue(raw.y, 0.1) });
+      }
       const dx = raw.x - prev.x;
       const dy = raw.y - prev.y;
       const dist = Math.hypot(dx, dy);
@@ -251,7 +280,12 @@ export function Editor2D() {
       const angle = Math.atan2(dy, dx);
       const stepped = Math.round(angle / deg2rad(snap.angleStepDeg)) * deg2rad(snap.angleStepDeg);
       const len = Math.max(0.1, snapValue(dist, 0.1));
-      return { x: prev.x + Math.cos(stepped) * len, y: prev.y + Math.sin(stepped) * len };
+      const stepPt = {
+        x: prev.x + Math.cos(stepped) * len,
+        y: prev.y + Math.sin(stepped) * len,
+      };
+      // 기존 벽 근처면 벽에 붙임 — 룸 분할·접합이 정확해진다
+      return snapToWalls(stepPt);
     },
     [],
   );
@@ -282,7 +316,9 @@ export function Editor2D() {
           };
           rooms = [...pl.rooms, room];
         }
-        return { ...pl, walls, rooms };
+        const next = { ...pl, walls, rooms };
+        // 열린 폴리라인이 기존 룸을 가로지르면 룸 분할 (면적·가구 roomId 재배정)
+        return close ? next : splitRoomByPolyline(next, pts);
       });
     },
     [wallDraft, updatePlan],
@@ -322,10 +358,8 @@ export function Editor2D() {
           const ghost = wallGhostRef.current;
           if (ghost?.valid) {
             const wi = createWallItem(ghost.catalogId, ghost.wallId, ghost.t, ghost.side);
+            // 연속 배치: placing 유지 — Esc 또는 카탈로그 재클릭으로 종료
             updatePlan((p) => ({ ...p, wallItems: [...(p.wallItems ?? []), wi] }));
-            setPlacing(null);
-            setWallGhost(null);
-            setSelection([wi.id]);
           }
           return;
         }
@@ -345,12 +379,8 @@ export function Editor2D() {
           roomId: roomAt(pl.rooms, pos)?.id ?? null,
           price: cat.price,
         };
+        // 연속 배치: placing 유지 — 같은 가구를 계속 찍을 수 있다 (Esc/재클릭 종료)
         updatePlan((p) => ({ ...p, items: [...p.items, item] }));
-        setPlacing(null);
-        setPlacingPos(null);
-        setSelection([item.id]);
-        const cols = collisionsFor({ ...pl, items: [...pl.items, item] }, item);
-        if (cols.length > 0) setPostDrop({ itemId: item.id });
         return;
       }
 

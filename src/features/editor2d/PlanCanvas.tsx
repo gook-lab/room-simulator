@@ -824,7 +824,7 @@ export function PlanCanvas(props: PlanCanvasProps) {
               key={`sel-${r.id}`}
               points={r.polygon.map((p) => `${p.x},${p.y}`).join(' ')}
               fill="#0e9f6e"
-              opacity={0.06}
+              opacity={0.03}
               stroke="#0e9f6e"
               strokeWidth={2}
               strokeDasharray="8 5"

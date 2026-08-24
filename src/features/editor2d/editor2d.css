@@ -152,6 +152,12 @@
 .inspector {
   right: var(--panel-margin);
   bottom: var(--panel-bottom);
+  /* 카탈로그(상단)와 겹치지 않도록 높이 제한 + 내부 스크롤 */
+  max-height: min(44vh, 420px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  overscroll-behavior: contain;
 }
 
 .inspector__grid {
