@@ -3,21 +3,15 @@ import type {
   Opening,
   PlacedItem,
   Plan,
-  Room,
   Tool,
   Vec2,
 } from '../../model/types';
 import { catalogById } from '../../model/catalog';
 import { doorZones } from '../../model/doorZones';
+import { floorColor2d } from '../../model/finishes';
 import { itemAabb, planBounds, wallPointAt } from '../../model/geometry';
 import { FurnitureSymbol, shapeOf } from './symbols';
 import { w2s, type ViewTransform } from './view';
-
-const FLOOR_COLORS: Record<Room['floor'], string> = {
-  living: '#fbf8f3',
-  kitchen: '#f5f1ea',
-  bath: '#f0f4f2',
-};
 
 export type WallDraft = { points: Vec2[]; cursor: Vec2 | null };
 export type OpeningHover = { wallId: string; t: number; kind: 'door' | 'window' };
@@ -663,14 +657,29 @@ export function PlanCanvas(props: PlanCanvasProps) {
     >
       {/* ===== world 좌표 레이어 (1 unit = 1 m) ===== */}
       <g transform={`translate(${t.ox} ${t.oy}) scale(${t.s})`}>
-        {/* 룸 바닥 */}
+        {/* 룸 바닥 (마감재 반영) */}
         {plan.rooms.map((r) => (
           <polygon
             key={r.id}
             points={r.polygon.map((p) => `${p.x},${p.y}`).join(' ')}
-            fill={FLOOR_COLORS[r.floor]}
+            fill={floorColor2d(r)}
           />
         ))}
+        {/* 선택된 룸 아웃라인 */}
+        {plan.rooms
+          .filter((r) => selection.includes(r.id))
+          .map((r) => (
+            <polygon
+              key={`sel-${r.id}`}
+              points={r.polygon.map((p) => `${p.x},${p.y}`).join(' ')}
+              fill="#0e9f6e"
+              opacity={0.06}
+              stroke="#0e9f6e"
+              strokeWidth={2}
+              strokeDasharray="8 5"
+              {...NSS}
+            />
+          ))}
         {/* 트레이싱 원본 */}
         {plan.tracing?.visible && plan.tracing.widthM != null && (
           <image

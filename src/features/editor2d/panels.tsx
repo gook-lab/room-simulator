@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CatalogCategory, PlacedItem, Tool } from '../../model/types';
+import { FLOOR_FINISHES, WALL_FINISHES, setRoomFinish } from '../../model/finishes';
 import { isInteractiveItem, isPowered, togglePower } from '../../model/interactions3d';
 import {
   CATALOG,
@@ -208,6 +209,61 @@ function NumField({
   );
 }
 
+/** 룸 선택 시: 바닥재·벽지 마감 편집 패널 */
+function RoomInspector({ roomId }: { roomId: string }) {
+  const plan = useCurrentPlan();
+  const updatePlan = useStore((s) => s.updatePlan);
+  const room = plan.rooms.find((r) => r.id === roomId);
+  if (!room) return null;
+
+  const patch = (p: { floorFinish?: string | null; wallFinish?: string | null }) =>
+    updatePlan((pl) => setRoomFinish(pl, room.id, p));
+
+  return (
+    <aside className="float-panel inspector">
+      <div className="panel-header">
+        <span className="panel-header__title">{room.name}</span>
+        <span className="badge-accent">{room.areaSqm.toFixed(1)}㎡</span>
+      </div>
+      <div className="inspector__swatches">
+        <span className="inspector__swatch-label">바닥 마감</span>
+        <div className="finish-list scroll-y">
+          {FLOOR_FINISHES.map((f) => (
+            <button
+              key={f.id}
+              className={`detail-option${room.floorFinish === f.id ? ' is-active' : ''}`}
+              onClick={() => patch({ floorFinish: room.floorFinish === f.id ? null : f.id })}
+            >
+              <span className="detail-option__dot" style={{ background: f.color3d }} />
+              {f.label}
+              {room.floorFinish === f.id && <span className="detail-option__check">✓</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="inspector__swatches">
+        <span className="inspector__swatch-label">벽지</span>
+        <div className="inspector__swatch-row" style={{ flexWrap: 'wrap' }}>
+          {WALL_FINISHES.map((f) => (
+            <button
+              key={f.id}
+              className={`swatch${room.wallFinish === f.id ? ' is-active' : ''}`}
+              style={{ background: f.color3d }}
+              title={f.label}
+              onClick={() => patch({ wallFinish: room.wallFinish === f.id ? null : f.id })}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="inspector__footer">
+        <span className="inspector__price" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          다시 클릭하면 기본 마감으로
+        </span>
+      </div>
+    </aside>
+  );
+}
+
 export function Inspector() {
   const plan = useCurrentPlan();
   const selection = useStore((s) => s.selection);
@@ -218,7 +274,13 @@ export function Inspector() {
   // 선택이 바뀌면 상세 옵션 접기
   useEffect(() => setDetailOpen(false), [selectedId]);
   const item = selectedId ? plan.items.find((i) => i.id === selectedId) : undefined;
-  if (!item) return null;
+  if (!item) {
+    // 룸 선택이면 마감재 패널
+    if (selectedId && plan.rooms.some((r) => r.id === selectedId)) {
+      return <RoomInspector roomId={selectedId} />;
+    }
+    return null;
+  }
   const cat = catalogById.get(item.catalogId);
   if (!cat) return null;
 
