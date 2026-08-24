@@ -11,7 +11,7 @@ import { useCurrentPlan, useStore } from '../../state/store';
 import { ViewTabs } from '../../components/ViewTabs';
 import { CanvasBoundary } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
-import { PLAYER_RADIUS, buildColliders, resolveCollisions } from '../three/collision';
+import { PLAYER_RADIUS, buildColliders, moveAndSlide } from '../three/collision';
 import { Minimap, type PlayerPose } from './Minimap';
 
 const WALK_SPEED = 1.4;
@@ -86,12 +86,12 @@ function Player({
       if (move.lengthSq() > 0) {
         move.normalize();
         const speed = keys.current.ShiftLeft || keys.current.ShiftRight ? SPRINT_SPEED : WALK_SPEED;
-        const next = resolveCollisions(
-          { x: pose.pos.x + move.x * speed * dt, y: pose.pos.y + move.y * speed * dt },
+        pose.pos = moveAndSlide(
+          pose.pos,
+          { x: move.x * speed * dt, y: move.y * speed * dt },
           colliders,
           PLAYER_RADIUS,
         );
-        pose.pos = next;
       }
     }
 
