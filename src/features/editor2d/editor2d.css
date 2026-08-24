@@ -419,3 +419,20 @@
   padding: 7px 12px;
   box-shadow: var(--shadow-dock);
 }
+
+/* ---- 도구 미스 클릭 안내 ---- */
+.miss-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #f7f4ef;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 9px;
+  box-shadow: var(--shadow-dock);
+  z-index: 12;
+  pointer-events: none;
+}

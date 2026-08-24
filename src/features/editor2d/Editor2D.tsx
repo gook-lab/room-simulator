@@ -123,6 +123,8 @@ export function Editor2D() {
   const [placingPos, setPlacingPos] = useState<Vec2 | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
   const [postDrop, setPostDrop] = useState<{ itemId: string } | null>(null);
+  const [missHint, setMissHint] = useState<string | null>(null);
+  const missHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 최신 상태를 이벤트 핸들러에서 안전하게 읽기 위한 ref
   const planRef = useRef(plan);
@@ -401,10 +403,23 @@ export function Editor2D() {
       }
 
       if (tool === 'door' || tool === 'window') {
-        const near = wallNear(pl, world, tRef.current.s);
-        if (near) {
+        const near = wallNear(pl, world, tRef.current.s, 24);
+        if (!near) {
+          // 무반응 방지: 벽을 못 맞춘 클릭에 안내 표시
+          setMissHint(tool === 'door' ? '벽 위를 클릭해 문을 배치하세요' : '벽 위를 클릭해 창을 배치하세요');
+          if (missHintTimer.current) clearTimeout(missHintTimer.current);
+          missHintTimer.current = setTimeout(() => setMissHint(null), 1800);
+          return;
+        }
+        {
           const width = tool === 'door' ? 0.9 : 1.2;
           const len = Math.hypot(near.wall.b.x - near.wall.a.x, near.wall.b.y - near.wall.a.y);
+          if (len <= width + 0.1) {
+            setMissHint(`벽이 너무 짧습니다 (${tool === 'door' ? '문' : '창'} 폭 ${width}m 이상 필요)`);
+            if (missHintTimer.current) clearTimeout(missHintTimer.current);
+            missHintTimer.current = setTimeout(() => setMissHint(null), 1800);
+            return;
+          }
           const halfT = width / 2 / len;
           const tt = Math.min(1 - halfT, Math.max(halfT, near.t));
           updatePlan((p) => ({
@@ -865,7 +880,7 @@ export function Editor2D() {
         return;
       }
       if (tool === 'door' || tool === 'window') {
-        const near = wallNear(pl, world, tRef.current.s);
+        const near = wallNear(pl, world, tRef.current.s, 24);
         setOpeningHover(near ? { wallId: near.wall.id, t: near.t, kind: tool } : null);
         return;
       }
@@ -1164,6 +1179,7 @@ export function Editor2D() {
         onPointerUp={onPointerUp}
         cursor={cursor}
       />
+      {missHint && <div className="miss-hint">{missHint}</div>}
       <ToolDock onResetView={resetView} />
       <CatalogPanel />
       <Inspector />

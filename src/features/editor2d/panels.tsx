@@ -49,8 +49,10 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
   window: (
     <svg width="20" height="20" viewBox="0 0 20 20" {...STROKE}>
-      <rect x="3.5" y="5.5" width="13" height="9" rx="1" />
-      <path d="M10 5.5v9M3.5 10h13" />
+      <path d="M2.5 8.5h4M13.5 8.5h4" strokeWidth={2.4} />
+      <path d="M6.5 7v3M13.5 7v3" />
+      <path d="M7.5 8.5h5" strokeDasharray="0.1 2.2" strokeWidth={2} />
+      <path d="M4 14.5h12" opacity="0.45" />
     </svg>
   ),
   dimension: (
