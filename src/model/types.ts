@@ -147,6 +147,8 @@ export type DragState = {
   collisions: string[];
   /** 문 클리어런스(스윙/통행 존)를 막고 있는 문 id 목록 */
   blockedDoors: string[];
+  /** 그룹 이동 중이면 함께 움직이는 아이템 id 목록 */
+  groupIds?: string[];
   /** 카탈로그에서 새로 끌어온 아이템인지 */
   isNew: boolean;
 };

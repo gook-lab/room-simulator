@@ -166,6 +166,53 @@ export function wallNear(
   return best ? { wall: best.wall, t: best.t } : null;
 }
 
+/** 다중 선택: 마퀴 사각형(a-b) 안에 중심이 있는 아이템 id */
+export function itemsInRect(plan: Plan, a: Vec2, b: Vec2): string[] {
+  const minX = Math.min(a.x, b.x);
+  const maxX = Math.max(a.x, b.x);
+  const minY = Math.min(a.y, b.y);
+  const maxY = Math.max(a.y, b.y);
+  return plan.items
+    .filter(
+      (i) =>
+        i.position.x >= minX && i.position.x <= maxX && i.position.y >= minY && i.position.y <= maxY,
+    )
+    .map((i) => i.id);
+}
+
+/** 그룹 이동: ids 를 delta 만큼 평행이동 (roomId 재배정 포함) */
+export function translateItems(plan: Plan, ids: string[], delta: Vec2): Plan {
+  if (ids.length === 0 || (delta.x === 0 && delta.y === 0)) return plan;
+  return {
+    ...plan,
+    items: plan.items.map((i) => {
+      if (!ids.includes(i.id)) return i;
+      const position = { x: i.position.x + delta.x, y: i.position.y + delta.y };
+      return { ...i, position, roomId: roomAt(plan.rooms, position)?.id ?? i.roomId };
+    }),
+  };
+}
+
+/**
+ * 그룹 이동 중 충돌 검사 — 그룹 멤버끼리는 함께 움직이므로 제외하고,
+ * 나머지 아이템·문 클리어런스만 본다.
+ */
+export function groupProblems(
+  plan: Plan,
+  ids: string[],
+): { collisions: string[]; blockedDoors: string[] } {
+  const staticPlan = { ...plan, items: plan.items.filter((i) => !ids.includes(i.id)) };
+  const collisions = new Set<string>();
+  const blockedDoors = new Set<string>();
+  for (const id of ids) {
+    const item = plan.items.find((i) => i.id === id);
+    if (!item) continue;
+    for (const c of collisionsFor(staticPlan, item)) collisions.add(c);
+    for (const d of blockedDoorIds(staticPlan, item)) blockedDoors.add(d);
+  }
+  return { collisions: [...collisions], blockedDoors: [...blockedDoors] };
+}
+
 /** 점→선분 거리 */
 function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
   const dx = b.x - a.x;
