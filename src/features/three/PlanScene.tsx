@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { PlacedItem, Plan, ViewerState } from '../../model/types';
 import { catalogById } from '../../model/catalog';
+import { isPowered } from '../../model/interactions3d';
 import { darken, lighten } from '../editor2d/symbols';
 import { LIGHT_PRESETS } from './lighting';
 import { planCenter, wallBoxes, wallLength } from './wallGeometry';
@@ -151,12 +152,22 @@ function Box({
   );
 }
 
-function FurnitureMesh({ item, lampIntensity }: { item: PlacedItem; lampIntensity: number }) {
+function FurnitureMesh({
+  item,
+  lampIntensity,
+  highlighted = false,
+}: {
+  item: PlacedItem;
+  lampIntensity: number;
+  highlighted?: boolean;
+}) {
   const cat = catalogById.get(item.catalogId);
   const shape = cat?.shape ?? 'rect-table';
   const { w, d, h } = item.size;
   const c = item.variant.color;
   const cDark = darken(c, 0.15);
+  // 전원 꺼진 조명은 발광·광원 제거
+  const eff = isPowered(item) ? lampIntensity : 0;
 
   let body: React.ReactNode = null;
   switch (shape) {
@@ -275,7 +286,7 @@ function FurnitureMesh({ item, lampIntensity }: { item: PlacedItem; lampIntensit
             <meshStandardMaterial
               color="#efd9a8"
               emissive="#ffe9b8"
-              emissiveIntensity={lampIntensity * 0.9}
+              emissiveIntensity={eff * 0.9}
               side={THREE.DoubleSide}
               roughness={0.9}
             />
@@ -283,7 +294,7 @@ function FurnitureMesh({ item, lampIntensity }: { item: PlacedItem; lampIntensit
           <pointLight
             position={[0, h - 0.18, 0]}
             color="#ffe9b8"
-            intensity={lampIntensity}
+            intensity={eff}
             distance={6}
             decay={1.8}
           />
@@ -303,7 +314,7 @@ function FurnitureMesh({ item, lampIntensity }: { item: PlacedItem; lampIntensit
             <meshStandardMaterial
               color="#efd9a8"
               emissive="#ffe9b8"
-              emissiveIntensity={lampIntensity * 0.9}
+              emissiveIntensity={eff * 0.9}
               side={THREE.DoubleSide}
               roughness={0.9}
             />
@@ -311,7 +322,7 @@ function FurnitureMesh({ item, lampIntensity }: { item: PlacedItem; lampIntensit
           <pointLight
             position={[0, ceilingH - 0.85, 0]}
             color="#ffe9b8"
-            intensity={lampIntensity * 1.2}
+            intensity={eff * 1.2}
             distance={7}
             decay={1.8}
           />
@@ -404,6 +415,18 @@ function FurnitureMesh({ item, lampIntensity }: { item: PlacedItem; lampIntensit
       userData={{ itemId: item.id }}
     >
       {body}
+      {highlighted && (
+        <mesh position={[0, h / 2, 0]}>
+          <boxGeometry args={[w + 0.08, h + 0.08, d + 0.08]} />
+          <meshBasicMaterial
+            color="#0e9f6e"
+            wireframe
+            transparent
+            opacity={0.45}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -483,12 +506,15 @@ export function PlanScene({
   showCeiling,
   furnitureGroupRef,
   darkBackground = true,
+  highlightItemId = null,
 }: {
   plan: Plan;
   viewer: ViewerState;
   showCeiling: boolean;
   furnitureGroupRef?: React.RefObject<THREE.Group>;
   darkBackground?: boolean;
+  /** 응시 중 상호작용 가능 사물 하이라이트 */
+  highlightItemId?: string | null;
 }) {
   const spec = LIGHT_PRESETS[viewer.lighting.preset];
   const lampIntensity = spec.lampBase * viewer.lighting.indoorIntensity * 1.6;
@@ -500,7 +526,12 @@ export function PlanScene({
       {showCeiling && <Ceiling plan={plan} />}
       <group ref={furnitureGroupRef}>
         {plan.items.map((item) => (
-          <FurnitureMesh key={item.id} item={item} lampIntensity={lampIntensity} />
+          <FurnitureMesh
+            key={item.id}
+            item={item}
+            lampIntensity={lampIntensity}
+            highlighted={item.id === highlightItemId}
+          />
         ))}
       </group>
     </group>
