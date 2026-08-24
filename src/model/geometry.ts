@@ -62,7 +62,7 @@ export function itemAabb(item: {
 }
 
 /** SAT: 두 convex 폴리곤 겹침 검사 */
-function polysOverlap(a: Vec2[], b: Vec2[]): boolean {
+export function polysOverlap(a: Vec2[], b: Vec2[]): boolean {
   for (const poly of [a, b]) {
     for (let i = 0; i < poly.length; i++) {
       const p1 = poly[i];

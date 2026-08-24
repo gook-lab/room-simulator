@@ -1,4 +1,5 @@
 import type { Plan, PlacedItem, SnapResult, Vec2, Wall } from '../../model/types';
+import { blockedDoorIds } from '../../model/doorZones';
 import {
   closestTOnWall,
   collidingItemIds,
@@ -165,7 +166,34 @@ export function wallNear(
   return best ? { wall: best.wall, t: best.t } : null;
 }
 
-/** 충돌 시 "빈 자리로 이동": 나선형 오프셋 탐색 */
+/** 클릭 지점의 문 개구부 (2D 문 여닫기 토글용) */
+export function doorNear(
+  plan: Plan,
+  world: Vec2,
+  pxPerM: number,
+  thresholdPx = 14,
+): { opening: Plan['openings'][number] } | null {
+  const threshold = thresholdPx / pxPerM;
+  let best: { opening: Plan['openings'][number]; d: number } | null = null;
+  for (const o of plan.openings) {
+    if (o.kind !== 'door') continue;
+    const wall = plan.walls.find((w) => w.id === o.wallId);
+    if (!wall) continue;
+    const len = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
+    if (len < 1e-6) continue;
+    const t = closestTOnWall(wall, world);
+    // 개구부 구간 안인지 (약간의 여유 포함)
+    const margin = threshold / len;
+    if (Math.abs(t - o.t) > o.width / 2 / len + margin) continue;
+    const d = distToWall(wall, world);
+    if (d < threshold + wall.thickness / 2 && (!best || d < best.d)) {
+      best = { opening: o, d };
+    }
+  }
+  return best ? { opening: best.opening } : null;
+}
+
+/** 충돌·문 클리어런스 침범 시 "빈 자리로 이동": 나선형 오프셋 탐색 */
 export function findFreeSpot(plan: Plan, item: PlacedItem): Vec2 | null {
   const step = 0.2;
   for (let radius = step; radius <= 3; radius += step) {
@@ -178,7 +206,7 @@ export function findFreeSpot(plan: Plan, item: PlacedItem): Vec2 | null {
       const room = roomAt(plan.rooms, pos);
       if (!room) continue;
       const probe = { ...item, position: pos };
-      if (collisionsFor(plan, probe).length === 0) {
+      if (collisionsFor(plan, probe).length === 0 && blockedDoorIds(plan, probe).length === 0) {
         const corners = itemCorners(probe);
         if (corners.every((c) => roomAt(plan.rooms, c))) return pos;
       }

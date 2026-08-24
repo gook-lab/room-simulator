@@ -8,6 +8,7 @@ import type {
   Vec2,
 } from '../../model/types';
 import { catalogById } from '../../model/catalog';
+import { doorZones } from '../../model/doorZones';
 import { itemAabb, planBounds, wallPointAt } from '../../model/geometry';
 import { FurnitureSymbol, shapeOf } from './symbols';
 import { w2s, type ViewTransform } from './view';
@@ -282,9 +283,31 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
   const topCenter = w2s(t, { x: item.position.x, y: aabb.min.y });
   const cm = (v: number) => Math.round(v * 100);
   const colliding = drag.collisions.length > 0;
+  const doorBlocked = drag.blockedDoors.length > 0;
+  const warn = colliding || doorBlocked;
 
   return (
     <g>
+      {/* 침범 중인 문 클리어런스 존 */}
+      {doorBlocked &&
+        doorZones(plan)
+          .filter((z) => drag.blockedDoors.includes(z.openingId))
+          .map((z, i) => (
+            <polygon
+              key={`${z.openingId}-${z.kind}-${i}`}
+              points={z.corners
+                .map((p) => {
+                  const s = w2s(t, p);
+                  return `${s.x},${s.y}`;
+                })
+                .join(' ')}
+              fill="#e8590c"
+              opacity={0.12}
+              stroke="#e8590c"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+            />
+          ))}
       {/* 스냅 정렬선 + 라벨 (1c-2) */}
       {drag.snap && (
         <SnapGuides plan={plan} item={item} t={t} snap={drag.snap} />
@@ -296,20 +319,28 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
           y={-item.size.d / 2}
           width={item.size.w}
           height={item.size.d}
-          fill={colliding ? '#e8590c' : 'none'}
-          opacity={colliding ? 0.16 : 1}
-          stroke={colliding ? '#e8590c' : '#0e9f6e'}
+          fill={warn ? '#e8590c' : 'none'}
+          opacity={warn ? 0.16 : 1}
+          stroke={warn ? '#e8590c' : '#0e9f6e'}
           strokeWidth={2}
-          strokeDasharray={colliding ? undefined : '7 5'}
+          strokeDasharray={warn ? undefined : '7 5'}
           {...NSS}
         />
       </g>
-      {/* 치수/충돌 칩 */}
+      {/* 치수/충돌/문 경고 칩 */}
       {colliding ? (
         <ScreenChip
           x={topCenter.x}
           y={topCenter.y - 20}
           text={`겹침 · ${plan.items.filter((i) => drag.collisions.includes(i.id)).map((i) => catalogById.get(i.catalogId)?.name ?? '가구')[0]}`}
+          bg="#e8590c"
+          mono={false}
+        />
+      ) : doorBlocked ? (
+        <ScreenChip
+          x={topCenter.x}
+          y={topCenter.y - 20}
+          text="문 앞 공간을 막음"
           bg="#e8590c"
           mono={false}
         />
