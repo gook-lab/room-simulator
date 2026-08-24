@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import './dashboard.css';
 import type { Plan } from '../../model/types';
 import { priceByRoom, totalPrice } from '../../model/geometry';
+import { exportPlan, importPlan } from '../../model/planIO';
 import { useStore } from '../../state/store';
 import { MiniPlan } from '../../components/MiniPlan';
 
@@ -29,9 +30,37 @@ export function Dashboard() {
   const planOrder = useStore((s) => s.planOrder);
   const currentPlanId = useStore((s) => s.currentPlanId);
   const openPlan = useStore((s) => s.openPlan);
+  const addPlan = useStore((s) => s.addPlan);
   const navigate = useStore((s) => s.navigate);
   const [shareViewers3d, setShareViewers3d] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const downloadJson = (plan: Plan) => {
+    const blob = new Blob([exportPlan(plan)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${plan.name.replace(/[\\/:*?"<>|]/g, '_')}.roomcast.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const onImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = importPlan(String(reader.result));
+      if (result.ok) {
+        setImportError(null);
+        addPlan(result.plan);
+        openPlan(result.plan.id);
+      } else {
+        setImportError(result.error);
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const orderedPlans = planOrder.map((id) => plans[id]).filter(Boolean);
   const estimatePlan = plans[currentPlanId] ?? orderedPlans[0];
@@ -143,6 +172,33 @@ export function Dashboard() {
                 onClick={() => setShareViewers3d((v) => !v)}
               />
             </div>
+          </div>
+
+          <div className="share-card">
+            <div className="share-card__title">백업</div>
+            <div className="backup-actions">
+              <button
+                className="btn btn--outline"
+                onClick={() => estimatePlan && downloadJson(estimatePlan)}
+              >
+                JSON 내보내기
+              </button>
+              <button className="btn btn--outline" onClick={() => importRef.current?.click()}>
+                JSON 가져오기
+              </button>
+              <input
+                ref={importRef}
+                type="file"
+                accept=".json,application/json"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onImportFile(f);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+            {importError && <div className="backup-error">{importError}</div>}
           </div>
 
           <button className="btn btn--primary btn--block">장바구니로 내보내기</button>
