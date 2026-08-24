@@ -7,6 +7,7 @@ import './walkthrough.css';
 import type { Plan, Vec2 } from '../../model/types';
 import { catalogById, formatPrice } from '../../model/catalog';
 import { roomAt } from '../../model/geometry';
+import { isInteractiveItem, isPowered, togglePower } from '../../model/interactions3d';
 import { useCurrentPlan, useStore } from '../../state/store';
 import { ViewTabs } from '../../components/ViewTabs';
 import { CanvasBoundary } from '../three/CanvasBoundary';
@@ -215,6 +216,20 @@ export function Walkthrough() {
     return () => window.removeEventListener('keydown', onKey);
   }, [setView, editItemId]);
 
+  // 락 상태에서 클릭 → 응시 중인 상호작용 사물 반응 (조명 on/off)
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0 || !document.pointerLockElement) return;
+      const target = gaze?.itemId;
+      if (!target) return;
+      const item = plan.items.find((i) => i.id === target);
+      if (!item || !isInteractiveItem(item.catalogId)) return;
+      updatePlan((pl) => togglePower(pl, target));
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    return () => window.removeEventListener('mousedown', onMouseDown);
+  }, [gaze, plan.items, updatePlan]);
+
   // Tab: 포인터 락 ↔ 커서 모드 토글 (락 해제 상태에서 패널을 마우스로 조작)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -261,6 +276,11 @@ export function Walkthrough() {
             viewer={viewer}
             showCeiling
             furnitureGroupRef={furnitureGroupRef}
+            highlightItemId={
+              locked && !editItemId && gazeItem && isInteractiveItem(gazeItem.catalogId)
+                ? gazeItem.id
+                : null
+            }
           />
           <Player
             plan={plan}
@@ -301,6 +321,11 @@ export function Walkthrough() {
           <div className="gaze-chip">
             <span className="gaze-chip__name">{gazeCat.name}</span>
             <span className="gaze-chip__dist">{gaze!.distance.toFixed(1)} m</span>
+            {isInteractiveItem(gazeItem.catalogId) && (
+              <span className="gaze-chip__action">
+                클릭 · {isPowered(gazeItem) ? '끄기' : '켜기'}
+              </span>
+            )}
             <span className="gaze-chip__action">E · 편집</span>
           </div>
         )}

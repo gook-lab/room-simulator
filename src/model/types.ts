@@ -43,6 +43,8 @@ export type PlacedItem = {
   variant: ItemVariant;
   roomId: string | null;
   price: number;
+  /** 조명 등 전원 상태 — undefined 는 켜짐(기본) */
+  powered?: boolean;
 };
 
 export type Tracing = {
