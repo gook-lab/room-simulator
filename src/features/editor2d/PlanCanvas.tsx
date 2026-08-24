@@ -11,6 +11,7 @@ import { doorZones } from '../../model/doorZones';
 import { floorColor2d } from '../../model/finishes';
 import { itemAabb, planBounds, wallPointAt } from '../../model/geometry';
 import { FurnitureSymbol, shapeOf } from './symbols';
+import type { DragOriginPoses } from './dragPreview';
 import { w2s, type ViewTransform } from './view';
 
 export type WallDraft = { points: Vec2[]; cursor: Vec2 | null };
@@ -152,6 +153,10 @@ export type PlanCanvasProps = {
   wallItemGhost: WallItemGhost;
   rotatingItemId: string | null;
   resizingItemId: string | null;
+  /** 미리보기=커밋 계약 — 드래그 원본 잔상 (제스처 시작 스냅샷 포즈) */
+  dragOrigin?: DragOriginPoses | null;
+  /** 회전 프리뷰 HUD — 스냅 적용된 라이브 각도 */
+  rotateHud?: { itemId: string; deg: number } | null;
   svgRef: React.RefObject<SVGSVGElement>;
   onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => void;
   onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => void;
@@ -456,6 +461,53 @@ function SelectionUI({ item, t }: { item: PlacedItem; t: ViewTransform }) {
           strokeWidth={2}
           {...NSS}
         />
+      ))}
+    </g>
+  );
+}
+
+/**
+ * 미리보기=커밋 계약 — 원본 잔상.
+ * 드래그 중 라이브 상태(스냅 반영)가 프리뷰이고, 원래 있던 자리는 여기서
+ * 반투명 심볼 + 점선 외곽으로 남긴다. 벽 드래그는 원래 벽 선을 점선으로.
+ */
+function DragOriginGhost({ origin, t }: { origin: DragOriginPoses; t: ViewTransform }) {
+  return (
+    <g pointerEvents="none">
+      {origin.walls.map((w) => (
+        <line
+          key={`ow-${w.id}`}
+          x1={w.a.x * t.s + t.ox}
+          y1={w.a.y * t.s + t.oy}
+          x2={w.b.x * t.s + t.ox}
+          y2={w.b.y * t.s + t.oy}
+          stroke="#17201c"
+          strokeWidth={Math.max(2, w.thickness * t.s * 0.6)}
+          strokeDasharray="7 6"
+          opacity={0.3}
+          strokeLinecap="round"
+        />
+      ))}
+      {origin.items.map((item) => (
+        <g
+          key={`oi-${item.id}`}
+          transform={`translate(${item.position.x * t.s + t.ox} ${item.position.y * t.s + t.oy}) rotate(${item.rotationDeg}) scale(${t.s})`}
+        >
+          <g opacity={0.28}>
+            <FurnitureSymbol item={item} />
+          </g>
+          <rect
+            x={-item.size.w / 2}
+            y={-item.size.d / 2}
+            width={item.size.w}
+            height={item.size.d}
+            fill="none"
+            stroke="#8a938d"
+            strokeWidth={1.5}
+            strokeDasharray="5 5"
+            {...NSS}
+          />
+        </g>
       ))}
     </g>
   );
@@ -1046,7 +1098,22 @@ export function PlanCanvas(props: PlanCanvasProps) {
       <RoomLabels plan={plan} t={t} />
       <BoundsDimensions plan={plan} t={t} />
       <DimensionNotes plan={plan} t={t} selection={selection} />
+      {props.dragOrigin && <DragOriginGhost origin={props.dragOrigin} t={t} />}
       {drag && <DragOverlay plan={plan} drag={drag} t={t} />}
+      {props.rotateHud &&
+        (() => {
+          const it = plan.items.find((i) => i.id === props.rotateHud!.itemId);
+          if (!it) return null;
+          const top = w2s(t, { x: it.position.x, y: itemAabb(it).min.y });
+          return (
+            <ScreenChip
+              x={top.x}
+              y={top.y - 34}
+              text={`${props.rotateHud!.deg}°`}
+              bg="#17201c"
+            />
+          );
+        })()}
       {props.rotatingItemId &&
         (() => {
           const it = plan.items.find((i) => i.id === props.rotatingItemId);

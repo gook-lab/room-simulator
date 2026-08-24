@@ -60,6 +60,7 @@ import {
 import { CatalogPanel, Inspector, StatusBar, ToolDock } from './panels';
 import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
 import { sketchDraftPoints } from './sketchDraft';
+import { dragOriginPoses, type DragOriginPoses } from './dragPreview';
 import { fitCamera, makeTransform, s2w, w2s } from './view';
 
 let idSeq = 0;
@@ -1190,6 +1191,17 @@ export function Editor2D() {
         return;
       }
       if (e.key === 'Escape') {
+        // 진행 중 드래그 취소 — 시작 스냅샷으로 원위치 복원 (미리보기=커밋 계약의 취소 경로)
+        const g = gestureRef.current;
+        if (g && 'before' in g) {
+          gestureRef.current = null;
+          setGestureKind(null);
+          updatePlan(() => g.before, { commit: false });
+          setDrag(null);
+          setWallMoveInvalid(false);
+          setPostDrop(null);
+          return;
+        }
         if (useStore.getState().placingCatalogId) {
           setPlacing(null);
           setPlacingPos(null);
@@ -1240,6 +1252,8 @@ export function Editor2D() {
     setTool,
     setSelection,
     setPlacing,
+    updatePlan,
+    setDrag,
   ]);
 
   // 도구 변경 시 진행중 상태 정리
@@ -1284,6 +1298,41 @@ export function Editor2D() {
   const wallDraftView: WallDraft | null = wallDraft
     ? { points: sketchDraftPoints(plan, wallDraft), cursor: wallDraft.cursor }
     : null;
+
+  /**
+   * 미리보기=커밋 계약: 드래그 중 plan 라이브 상태가 곧 프리뷰(스냅·클램프 반영 완료)라
+   * 프리뷰와 커밋이 어긋날 여지가 없다. 여기서는 원본 잔상(제스처 시작 스냅샷)만 파생한다.
+   * gestureKind 상태 변화로 시작·종료 시점에 정확히 갱신된다.
+   */
+  const dragOrigin: DragOriginPoses | null = useMemo(() => {
+    const g = gestureRef.current;
+    if (!g || gestureKind == null) return null;
+    if (
+      g.type === 'move' ||
+      g.type === 'rotate' ||
+      g.type === 'resize' ||
+      g.type === 'groupMove' ||
+      g.type === 'wallEndpointMove' ||
+      g.type === 'wallBodyMove'
+    ) {
+      return dragOriginPoses(g.before, g);
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gestureRef 는 gestureKind 와 함께 변한다
+  }, [gestureKind]);
+
+  // 회전 프리뷰 HUD — 라이브 각도(스냅 적용 값) 표시. plan 갱신마다 재계산된다.
+  const rotateHud =
+    gestureKind === 'rotate' && gestureRef.current?.type === 'rotate'
+      ? (() => {
+          const it = plan.items.find(
+            (i) => gestureRef.current?.type === 'rotate' && i.id === gestureRef.current.itemId,
+          );
+          return it
+            ? { itemId: it.id, deg: Math.round(((it.rotationDeg % 360) + 360) % 360) }
+            : null;
+        })()
+      : null;
 
   const cursor =
     gestureKind === 'pan'
@@ -1338,6 +1387,8 @@ export function Editor2D() {
         hoverItemId={hoverItemId}
         drag={drag}
         wallDraft={wallDraftView}
+        dragOrigin={dragOrigin}
+        rotateHud={rotateHud}
         openingHover={openingHover}
         measure={measure}
         placingGhost={placingGhost}
