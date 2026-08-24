@@ -31,6 +31,7 @@ import {
   type WallDraft,
 } from './PlanCanvas';
 import { CatalogPanel, Inspector, StatusBar, ToolDock } from './panels';
+import { wheelTargetsCanvas } from './inputRouting';
 import { fitCamera, makeTransform, s2w, w2s } from './view';
 
 let idSeq = 0;
@@ -742,6 +743,8 @@ export function Editor2D() {
 
   const onWheel = useCallback(
     (e: React.WheelEvent) => {
+      // 입력 라우팅 규칙: 오버레이(패널) 위의 휠은 패널 스크롤 몫 — 캔버스 줌 금지
+      if (!wheelTargetsCanvas(e.target as Element)) return;
       const cam = useStore.getState().camera2d;
       const factor = Math.exp(-e.deltaY * 0.0015);
       const zoom = Math.min(3, Math.max(0.3, cam.zoom * factor));

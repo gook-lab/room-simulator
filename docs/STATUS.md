@@ -95,6 +95,13 @@
 - [x] 3) 도면 JSON 내보내기/가져오기: `planIO.ts` — `{format:'roomcast-plan', version:1, exportedAt, plan}` 포맷. 대시보드 '백업' 카드에서 현재 도면 .json 다운로드 / 파일 선택 가져오기(검증 통과 시 **새 문서로 추가** + 에디터 진입, id 재발급). 스키마 검증: format/version(미래 버전 거부)/벽·개구부(t 범위, 벽 참조 존재)·룸·가구 필드 — 실패 시 한국어 에러를 카드에 표시. **round-trip 테스트**: 샘플+템플릿 전부 id 외 완전 보존 + 확장 필드(dimensions·마감재·powered·문 open) 보존 검증. 테스트 10개 — 총 146개.
 - [x] 4) 다중 선택·복제: **Shift+클릭** 토글, **Shift+드래그** 마퀴 박스(중심 포함 기준, accent 틴트 렌더). 다중 선택 상태에서 선택 아이템을 잡으면 **그룹 이동**(시작 위치 기준 delta 재계산 — 누적 오차 없음, 그리드 스냅, 그룹 멤버끼리 충돌 제외·외부 충돌/문 존 union 경고, roomId 재배정, 명령 단위 undo). Cmd+D 그룹 복제·Delete 일괄 삭제는 기존 selection 배열 로직이 그대로 커버. 테스트 9개(itemsInRect·translateItems·groupProblems) — 총 136개.
 
+### 10차 (2026-08-24, "패널 스크롤 시 캔버스 줌" 버그 + 입력 라우팅 룰)
+
+- [x] 원인: `.editor2d` 루트의 wheel 핸들러가 자식 패널의 휠까지 버블로 수신 → 카탈로그 스크롤이 캔버스 줌으로 샘.
+- [x] 룰베이스 정리: `inputRouting.ts` — "포인터가 떠 있는 표면이 이벤트의 주인" 원칙. `wheelTargetsCanvas(e.target)` 가드(OVERLAY_SELECTOR: float-panel/tooldock/statusbar/viewtabs/topbar/collision-actions)로 오버레이 위 휠 차단, `.scroll-y`에 `overscroll-behavior: contain`(끝 도달 체이닝 금지). 캔버스 위 휠=커서 기준 줌(README 준수, 핀치 포함) 유지. 3D는 구조상 안전(워크스루 wheel 미사용, 조감도 OrbitControls는 gl canvas 요소에만 리스너) — window 단위 wheel 리스너 없음 확인.
+- [x] **ARCHITECTURE.md "입력 라우팅 규칙" 절 문서화** — 새 패널은 OVERLAY_SELECTOR 등록 + .scroll-y 사용 규칙 명시.
+- 테스트 4개(가드 로직·셀렉터 등록) — 총 150개. 브라우저 실검증: 카탈로그 위 휠 5회 → 축척 1:55 불변, 캔버스 위 휠 → 1:20 줌.
+
 ### 버그 리포트 (2026-08-24, "가구 색상 변경·세부옵션 미동작")
 
 - [x] 재현 결과: 일반 가구(소파 등)의 스와치는 2D/3D 모두 정상 — **조명류(플로어 램프·펜던트)만 2D 심볼·3D 메시가 variant 색을 무시하고 고정 팔레트를 사용**해 스와치가 무반응으로 보였음. 또한 '상세 옵션' 버튼이 스텁(무동작)이었음.
