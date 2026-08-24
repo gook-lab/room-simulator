@@ -67,6 +67,9 @@ export interface AppStore {
   setDrag: (drag: DragState | null) => void;
   setCamera2d: (camera: { pan: Vec2; zoom: number }) => void;
   toggleSnapping: () => void;
+  /** 문서 오픈 직후 1회 fit-to-view 요청 플래그 (Editor2D가 소비) */
+  pendingFitView: boolean;
+  clearFitView: () => void;
 
   /* ---- 3D viewer ---- */
   viewer: ViewerState;
@@ -118,6 +121,7 @@ export const useStore = create<AppStore>((set, get) => {
               drag: null,
               history: { past: [], future: [] },
               camera2d: { pan: { x: 0, y: 0 }, zoom: 1 },
+              pendingFitView: true,
             }
           : s,
       ),
@@ -195,6 +199,8 @@ export const useStore = create<AppStore>((set, get) => {
     drag: null,
     camera2d: { pan: { x: 0, y: 0 }, zoom: 1 },
     snapping: { enabled: true, gridCm: 10, angleStepDeg: 15 },
+    pendingFitView: true, // 첫 로드도 오픈으로 취급
+    clearFitView: () => set({ pendingFitView: false }),
     setTool: (tool) => set({ tool, placingCatalogId: null }),
     setSelection: (selection) => set({ selection }),
     setPlacing: (placingCatalogId) =>

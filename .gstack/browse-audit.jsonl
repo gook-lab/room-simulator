@@ -177,3 +177,25 @@
 {"ts":"2026-08-24T12:05:32.534Z","cmd":"js","args":"[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='새 도면 만들기').click();'u'","origin":"http://localhost:4573/","durationMs":10,"status":"ok","hasCookies":false,"mode":"launched"}
 {"ts":"2026-08-24T12:05:33.088Z","cmd":"js","args":"[...document.querySelectorAll('.tpl-card__name')].find(n=>n.textContent==='34평 아파트').closest('button').click();'84'","origin":"http://localhost:4573/","durationMs":5,"status":"ok","hasCookies":false,"mode":"launched"}
 {"ts":"2026-08-24T12:05:34.041Z","cmd":"screenshot","args":"/private/tmp/claude-501/-Users-kyb-ontact-sonix-toy/8db2b6db-b2ed-4199-8555-3e9f898068de/scratchpad/tpl-84-v2.png","origin":"http://localhost:4573/","durationMs":97,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:06:40.437Z","cmd":"goto","args":"http://localhost:5198/","origin":"http://localhost:5198/","durationMs":586,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:06:41.519Z","cmd":"snapshot","args":"-i -c","origin":"http://localhost:5198/","durationMs":24,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:06:53.350Z","cmd":"click","args":"@e1","origin":"http://localhost:5198/","durationMs":56,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:06:53.920Z","cmd":"snapshot","args":"-i -c","origin":"http://localhost:5198/","durationMs":7,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:06:54.048Z","cmd":"click","args":"@e4","origin":"http://localhost:5198/","durationMs":39,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:06:54.852Z","cmd":"snapshot","args":"-i -c","origin":"http://localhost:5198/","durationMs":7,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:06:54.927Z","cmd":"click","args":"@e6","origin":"http://localhost:5198/","durationMs":26,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:06:56.018Z","cmd":"screenshot","args":"/private/tmp/claude-501/-Users-kyb-ontact-sonix-toy/e34dce54-4dee-4392-968c-8350ff6ffcea/scratchpad/rc-5-34py-v2.png","origin":"http://localhost:5198/","durationMs":26,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:06:56.073Z","cmd":"console","args":"--errors","origin":"http://localhost:5198/","durationMs":1,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:11:28.881Z","cmd":"goto","args":"http://localhost:5198/","origin":"http://localhost:5198/","durationMs":473,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:11:29.978Z","cmd":"snapshot","args":"-i -c","origin":"http://localhost:5198/","durationMs":29,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:11:30.059Z","cmd":"click","args":"@e1","origin":"http://localhost:5198/","durationMs":37,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:11:30.629Z","cmd":"snapshot","args":"-i -c","origin":"http://localhost:5198/","durationMs":5,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:11:30.699Z","cmd":"click","args":"@e4","origin":"http://localhost:5198/","durationMs":26,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:11:31.467Z","cmd":"snapshot","args":"-i -c","origin":"http://localhost:5198/","durationMs":5,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:11:31.536Z","cmd":"click","args":"@e5","origin":"http://localhost:5198/","durationMs":18,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:11:32.695Z","cmd":"screenshot","args":"/private/tmp/claude-501/-Users-kyb-ontact-sonix-toy/e34dce54-4dee-4392-968c-8350ff6ffcea/scratchpad/rc-6-25py-v2.png","origin":"http://localhost:5198/","durationMs":77,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:17:32.099Z","cmd":"goto","args":"http://localhost:4573/","origin":"http://localhost:4573/","durationMs":400,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:17:32.974Z","cmd":"js","args":"localStorage.removeItem('roomcast.plans.v1'); location.reload(); 'reset'","origin":"http://localhost:4573/","durationMs":2,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:17:34.242Z","cmd":"js","args":"document.querySelector('.brand').click();'d'","origin":"http://localhost:4573/","durationMs":5,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:17:34.699Z","cmd":"js","args":"[...document.querySelectorAll('.plan-card__name')].find(n=>n.textContent.includes('서재')).closest('button').click();'open-study'","origin":"http://localhost:4573/","durationMs":3,"status":"ok","hasCookies":false,"mode":"launched"}
+{"ts":"2026-08-24T12:17:35.672Z","cmd":"screenshot","args":"/private/tmp/claude-501/-Users-kyb-ontact-sonix-toy/8db2b6db-b2ed-4199-8555-3e9f898068de/scratchpad/fit-study.png","origin":"http://localhost:4573/","durationMs":102,"status":"ok","hasCookies":false,"mode":"launched"}

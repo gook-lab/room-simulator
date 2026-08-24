@@ -25,7 +25,7 @@ import {
   type WallDraft,
 } from './PlanCanvas';
 import { CatalogPanel, Inspector, StatusBar, ToolDock } from './panels';
-import { makeTransform, s2w, w2s } from './view';
+import { fitCamera, makeTransform, s2w, w2s } from './view';
 
 let idSeq = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${idSeq++}`;
@@ -65,6 +65,7 @@ export function Editor2D() {
   const hostRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null!);
   const [viewport, setViewport] = useState({ w: 1440, h: 844 });
+  const [measured, setMeasured] = useState(false);
   const gestureRef = useRef<Gesture | null>(null);
   const [gestureKind, setGestureKind] = useState<Gesture['type'] | null>(null);
   const [hoverItemId, setHoverItemId] = useState<string | null>(null);
@@ -87,8 +88,19 @@ export function Editor2D() {
     });
     ro.observe(el);
     setViewport({ w: el.clientWidth, h: el.clientHeight });
+    setMeasured(true);
     return () => ro.disconnect();
   }, []);
+
+  // 문서 오픈 직후 1회 fit-to-view (사용자 팬/줌 중에는 건드리지 않음)
+  const pendingFitView = useStore((s) => s.pendingFitView);
+  const clearFitView = useStore((s) => s.clearFitView);
+  useEffect(() => {
+    if (pendingFitView && measured) {
+      setCamera2d(fitCamera(planRef.current, { w: hostRef.current!.clientWidth, h: hostRef.current!.clientHeight }));
+      clearFitView();
+    }
+  }, [pendingFitView, measured, setCamera2d, clearFitView]);
 
   const t = useMemo(
     () => makeTransform(plan, viewport, camera2d),
@@ -679,10 +691,15 @@ export function Editor2D() {
               ? 'move'
               : 'default';
 
-  const resetView = useCallback(
-    () => setCamera2d({ pan: { x: 0, y: 0 }, zoom: 1 }),
-    [setCamera2d],
-  );
+  const resetView = useCallback(() => {
+    const el = hostRef.current;
+    setCamera2d(
+      fitCamera(planRef.current, {
+        w: el?.clientWidth ?? 1440,
+        h: el?.clientHeight ?? 844,
+      }),
+    );
+  }, [setCamera2d]);
 
   // 충돌 후 액션 칩 위치
   const postDropItem = postDrop ? plan.items.find((i) => i.id === postDrop.itemId) : null;
