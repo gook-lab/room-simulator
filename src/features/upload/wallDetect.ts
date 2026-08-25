@@ -289,7 +289,7 @@ export function traceRegionPolygon(
  * 도면의 실세계 폭을 추정할 수 있다 — "폭 10m 가정"보다 훨씬 정확한 초기 스케일.
  */
 export function estimateWallThickness(
-  grid: Uint8Array,
+  isDark: (x: number, y: number) => boolean,
   w: number,
   h: number,
   lines: DetectedLine[],
@@ -299,7 +299,7 @@ export function estimateWallThickness(
     let n = 0;
     let px = x;
     let py = y;
-    while (px >= 0 && px < w && py >= 0 && py < h && grid[py * w + px] === 1 && n < 50) {
+    while (px >= 0 && px < w && py >= 0 && py < h && isDark(px, py) && n < 60) {
       n++;
       px += dx;
       py += dy;
@@ -309,14 +309,14 @@ export function estimateWallThickness(
   for (const line of lines) {
     const [a, b] = line.points;
     const horizontal = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
-    for (const t of [0.25, 0.5, 0.75]) {
+    for (const t of [0.2, 0.35, 0.5, 0.65, 0.8]) {
       const x = Math.round(a.x + (b.x - a.x) * t);
       const y = Math.round(a.y + (b.y - a.y) * t);
-      if (x < 0 || x >= w || y < 0 || y >= h || grid[y * w + x] !== 1) continue;
+      if (x < 0 || x >= w || y < 0 || y >= h || !isDark(x, y)) continue;
       const run = horizontal
         ? runAt(x, y, 0, 1) + runAt(x, y, 0, -1) - 1
         : runAt(x, y, 1, 0) + runAt(x, y, -1, 0) - 1;
-      if (run > 0 && run < 40) runs.push(run);
+      if (run > 0 && run < 50) runs.push(run);
     }
   }
   if (runs.length === 0) return 0;

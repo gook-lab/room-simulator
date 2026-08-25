@@ -110,12 +110,24 @@ export function autoTraceImage(
             boundaryBridge: 90 / STEP,
           },
         }).filter((l) => ((l.points[0].y + l.points[1].y) / 2) * STEP < captionTop);
-        // ── 스케일 추정: 벽 픽셀 두께 → 실세계 폭 (실벽 ≈ REAL_WALL_M 가정)
-        const thicknessCells = estimateWallThickness(grid, gw, gh, gridLines);
-        const REAL_WALL_M = 0.2;
+        // ── 스케일 추정: 벽 픽셀 두께 → 실세계 폭 (실벽 ≈ REAL_WALL_M 가정).
+        // 격자(±1셀=±STEP px) 대신 **원본 해상도 픽셀**에서 측정해 양자화 오차 축소.
+        const isDarkPx = (x: number, y: number): boolean => {
+          if (x < 0 || x >= paperW || y < 0 || y >= paperH) return false;
+          const i = (y * paperW + x) * 4;
+          const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          return data[i + 3] > 60 && lum < DARK_LUM;
+        };
+        const linesPx = gridLines.map((l) => ({
+          ...l,
+          points: l.points.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
+        }));
+        const thicknessPx = estimateWallThickness(isDarkPx, paperW, paperH, linesPx);
+        // Matterport BW/FCL 4종 실측(1,214/829 sq ft) 대비 보정한 도면 벽 두께 가정
+        const REAL_WALL_M = 0.18;
         const suggestedWidthM =
-          thicknessCells > 0
-            ? Math.min(30, Math.max(6, (REAL_WALL_M * gw) / thicknessCells))
+          thicknessPx > 0
+            ? Math.min(40, Math.max(6, (REAL_WALL_M * paperW) / thicknessPx))
             : 0;
         const widthM = opts?.knownWidthM ?? (suggestedWidthM || 10);
         const cellM = widthM / gw; // 격자 셀 하나의 실세계 크기
