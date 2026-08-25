@@ -647,3 +647,26 @@
   background: var(--inset-a);
   box-shadow: 0 0 0 1.5px var(--accent);
 }
+
+/* ---- 층 정렬 패널 ---- */
+.floor-align-panel {
+  position: absolute;
+  left: 20px;
+  right: auto;
+  bottom: 268px; /* 밑그림 패널 위에 쌓임 (같은 좌하단 도크) */
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.floor-align-panel__nudge {
+  display: flex;
+  gap: 6px;
+}
+
+.floor-align-panel__nudge .btn {
+  flex: 1;
+  padding: 6px 0;
+}

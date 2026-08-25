@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { CatalogCategory, PlacedItem, Tool } from '../../model/types';
+import type { CatalogCategory, PlacedItem, Tool, Vec2 } from '../../model/types';
+import { autoAlignOffset, floorsOfBuilding, translatePlanGeometry } from '../../model/floorStack';
 import { FLOOR_FINISHES, WALL_FINISHES, setRoomFinish } from '../../model/finishes';
 import { isWallCatalogItem, moveWallItem } from '../../model/wallItems';
 import { deleteOpening, updateOpening } from '../../model/wallEdit';
@@ -281,6 +282,75 @@ function NumField({
         <span className="inspector__suffix">{suffix}</span>
       </span>
     </label>
+  );
+}
+
+/**
+ * 층 정렬 패널 — 위층(2층 이상) 문서에서만 노출.
+ * 아래층 고스트 겹쳐 보기 + 자동 정렬(벽 bbox 중심 맞춤) + 0.1m 미세 이동.
+ */
+export function FloorAlignPanel({
+  ghostOn,
+  setGhostOn,
+}: {
+  ghostOn: boolean;
+  setGhostOn: (v: boolean) => void;
+}) {
+  const plan = useCurrentPlan();
+  const plans = useStore((s) => s.plans);
+  const updatePlan = useStore((s) => s.updatePlan);
+  const floors = floorsOfBuilding(plans, plan);
+  const idx = floors.findIndex((f) => f.id === plan.id);
+  if (idx < 1) return null; // 1층·단독 문서에는 정렬 대상이 없음
+  const below = floors[idx - 1];
+
+  const nudge = (dx: number, dy: number) =>
+    updatePlan((pl) => translatePlanGeometry(pl, { x: dx, y: dy }), {
+      coalesceKey: 'floor-align',
+    });
+  const autoAlign = () => {
+    const d = autoAlignOffset(plan, below);
+    if (d) updatePlan((pl) => translatePlanGeometry(pl, d));
+  };
+
+  return (
+    <aside className="float-panel underlay-panel floor-align-panel">
+      <div className="panel-header">
+        <span className="panel-header__title">층 정렬</span>
+        <span className="badge-accent">{below.floorLabel ?? '아래층'} 기준</span>
+      </div>
+      <label className="inspector__swatch-label" style={{ display: 'flex', gap: 6, cursor: 'pointer' }}>
+        <input type="checkbox" checked={ghostOn} onChange={(e) => setGhostOn(e.target.checked)} />
+        아래층 겹쳐 보기
+      </label>
+      <div className="underlay-panel__actions">
+        <button className="btn" onClick={autoAlign} title="두 층 벽 범위의 중심을 맞춥니다">
+          아래층에 자동 정렬
+        </button>
+      </div>
+      <div className="underlay-panel__actions floor-align-panel__nudge">
+        {(
+          [
+            ['←', -0.1, 0],
+            ['→', 0.1, 0],
+            ['↑', 0, -0.1],
+            ['↓', 0, 0.1],
+          ] as const
+        ).map(([label, dx, dy]) => (
+          <button
+            key={label}
+            className="btn"
+            title="0.1m 이동 · Shift+클릭 0.5m"
+            onClick={(e) => nudge(dx * (e.shiftKey ? 5 : 1), dy * (e.shiftKey ? 5 : 1))}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <span className="inspector__swatch-label">
+        이동은 문서 전체(벽·가구·밑그림)에 적용되고 undo 대상입니다
+      </span>
+    </aside>
   );
 }
 
@@ -912,7 +982,7 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
     }
     let seq = 0;
     const stamp = Date.now().toString(36);
-    const { walls, rooms, openings } = buildAutoGeometry(
+    const built = buildAutoGeometry(
       r,
       srcW,
       srcH,
@@ -920,6 +990,12 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
       tracing.heightM,
       () => `g-${stamp}-ad${seq++}`,
     );
+    // 층 정렬로 문서가 이동된 경우: 인식 좌표(이미지 기준)에 밑그림 오프셋을 더해 정렬 유지
+    const off = tracing.offset ?? { x: 0, y: 0 };
+    const shift = (p: Vec2): Vec2 => ({ x: p.x + off.x, y: p.y + off.y });
+    const walls = built.walls.map((w) => ({ ...w, a: shift(w.a), b: shift(w.b) }));
+    const rooms = built.rooms.map((rm) => ({ ...rm, polygon: rm.polygon.map(shift) }));
+    const openings = built.openings;
     // 재실행: 이전 자동 인식분('-ad')은 교체, 사용자가 그린 것은 유지 — undo 1회로 취소
     updatePlan((pl) => ({
       ...pl,

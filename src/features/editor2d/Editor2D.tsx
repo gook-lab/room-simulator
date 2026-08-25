@@ -58,7 +58,15 @@ import {
   type WallDraft,
   type WallItemGhost,
 } from './PlanCanvas';
-import { CatalogPanel, Inspector, StatusBar, ToolDock, UnderlayPanel } from './panels';
+import {
+  CatalogPanel,
+  FloorAlignPanel,
+  Inspector,
+  StatusBar,
+  ToolDock,
+  UnderlayPanel,
+} from './panels';
+import { floorsOfBuilding } from '../../model/floorStack';
 import { rescalePlanGeometry } from '../../model/underlay';
 import { detectRoomsFromWalls } from '../../model/roomDetect';
 import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
@@ -161,6 +169,15 @@ export function Editor2D() {
     | { stage: 'draw'; line: { a: Vec2; b: Vec2 } | null }
     | { stage: 'input'; line: { a: Vec2; b: Vec2 }; meters: string }
   >(null);
+
+  // 층 정렬 — 위층 문서에서 아래층 고스트 겹쳐 보기 (세션 로컬 토글, 기본 on)
+  const [floorGhostOn, setFloorGhostOn] = useState(true);
+  const allPlans = useStore((s) => s.plans);
+  const belowFloor = useMemo(() => {
+    const floors = floorsOfBuilding(allPlans, plan);
+    const idx = floors.findIndex((f) => f.id === plan.id);
+    return idx >= 1 ? floors[idx - 1] : null;
+  }, [allPlans, plan]);
 
   // 최신 상태를 이벤트 핸들러에서 안전하게 읽기 위한 ref
   const planRef = useRef(plan);
@@ -1518,6 +1535,7 @@ export function Editor2D() {
         wallDraft={wallDraftView}
         dragOrigin={dragOrigin}
         rotateHud={rotateHud}
+        ghostPlan={floorGhostOn ? belowFloor : null}
         openingHover={openingHover}
         measure={measure}
         placingGhost={placingGhost}
@@ -1539,6 +1557,7 @@ export function Editor2D() {
       {plan.tracing && (
         <UnderlayPanel onStartScale={() => setScaleMode({ stage: 'draw', line: null })} />
       )}
+      <FloorAlignPanel ghostOn={floorGhostOn} setGhostOn={setFloorGhostOn} />
 
       {/* 밑그림 스케일 보정 오버레이 */}
       {scaleMode && (

@@ -92,6 +92,8 @@ export type Tracing = {
   /** 원본 이미지의 실세계 크기 (m) — unitScale 확정 시 계산 */
   widthM?: number;
   heightM?: number;
+  /** 밑그림 이미지 원점 오프셋 (m) — 층 정렬로 문서를 이동하면 함께 이동 */
+  offset?: Vec2;
 };
 
 export type Plan = {

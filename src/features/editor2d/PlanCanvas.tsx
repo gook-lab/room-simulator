@@ -157,6 +157,8 @@ export type PlanCanvasProps = {
   dragOrigin?: DragOriginPoses | null;
   /** 회전 프리뷰 HUD — 스냅 적용된 라이브 각도 */
   rotateHud?: { itemId: string; deg: number } | null;
+  /** 층 정렬 — 아래층 고스트 (벽·룸 반투명, 비인터랙티브) */
+  ghostPlan?: Plan | null;
   svgRef: React.RefObject<SVGSVGElement>;
   onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => void;
   onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => void;
@@ -949,7 +951,7 @@ function PlacingGhostPreview({
 }
 
 export function PlanCanvas(props: PlanCanvasProps) {
-  const { plan, t, viewport, selection, hoverItemId, drag } = props;
+  const { plan, t, viewport, selection, hoverItemId, drag, ghostPlan } = props;
   const items = sortedItems(plan);
   const selectedItems = plan.items.filter((i) => selection.includes(i.id));
 
@@ -989,12 +991,37 @@ export function PlanCanvas(props: PlanCanvasProps) {
               {...NSS}
             />
           ))}
+        {/* 층 정렬 — 아래층 고스트 (최하단, 비인터랙티브) */}
+        {ghostPlan && (
+          <g opacity={0.35} pointerEvents="none">
+            {ghostPlan.rooms.map((r) => (
+              <polygon
+                key={`gh-r-${r.id}`}
+                points={r.polygon.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill="#8d95a1"
+                opacity={0.15}
+              />
+            ))}
+            {ghostPlan.walls.map((w) => (
+              <line
+                key={`gh-w-${w.id}`}
+                x1={w.a.x}
+                y1={w.a.y}
+                x2={w.b.x}
+                y2={w.b.y}
+                stroke="#8d95a1"
+                strokeWidth={w.thickness}
+                strokeLinecap="square"
+              />
+            ))}
+          </g>
+        )}
         {/* 트레이싱 원본 */}
         {plan.tracing?.visible && plan.tracing.widthM != null && (
           <image
             href={plan.tracing.imageUrl}
-            x={0}
-            y={0}
+            x={plan.tracing.offset?.x ?? 0}
+            y={plan.tracing.offset?.y ?? 0}
             width={plan.tracing.widthM}
             height={plan.tracing.heightM}
             opacity={plan.tracing.opacity}
