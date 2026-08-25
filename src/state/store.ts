@@ -52,6 +52,10 @@ export interface AppStore {
   addFloor: (source: 'empty' | 'duplicate') => void;
   /** 업로드 문서를 현재 문서의 새 층으로 연결해 추가 */
   addPlanAsFloor: (plan: Plan) => void;
+  /** 문서 이름 변경 — 층 연결 문서는 건물 전체에 반영 */
+  renamePlan: (planId: string, name: string) => void;
+  /** 문서 복제 (건물 연결은 끊고 독립 문서로) */
+  duplicatePlan: (planId: string) => void;
   renameFloor: (planId: string, label: string) => void;
   /** 층(문서) 삭제 — 마지막 남은 문서는 삭제하지 않음 */
   deleteFloor: (planId: string) => void;
@@ -226,6 +230,41 @@ export const useStore = create<AppStore>((set, get) => {
         pendingFitView: true,
         screen: 'editor',
         view: '2d',
+      });
+      scheduleSave();
+    },
+
+    renamePlan: (planId, name) => {
+      set((s) => {
+        const target = s.plans[planId];
+        if (!target) return s;
+        // 층 연결 문서는 건물 이름을 공유 — 같은 건물 전체에 반영
+        const ids = target.buildingId
+          ? Object.values(s.plans)
+              .filter((p) => p.buildingId === target.buildingId)
+              .map((p) => p.id)
+          : [planId];
+        const plans = { ...s.plans };
+        for (const id of ids) plans[id] = { ...plans[id], name };
+        return { plans };
+      });
+      scheduleSave();
+    },
+
+    duplicatePlan: (planId) => {
+      const s = get();
+      const src = s.plans[planId];
+      if (!src) return;
+      const copy = JSON.parse(JSON.stringify(src)) as Plan;
+      copy.id = `plan-${Date.now().toString(36)}-cp`;
+      copy.name = `${src.name} 사본`;
+      // 사본은 건물 연결을 끊어 독립 문서로 (층 복제는 층 탭의 ⧉ 사용)
+      delete copy.buildingId;
+      delete copy.floorLabel;
+      copy.updatedAt = new Date().toISOString();
+      set({
+        plans: { ...s.plans, [copy.id]: copy },
+        planOrder: [copy.id, ...s.planOrder],
       });
       scheduleSave();
     },
