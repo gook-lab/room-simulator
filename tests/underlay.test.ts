@@ -136,3 +136,21 @@ describe('buildAutoGeometry — 개구부 부착·외곽 루프 보존', () => {
     expect(exterior).toHaveLength(4);
   });
 });
+
+describe('썸네일 범위 (thumbnailBounds)', () => {
+  it('벽 밖 가구·룸 폴리곤까지 포함해 중앙 정렬 기준을 잡는다', async () => {
+    const { thumbnailBounds } = await import('../src/components/MiniPlan');
+    const { createSamplePlan } = await import('../src/model/samplePlan');
+    const { item } = await import('../src/model/planBuilder');
+    const plan = createSamplePlan();
+    // 벽 범위 밖에 가구 배치
+    plan.items = [...plan.items, item('far', 'chair-dining', { x: 30, y: 30 }, 0, null)];
+    const b = thumbnailBounds(plan);
+    expect(b.max.x).toBeGreaterThan(29);
+    expect(b.max.y).toBeGreaterThan(29);
+    // 빈 문서는 planBounds 폴백
+    const empty = { ...plan, walls: [], rooms: [], items: [] };
+    const eb = thumbnailBounds(empty);
+    expect(Number.isFinite(eb.min.x)).toBe(true);
+  });
+});

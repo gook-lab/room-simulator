@@ -1,7 +1,37 @@
 import { useMemo } from 'react';
 import type { Plan } from '../model/types';
-import { planBounds } from '../model/geometry';
+import { itemAabb, planBounds } from '../model/geometry';
 import { itemLayer } from '../features/editor2d/PlanCanvas';
+
+/**
+ * 썸네일용 콘텐츠 범위 — 벽만 보던 planBounds와 달리 실제로 그리는
+ * 모든 요소(벽·룸 폴리곤·가구)를 포함해, 벽 밖 가구나 룸 때문에
+ * 도면이 카드 밖으로 밀리거나 치우치지 않게 한다.
+ */
+export function thumbnailBounds(plan: Plan): { min: { x: number; y: number }; max: { x: number; y: number } } {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const w of plan.walls) {
+    xs.push(w.a.x, w.b.x);
+    ys.push(w.a.y, w.b.y);
+  }
+  for (const r of plan.rooms) {
+    for (const p of r.polygon) {
+      xs.push(p.x);
+      ys.push(p.y);
+    }
+  }
+  for (const i of plan.items) {
+    const b = itemAabb(i);
+    xs.push(b.min.x, b.max.x);
+    ys.push(b.min.y, b.max.y);
+  }
+  if (xs.length === 0) return planBounds(plan); // 언더레이 전용/빈 문서 폴백
+  return {
+    min: { x: Math.min(...xs), y: Math.min(...ys) },
+    max: { x: Math.max(...xs), y: Math.max(...ys) },
+  };
+}
 
 const FLOOR_COLORS: Record<string, string> = {
   living: '#fbf8f3',
@@ -20,8 +50,9 @@ export function MiniPlan({
   height: number;
 }) {
   const view = useMemo(() => {
-    const b = planBounds(plan);
-    const pad = 12;
+    const b = thumbnailBounds(plan);
+    // 비율 기반 패딩 — 카드 크기에 상대적이라 도면마다 여백이 일정하다
+    const pad = Math.max(8, Math.round(Math.min(width, height) * 0.09));
     const s = Math.min(
       (width - pad * 2) / Math.max(0.1, b.max.x - b.min.x),
       (height - pad * 2) / Math.max(0.1, b.max.y - b.min.y),

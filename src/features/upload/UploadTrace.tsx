@@ -85,17 +85,17 @@ export function UploadTrace() {
   const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  /** 이미지 URL → 언더레이 문서 생성 + 즉시 에디터 진입 */
+  /** 이미지 URL → 언더레이 문서 생성 + 즉시 에디터 진입. fixedWidthM = 스케일을 아는 소스(내장 샘플) */
   const openWithUnderlay = useCallback(
-    async (rawUrl: string, name: string) => {
+    async (rawUrl: string, name: string, fixedWidthM?: number) => {
       setLoading(true);
       const { url, w, h } = await normalizeImage(rawUrl);
       // 벽·닫힌 공간 자동 인식 — "넣자마자 벽이 세워진 도면"이 기본 (실패 시 빈 도면으로 강등)
       const srcW = 780;
       const srcH = Math.max(1, Math.round((srcW * h) / w));
-      const trace = await autoTraceImage(url, srcW, srcH);
-      // 스케일: 벽 픽셀 두께 기반 추정 (실패 시 폭 10m 가정)
-      const size = underlaySize(w, h, trace.suggestedWidthM || DEFAULT_UNDERLAY_WIDTH_M);
+      const trace = await autoTraceImage(url, srcW, srcH, fixedWidthM ? { knownWidthM: fixedWidthM } : undefined);
+      // 스케일: 고정값(내장 샘플) > 벽 픽셀 두께 기반 추정 > 폭 10m 가정
+      const size = underlaySize(w, h, fixedWidthM ?? (trace.suggestedWidthM || DEFAULT_UNDERLAY_WIDTH_M));
       let seq = 0;
       const { walls, rooms, openings } = buildAutoGeometry(
         trace,
@@ -204,7 +204,7 @@ export function UploadTrace() {
                 </button>
                 <button
                   className="btn btn--outline"
-                  onClick={() => void openWithUnderlay(SAMPLE_URL, '샘플 도면')}
+                  onClick={() => void openWithUnderlay(SAMPLE_URL, '샘플 도면', 10.9)}
                 >
                   샘플 도면 사용
                 </button>
