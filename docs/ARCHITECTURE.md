@@ -50,7 +50,7 @@ three.js + @react-three/fiber를 사용합니다. 상태는 zustand 단일 스�
 src/
   model/            순수 로직 (React 무관 — 테스트 대상의 중심)
     types.ts          Plan·Wall·Opening·Room·PlacedItem·WallItem 등 전체 타입
-    catalog.ts        가구 카탈로그 49종 (2026-08-24 기준)
+    catalog.ts        가구 카탈로그 · 실상품 연동(products.json 머지)
     templates.ts      평형 템플릿 3종 (안목치수 기준)
     geometry.ts       shoelace 면적·point-in-polygon·SAT 충돌·견적 셀렉터
     doorZones.ts      문 앞 가구 배치 금지 존 (스윙 존 + 통행 스트립)
@@ -64,8 +64,8 @@ src/
     walkthrough/      1d: 1인칭 워크스루 + HUD
     birdseye/         1f: 조감도 + 조명 시뮬레이션
     three/            공유 3D — PlanScene(벽 분할·가구 프리미티브)·충돌·조명 프리셋
-    dashboard/        1h: 도면 목록·견적·JSON 백업
-    upload/           1g: 업로드 → 스케일 → 수동 트레이싱
+    dashboard/        1h: 도면 목록·가구 라이브러리·JSON 백업
+    upload/           1g: 업로드 즉시 로드 — 벽·방·문 자동 인식(wallDetect)
 ```
 
 ## 3D 파생 규칙
@@ -141,6 +141,6 @@ false`)으로 반영하므로, 화면의 요소가 곧 프리뷰이고 드롭 �
 ## 빌드와 테스트
 
 `npm run build`는 `tsc -b && vite build`입니다. 테스트는 Vitest로 순수 로직만
-검증합니다(168개, 2026-08-24 기준) — 지오메트리·스냅·충돌·문 존·템플릿
-무결성·JSON round-trip이 대상이고, three/r3f 렌더 컴포넌트는 모듈 분리로
-테스트 범위에서 제외했습니다. 진행 원장은 [STATUS.md](STATUS.md)에 있습니다.
+검증합니다 — 지오메트리·스냅·충돌·문 존·템플릿 무결성·JSON round-trip이
+대상이고, three/r3f 렌더 컴포넌트는 모듈 분리로 테스트 범위에서 제외했습니다.
+진행 원장은 [STATUS.md](STATUS.md)에 있습니다.

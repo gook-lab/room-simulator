@@ -7,7 +7,7 @@ and inspect the result in a first-person walkthrough or a dollhouse bird's-eye
 view.
 
 The core design decision is a single plan model (SSOT) from which the 2D
-editor, both 3D views and the cost estimate are all derived. Any change made in
+editor, both 3D views and the furniture library are all derived. Any change made in
 any view — moving furniture, opening a door, switching a lamp, changing a floor
 finish — mutates the same model, with command-level undo and debounced
 localStorage persistence. The project implements an 8-screen design handoff
@@ -22,7 +22,7 @@ spec.
 | 2D editor | Hand-rolled SVG rendering (no canvas library) |
 | 3D | Three.js 0.170 · React Three Fiber 8 · Drei 9 |
 | State | Zustand 5 (single store, command-level undo) |
-| Tests | Vitest — 168 pure-logic tests (as of 2026-08-24) |
+| Tests | Vitest (pure logic only) |
 | Persistence | localStorage + JSON export/import |
 
 ## Features
@@ -32,13 +32,14 @@ spec.
 | 2D floor plan editor | Wall/door/window drawing, furniture placement with grid and wall-face snapping, 15° rotation, multi-select, collision and door-clearance warnings, persistent dimension notes, per-room floor and wall finishes |
 | 3D walkthrough | First-person WASD movement (capsule collision with sliding response), gaze interaction — toggle lamps and the TV, open and close hinged/sliding doors, edit materials |
 | Bird's-eye view | Dollhouse / section / orthographic cameras, lighting simulation (time-of-day presets, window orientation), enter the walkthrough from any viewpoint |
-| Upload tracing | Upload a floor plan image, set the scale with a reference line, trace walls into an editable plan |
+| Upload | Drop a floor plan image and it opens as an editable plan right away — walls, rooms and doors are auto-detected; scale calibration and re-detection live in the editor |
 | Apartment templates | Studio (23㎡), 59㎡ and 84㎡ Korean apartment layouts — net (inner-face) areas, furnished |
-| Dashboard | Plan list, per-room cost estimate, JSON backup |
+| Dashboard | Plan list (rename/duplicate/delete), furniture library — prices shown only for items linked to verified products, JSON backup |
 
-The furniture catalog has 49 items (as of 2026-08-24) across six categories;
-picture frames, wall clocks and wall mirrors mount on walls via a wall-segment
-coordinate system (wall id + position + height).
+The furniture catalog spans categories from sofas and bedrooms to appliances,
+and some items are linked to real products (price, dimensions, store link).
+Picture frames, wall clocks, wall mirrors and wall-mounted air conditioners
+mount on walls via a wall-segment coordinate system.
 
 ## Running
 
