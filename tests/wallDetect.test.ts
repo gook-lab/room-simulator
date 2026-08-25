@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectSegments, mergeParallel, scanRuns } from '../src/features/upload/wallDetect';
+import { closeOutline, detectEnclosedRegions, detectSegments, mergeParallel, rasterizeSegments, scanRuns } from '../src/features/upload/wallDetect';
 
 /** 문자열 아트로 이진 격자 생성 ('#'=어두움) */
 function gridOf(rows: string[]): { grid: Uint8Array; w: number; h: number } {
@@ -82,5 +82,54 @@ describe('벽 자동 인식 코어 (wallDetect)', () => {
     expect(lines).toHaveLength(2);
     const lens = lines.map((l) => Math.abs(l.points[1].x - l.points[0].x));
     expect(Math.min(...lens)).toBeGreaterThanOrEqual(7); // 10, 7 이 살아남음
+  });
+});
+
+describe('외곽 폐합 + 닫힌 공간 검출', () => {
+  it('closeOutline: 코너 스냅으로 ㄱ자 틈 봉합', () => {
+    // 수평선이 수직선에 3칸 못 미침 → cornerSnap 4로 연장
+    const segs = [
+      { axis: 'h' as const, at: 0, from: 3, to: 17 },
+      { axis: 'v' as const, at: 0, from: 0, to: 20 },
+    ];
+    const closed = closeOutline(segs, { cornerSnap: 4, boundaryMargin: 2, boundaryBridge: 10 });
+    const h = closed.find((s) => s.axis === 'h')!;
+    expect(h.from).toBe(0); // 수직선(at=0)까지 연장
+  });
+
+  it('closeOutline: 외곽 라인만 관대한 브리징, 내부는 미적용', () => {
+    const segs = [
+      // 외곽 상단: 두 조각 (gap 8)
+      { axis: 'h' as const, at: 0, from: 0, to: 10 },
+      { axis: 'h' as const, at: 0, from: 18, to: 30 },
+      // 내부: 같은 gap 8 — 이어지면 안 됨
+      { axis: 'h' as const, at: 15, from: 0, to: 10 },
+      { axis: 'h' as const, at: 15, from: 18, to: 30 },
+      // bbox 확장용 수직 외곽
+      { axis: 'v' as const, at: 0, from: 0, to: 30 },
+      { axis: 'v' as const, at: 30, from: 0, to: 30 },
+    ];
+    const closed = closeOutline(segs, { cornerSnap: 2, boundaryMargin: 2, boundaryBridge: 10 });
+    const topH = closed.filter((s) => s.axis === 'h' && s.at === 0);
+    const midH = closed.filter((s) => s.axis === 'h' && s.at === 15);
+    expect(topH).toHaveLength(1); // 브리징됨
+    expect(topH[0]).toMatchObject({ from: 0, to: 30 });
+    expect(midH).toHaveLength(2); // 내부는 그대로
+  });
+
+  it('detectEnclosedRegions: 선분으로 둘러싸인 내부만 방 후보', () => {
+    // 20x16 사각 외곽 (문 gap 은 rasterize 전 선분이 관통해 이어져 있다고 가정)
+    const lines = [
+      { points: [{ x: 2, y: 2 }, { x: 22, y: 2 }], closed: false },
+      { points: [{ x: 22, y: 2 }, { x: 22, y: 18 }], closed: false },
+      { points: [{ x: 22, y: 18 }, { x: 2, y: 18 }], closed: false },
+      { points: [{ x: 2, y: 18 }, { x: 2, y: 2 }], closed: false },
+    ];
+    const mask = rasterizeSegments(lines, 26, 22, 1);
+    const regions = detectEnclosedRegions(mask, 26, 22, 20);
+    expect(regions).toHaveLength(1);
+    // 내부 bbox 는 벽 안쪽
+    expect(regions[0].min.x).toBeGreaterThan(2);
+    expect(regions[0].max.x).toBeLessThan(22);
   });
 });

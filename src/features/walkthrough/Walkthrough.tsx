@@ -6,7 +6,7 @@ import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdli
 import './walkthrough.css';
 import type { Plan, Vec2 } from '../../model/types';
 import { catalogById, formatPrice } from '../../model/catalog';
-import { roomAt } from '../../model/geometry';
+import { planBounds, roomAt } from '../../model/geometry';
 import {
   isDoorOpen,
   isInteractiveItem,
@@ -18,10 +18,10 @@ import { useCurrentPlan, useStore } from '../../state/store';
 import { ViewTabs } from '../../components/ViewTabs';
 import { CanvasBoundary } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
-import { PLAYER_RADIUS, buildColliders, moveAndSlide } from '../three/collision';
+import { PLAYER_RADIUS, buildColliders, moveAndSlide, resolveCollisions } from '../three/collision';
 import { toggleDayNight } from '../three/lighting';
 import { Minimap, type PlayerPose } from './Minimap';
-import { hotkeyAllowed, movementAllowed } from './menu';
+import { hotkeyAllowed, movementAllowed, walkthroughAllowed } from './menu';
 
 const WALK_SPEED = 1.4;
 const SPRINT_SPEED = 3.0;
@@ -30,7 +30,15 @@ function defaultSpawn(plan: Plan, selection: string[] = []): Vec2 {
   // 선택된 방 > 가장 큰 방 중심으로 스폰
   const selected = plan.rooms.find((r) => selection.includes(r.id));
   const target = selected ?? [...plan.rooms].sort((a, b) => b.areaSqm - a.areaSqm)[0];
-  if (!target) return { x: 1, y: 1 };
+  if (!target) {
+    // 방 없이 벽만 있는 도면: 도면 중심에서 벽 충돌만 밀어낸 지점
+    if (plan.walls.length > 0) {
+      const b = planBounds(plan);
+      const center = { x: (b.min.x + b.max.x) / 2, y: (b.min.y + b.max.y) / 2 };
+      return resolveCollisions(center, buildColliders(plan), PLAYER_RADIUS);
+    }
+    return { x: 1, y: 1 };
+  }
   const c = target.polygon.reduce(
     (acc, p) => ({ x: acc.x + p.x / target.polygon.length, y: acc.y + p.y / target.polygon.length }),
     { x: 0, y: 0 },
@@ -298,8 +306,8 @@ export function Walkthrough() {
   const editCat = editItem ? catalogById.get(editItem.catalogId) : null;
   const currentRoom = roomAt(plan.rooms, pose.pos);
 
-  // 방 없는 도면은 워크스루 진입 불가 — 걸을 공간이 없어 검은 화면(무한 로드처럼 보임)이 됨
-  if (plan.rooms.length === 0) {
+  // 벽도 방도 없는 진짜 빈 도면만 진입 차단 — 벽만 있으면 중립 바닥 위를 걷는다
+  if (!walkthroughAllowed(plan.rooms.length, plan.walls.length)) {
     return (
       <div className="walkthrough">
         <div className="hud">

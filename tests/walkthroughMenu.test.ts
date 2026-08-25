@@ -16,3 +16,12 @@ describe('워크스루 인게임 메뉴 가드 (Tab=메뉴+커서 모드)', () =
     expect(hotkeyAllowed(false)).toBe(false);
   });
 });
+
+describe('walkthroughAllowed (진입 조건)', () => {
+  it('방 또는 벽이 있으면 허용, 둘 다 없으면 차단', async () => {
+    const { walkthroughAllowed } = await import('../src/features/walkthrough/menu');
+    expect(walkthroughAllowed(1, 0)).toBe(true);
+    expect(walkthroughAllowed(0, 5)).toBe(true); // 벽만 있어도 중립 바닥 위 진입
+    expect(walkthroughAllowed(0, 0)).toBe(false);
+  });
+});

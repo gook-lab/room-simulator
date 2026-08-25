@@ -15,3 +15,11 @@ export function movementAllowed(pointerLocked: boolean, editOpen: boolean): bool
 export function hotkeyAllowed(pointerLocked: boolean): boolean {
   return pointerLocked;
 }
+
+/**
+ * 워크스루 진입 가능 여부 — 방이 없어도 벽이 있으면 허용
+ * (중립 바닥 + 벽 충돌로 걷기 성립). 벽도 방도 없는 진짜 빈 도면만 차단.
+ */
+export function walkthroughAllowed(roomCount: number, wallCount: number): boolean {
+  return roomCount > 0 || wallCount > 0;
+}

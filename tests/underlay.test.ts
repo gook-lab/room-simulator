@@ -47,3 +47,22 @@ describe('언더레이 즉시 로드 (underlay)', () => {
     expect(planBounds(plan)).toEqual({ min: { x: 0, y: 0 }, max: { x: 10, y: 7 } });
   });
 });
+
+describe('rescalePlanGeometry (스케일 보정 = 문서 전체 배율)', () => {
+  it('벽·방·가구 위치·언더레이 배율, 가구 크기는 불변', async () => {
+    const { rescalePlanGeometry } = await import('../src/model/underlay');
+    const { createSamplePlan } = await import('../src/model/samplePlan');
+    const plan = createSamplePlan();
+    plan.tracing = { ...tracing };
+    const item0 = plan.items[0];
+    const wall0 = plan.walls[0];
+    const room0 = plan.rooms[0];
+    const r = rescalePlanGeometry(plan, 2);
+    expect(r.walls[0].a.x).toBeCloseTo(wall0.a.x * 2, 4);
+    expect(r.rooms[0].areaSqm).toBeCloseTo(room0.areaSqm * 4, 1);
+    expect(r.items[0].position.x).toBeCloseTo(item0.position.x * 2, 4);
+    expect(r.items[0].size).toEqual(item0.size); // 실물 치수 불변
+    expect(r.tracing!.widthM).toBeCloseTo(20, 4);
+    expect(rescalePlanGeometry(plan, 0)).toBe(plan);
+  });
+});

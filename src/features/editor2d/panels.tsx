@@ -739,7 +739,7 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
     const srcW = 780;
     const srcH = Math.round((srcW * tracing.heightM) / tracing.widthM);
     const { autoTraceImage } = await import('../upload/autoTrace');
-    const { linesToWalls } = await import('../../model/underlay');
+    const { linesToWalls, regionsToRooms } = await import('../../model/underlay');
     const r = await autoTraceImage(tracing.imageUrl, srcW, srcH);
     if (r.lines.length === 0) {
       setStatus('벽을 인식하지 못했습니다 — 선 그리기(S)로 직접 그리세요');
@@ -747,17 +747,32 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
       return;
     }
     let seq = 0;
+    const stamp = Date.now().toString(36);
     const walls = linesToWalls(
       r.lines,
       srcW,
       srcH,
       tracing.widthM,
       tracing.heightM,
-      () => `wall-${Date.now().toString(36)}-ad${seq++}`,
+      () => `wall-${stamp}-ad${seq++}`,
     );
-    // 벽 후보 일괄 추가 — undo 1회로 전체 취소 가능
-    updatePlan((pl) => ({ ...pl, walls: [...pl.walls, ...walls] }));
-    setStatus(`벽 후보 ${walls.length}개 추가 — 필요 없으면 Cmd+Z`);
+    const rooms = regionsToRooms(
+      r.regions,
+      srcW,
+      srcH,
+      tracing.widthM,
+      tracing.heightM,
+      () => `room-${stamp}-ad${seq++}`,
+    );
+    // 재실행: 이전 자동 인식분('-ad')은 교체, 사용자가 그린 것은 유지 — undo 1회로 취소
+    updatePlan((pl) => ({
+      ...pl,
+      walls: [...pl.walls.filter((w) => !/-ad\d+$/.test(w.id)), ...walls],
+      rooms: [...pl.rooms.filter((rm) => !/-ad\d+$/.test(rm.id)), ...rooms],
+    }));
+    setStatus(
+      `벽 ${walls.length}개 · 공간 ${rooms.length}개 인식 — 필요 없으면 Cmd+Z`,
+    );
     setDetecting(false);
   };
 

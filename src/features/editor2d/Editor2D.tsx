@@ -59,7 +59,7 @@ import {
   type WallItemGhost,
 } from './PlanCanvas';
 import { CatalogPanel, Inspector, StatusBar, ToolDock, UnderlayPanel } from './panels';
-import { rescaleTracing } from '../../model/underlay';
+import { rescalePlanGeometry } from '../../model/underlay';
 import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
 import { sketchDraftPoints } from './sketchDraft';
 import { dragOriginPoses, type DragOriginPoses } from './dragPreview';
@@ -1539,9 +1539,8 @@ export function Editor2D() {
                 const L = scaleMode.line;
                 const len = Math.hypot(L.b.x - L.a.x, L.b.y - L.a.y);
                 if (!m || m <= 0 || len < 1e-6) return;
-                updatePlan((pl) =>
-                  pl.tracing ? { ...pl, tracing: rescaleTracing(pl.tracing, m / len) } : pl,
-                );
+                // 벽·방이 밑그림에서 파생되므로 문서 지오메트리 전체를 배율 (가구 크기는 불변)
+                updatePlan((pl) => rescalePlanGeometry(pl, m / len));
                 setScaleMode(null);
               };
               return (
