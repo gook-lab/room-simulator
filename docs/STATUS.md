@@ -1,4 +1,4 @@
-# Roomcast 진행 상태
+# Room Simulator 진행 상태
 
 다른 세션 모니터링용. 단계 완료 시마다 갱신.
 

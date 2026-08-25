@@ -78,7 +78,7 @@ export function Dashboard() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${plan.name.replace(/[\\/:*?"<>|]/g, '_')}.roomcast.json`;
+    a.download = `${plan.name.replace(/[\\/:*?"<>|]/g, '_')}.room-simulator.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -164,7 +164,7 @@ export function Dashboard() {
     }
   };
   const shareUrl = estimatePlan
-    ? `roomcast.app/p/${estimatePlan.id.replace('plan-', '')}-${shareViewers3d ? '3d' : 'ro'}`
+    ? `room-simulator.app/p/${estimatePlan.id.replace('plan-', '')}-${shareViewers3d ? '3d' : 'ro'}`
     : '';
 
   const copyLink = async () => {
@@ -182,7 +182,7 @@ export function Dashboard() {
       <header className="dashboard__topbar">
         <span className="brand">
           <span className="brand__mark" />
-          <span className="brand__word">Roomcast</span>
+          <span className="brand__word">Room Simulator</span>
         </span>
         <nav className="dashboard__nav">
           <button className="dashboard__nav-item is-active">내 도면</button>

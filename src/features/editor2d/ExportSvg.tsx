@@ -81,7 +81,7 @@ export function PlanExportSvg({ plan, pxPerM = 90 }: { plan: Plan; pxPerM?: numb
       <DimensionNotes plan={plan} t={t} selection={[]} />
       {/* 푸터: 도면명 · 면적 · 축척 정보 */}
       <text x={14} y={H - 12} fontSize={12} fontWeight={600} fill="#5b6560">
-        {plan.name} · {areaSum.toFixed(1)}㎡ · Roomcast
+        {plan.name} · {areaSum.toFixed(1)}㎡ · Room Simulator
       </text>
     </svg>
   );

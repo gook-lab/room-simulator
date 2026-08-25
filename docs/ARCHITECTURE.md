@@ -1,4 +1,4 @@
-# Roomcast Architecture
+# Room Simulator Architecture
 
 React 18 + TypeScript + Vite로 만들었습니다. 2D는 SVG를 직접 렌더하고, 3D는
 three.js + @react-three/fiber를 사용합니다. 상태는 zustand 단일 스토어이고,

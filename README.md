@@ -1,4 +1,4 @@
-# Roomcast
+# Room Simulator
 
 **한국어** | [English](README.en.md)
 

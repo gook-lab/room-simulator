@@ -2,6 +2,7 @@ import type { Plan, Vec2 } from './types';
 
 /** 내보내기 포맷 버전 — 스키마 변경 시 올린다 */
 export const PLAN_EXPORT_VERSION = 1;
+// 데이터 포맷 식별자 — 브랜드 개명(Room Simulator) 후에도 기존 내보내기 호환을 위해 유지
 export const PLAN_EXPORT_FORMAT = 'roomcast-plan';
 
 export type PlanExport = {
@@ -41,7 +42,7 @@ export function importPlan(json: string): ImportResult {
   }
   const data = raw as Partial<PlanExport>;
   if (data?.format !== PLAN_EXPORT_FORMAT) {
-    return { ok: false, error: `Roomcast 도면 파일이 아닙니다 (format: ${String(data?.format)})` };
+    return { ok: false, error: `룸 시뮬레이터 도면 파일이 아닙니다 (format: ${String(data?.format)})` };
   }
   if (!isNum(data.version) || data.version < 1) {
     return { ok: false, error: '버전 필드가 없거나 잘못되었습니다.' };

@@ -86,7 +86,7 @@ export function TopBar() {
           title="대시보드로"
         >
           <span className="brand__mark" />
-          <span className="brand__word">Roomcast</span>
+          <span className="brand__word">Room Simulator</span>
         </button>
         <span className="topbar__divider" />
         <span className="topbar__project">{plan.name}</span>

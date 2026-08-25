@@ -199,7 +199,7 @@ function Hotkeys({
         const url = gl.domElement.toDataURL('image/png');
         const a = document.createElement('a');
         a.href = url;
-        a.download = `roomcast-${Date.now()}.png`;
+        a.download = `room-simulator-${Date.now()}.png`;
         a.click();
       } else if (e.code === 'KeyE' && gaze?.kind === 'item') {
         onToggleEdit();
