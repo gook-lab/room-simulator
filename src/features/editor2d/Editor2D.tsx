@@ -370,7 +370,7 @@ export function Editor2D() {
             a: pts[pts.length - 1],
             b: pts[0],
             thickness: 0.15,
-            height: 2.4,
+            height: p.defaultWallHeight ?? 2.4,
           };
           const room: Room = {
             id: newId('room'),
@@ -511,7 +511,10 @@ export function Editor2D() {
           const segId = newId('wall');
           updatePlan((p) => ({
             ...p,
-            walls: [...p.walls, { id: segId, a: prev, b: pt, thickness: 0.15, height: 2.4 }],
+            walls: [
+              ...p.walls,
+              { id: segId, a: prev, b: pt, thickness: 0.15, height: p.defaultWallHeight ?? 2.4 },
+            ],
           }));
           const surviving = wallDraft.wallIds.filter((id) =>
             pl.walls.some((w) => w.id === id),
@@ -679,6 +682,20 @@ export function Editor2D() {
           );
           setPostDrop(null);
         } else {
+          // Shift+벽 클릭: 벽 다중 선택 토글 (벽 속성 일괄 편집용)
+          const shiftWall = wallNear(pl, world, tRef.current.s, 10);
+          if (shiftWall) {
+            const curWalls = useStore
+              .getState()
+              .selection.filter((id) => pl.walls.some((w) => w.id === id));
+            setSelection(
+              curWalls.includes(shiftWall.wall.id)
+                ? curWalls.filter((id) => id !== shiftWall.wall.id)
+                : [...curWalls, shiftWall.wall.id],
+            );
+            setPostDrop(null);
+            return;
+          }
           gestureRef.current = { type: 'marquee', start: world };
           setGestureKind('marquee');
           setMarquee({ a: world, b: world });

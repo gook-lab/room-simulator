@@ -65,6 +65,9 @@ export function importPlan(json: string): ImportResult {
   if (plan.floorLabel != null && !isStr(plan.floorLabel)) {
     return { ok: false, error: 'plan.floorLabel 이 잘못되었습니다.' };
   }
+  if (plan.defaultWallHeight != null && !(isNum(plan.defaultWallHeight) && plan.defaultWallHeight > 0)) {
+    return { ok: false, error: 'plan.defaultWallHeight 가 잘못되었습니다.' };
+  }
   if (!isNum(plan.unitScale) || plan.unitScale <= 0) {
     return { ok: false, error: 'plan.unitScale 이 잘못되었습니다.' };
   }

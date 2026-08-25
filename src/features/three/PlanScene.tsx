@@ -142,11 +142,19 @@ function Ceiling({ plan }: { plan: Plan }) {
       }),
     [plan.rooms],
   );
-  const height = plan.walls[0]?.height ?? 2.4;
+  // 룸별 천장 높이 = 그 룸 벽들의 최대 높이 (낮은 파티션이 천장을 끌어내리지 않도록 max)
+  const fallbackH = plan.defaultWallHeight ?? 2.4;
+  const heightFor = (roomId: string) => {
+    const room = plan.rooms.find((r) => r.id === roomId);
+    const hs = (room?.wallIds ?? [])
+      .map((wid) => plan.walls.find((w) => w.id === wid)?.height)
+      .filter((h): h is number => h != null);
+    return hs.length > 0 ? Math.max(...hs) : fallbackH;
+  };
   return (
     <group>
       {shapes.map(({ id, shape }) => (
-        <mesh key={id} rotation={[Math.PI / 2, 0, 0]} position={[0, height, 0]}>
+        <mesh key={id} rotation={[Math.PI / 2, 0, 0]} position={[0, heightFor(id), 0]}>
           <shapeGeometry args={[shape]} />
           <meshStandardMaterial color={CEILING_COLOR} roughness={0.95} side={THREE.DoubleSide} />
         </mesh>

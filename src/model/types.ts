@@ -102,6 +102,8 @@ export type Plan = {
   buildingId?: string;
   /** 층 이름 (예: '1층') — buildingId 있는 문서에서 사용 */
   floorLabel?: string;
+  /** 문서 기본 층고(m) — 새 벽 높이·천장 폴백. 없으면 2.4 */
+  defaultWallHeight?: number;
   /** px per meter — 업로드 트레이싱에서 확정 */
   unitScale: number;
   walls: Wall[];

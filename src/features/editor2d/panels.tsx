@@ -284,6 +284,97 @@ function NumField({
   );
 }
 
+/** 벽 두께 프리셋 (m) */
+const WALL_THICKNESS_PRESETS = [
+  { label: '경량', t: 0.1 },
+  { label: '표준', t: 0.15 },
+  { label: '외벽', t: 0.2 },
+  { label: '콘크리트', t: 0.25 },
+] as const;
+
+const clampWallThickness = (v: number) => Math.min(0.6, Math.max(0.05, v));
+const clampWallHeight = (v: number) => Math.min(6, Math.max(0.2, v));
+
+/** 벽 선택 시: 두께·높이 편집 패널 (다중 선택 = 일괄 적용) */
+function WallInspector({ wallIds }: { wallIds: string[] }) {
+  const plan = useCurrentPlan();
+  const updatePlan = useStore((s) => s.updatePlan);
+  const walls = plan.walls.filter((w) => wallIds.includes(w.id));
+  if (walls.length === 0) return null;
+  const first = walls[0];
+  const sameT = walls.every((w) => Math.abs(w.thickness - first.thickness) < 1e-9);
+  const sameH = walls.every((w) => Math.abs(w.height - first.height) < 1e-9);
+  const totalLen = walls.reduce((s, w) => s + Math.hypot(w.b.x - w.a.x, w.b.y - w.a.y), 0);
+
+  const patch = (p: { thickness?: number; height?: number }) =>
+    updatePlan(
+      (pl) => ({
+        ...pl,
+        walls: pl.walls.map((w) => (wallIds.includes(w.id) ? { ...w, ...p } : w)),
+      }),
+      { coalesceKey: `wall-props-${wallIds.join(',')}` },
+    );
+
+  // 층 전체 적용: 모든 벽 높이 통일 + 문서 기본 층고로 저장 (새 벽·천장 기준)
+  const applyHeightToFloor = () =>
+    updatePlan((pl) => ({
+      ...pl,
+      defaultWallHeight: first.height,
+      walls: pl.walls.map((w) => ({ ...w, height: first.height })),
+    }));
+
+  return (
+    <aside className="float-panel inspector">
+      <div className="panel-header">
+        <span className="panel-header__title">
+          벽{walls.length > 1 ? ` ${walls.length}개` : ''} · {totalLen.toFixed(1)}m
+        </span>
+        <span className="badge-accent">선택됨</span>
+      </div>
+      <div className="inspector__swatches">
+        <span className="inspector__swatch-label">
+          두께{sameT ? '' : ' — 값 다름, 선택 시 일괄 적용'}
+        </span>
+        <div className="seg-row">
+          {WALL_THICKNESS_PRESETS.map((p) => (
+            <button
+              key={p.t}
+              className={`seg${sameT && Math.abs(first.thickness - p.t) < 1e-9 ? ' is-active' : ''}`}
+              onClick={() => patch({ thickness: p.t })}
+              title={`${p.label} ${p.t}m`}
+            >
+              {p.t}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="inspector__grid">
+        <NumField
+          label="두께"
+          value={Number(first.thickness.toFixed(2))}
+          suffix="m"
+          onCommit={(v) => patch({ thickness: clampWallThickness(v) })}
+        />
+        <NumField
+          label={sameH ? '높이' : '높이*'}
+          value={Number(first.height.toFixed(2))}
+          suffix="m"
+          onCommit={(v) => patch({ height: clampWallHeight(v) })}
+        />
+      </div>
+      <div className="inspector__detail-actions">
+        <button className="btn" onClick={applyHeightToFloor}>
+          높이 {first.height.toFixed(2)}m 층 전체 적용
+        </button>
+      </div>
+      <div className="inspector__swatch-label">
+        Shift+클릭으로 벽 추가 선택 = 일괄 편집 · 층 전체 적용은 기본 층고로 저장되어 새 벽·천장에
+        쓰입니다
+      </div>
+    </aside>
+  );
+}
+
 /** 룸 선택 시: 바닥재·벽지 마감 편집 패널 */
 function RoomInspector({ roomId }: { roomId: string }) {
   const plan = useCurrentPlan();
@@ -552,6 +643,11 @@ export function Inspector() {
   const selectedId = selection.length === 1 ? selection[0] : undefined;
   // 선택이 바뀌면 상세 옵션 접기
   useEffect(() => setDetailOpen(false), [selectedId]);
+  // 벽 선택(단일·다중 모두) → 벽 속성 패널
+  const selectedWallIds = selection.filter((id) => plan.walls.some((w) => w.id === id));
+  if (selectedWallIds.length > 0 && selectedWallIds.length === selection.length) {
+    return <WallInspector wallIds={selectedWallIds} />;
+  }
   const item = selectedId ? plan.items.find((i) => i.id === selectedId) : undefined;
   if (!item) {
     // 개구부(문·창) 선택
