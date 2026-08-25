@@ -9,21 +9,21 @@ import type {
   ViewerState,
 } from '../model/types';
 import { createSamplePlan, createStudyPlan } from '../model/samplePlan';
+import {
+  loadPersistShape,
+  markIntendedRemoval,
+  savePersistShape,
+  type PersistShape,
+} from './persistence';
 
-const STORAGE_KEY = 'roomcast.plans.v1';
 const HISTORY_LIMIT = 100;
-
-type PersistShape = { planOrder: string[]; plans: Record<string, Plan> };
 
 function loadPlans(): PersistShape {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as PersistShape;
-      if (parsed.planOrder?.length && parsed.plans) return parsed;
-    }
+    const { shape } = loadPersistShape(localStorage);
+    if (shape) return shape;
   } catch {
-    // 손상된 저장본은 무시하고 샘플로 재시작
+    // 저장소 접근 불가 — 샘플로 시작 (이후 저장의 병합 가드가 기존 문서를 지킨다)
   }
   const a = createSamplePlan();
   const b = createStudyPlan();
@@ -46,6 +46,8 @@ export interface AppStore {
   planOrder: string[];
   currentPlanId: string;
   savedAt: number;
+  /** 저장 실패(용량 초과 등) — TopBar 가 배지로 표시. null = 정상 */
+  saveError: 'quota' | null;
   openPlan: (id: string) => void;
   addPlan: (plan: Plan) => void;
   /** 층 추가 — 'empty'=빈 층, 'duplicate'=현재 층 복제. 첫 호출 시 현재 문서를 1층으로 승격 */
@@ -111,10 +113,16 @@ export const useStore = create<AppStore>((set, get) => {
     saveTimer = setTimeout(() => {
       const { plans, planOrder } = get();
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ plans, planOrder }));
-        set({ savedAt: Date.now() });
+        const result = savePersistShape(localStorage, { plans, planOrder });
+        if (result.restored.length > 0) {
+          // 병합 가드가 저장본에서 살린 문서 — 메모리에도 반영해 UI 와 일치시킨다
+          const merged = loadPersistShape(localStorage).shape;
+          if (merged) set({ plans: merged.plans, planOrder: merged.planOrder });
+          console.warn('[persist] 사라질 뻔한 문서 복원:', result.restored);
+        }
+        set({ savedAt: Date.now(), saveError: result.ok ? null : 'quota' });
       } catch {
-        // 저장 실패(용량 등)는 조용히 무시
+        set({ saveError: 'quota' });
       }
     }, 2000);
   };
@@ -130,6 +138,7 @@ export const useStore = create<AppStore>((set, get) => {
     planOrder: persisted.planOrder,
     currentPlanId: persisted.planOrder[0],
     savedAt: Date.now(),
+    saveError: null,
     history: { past: [], future: [] },
 
     openPlan: (id) =>
@@ -299,6 +308,7 @@ export const useStore = create<AppStore>((set, get) => {
     deleteFloor: (planId) => {
       const s = get();
       if (!s.plans[planId] || s.planOrder.length <= 1) return; // 마지막 문서는 유지
+      markIntendedRemoval(planId); // 병합 가드가 이 삭제를 복원하지 않도록
       const plans = { ...s.plans };
       delete plans[planId];
       const planOrder = s.planOrder.filter((id) => id !== planId);

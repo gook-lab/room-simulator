@@ -66,6 +66,7 @@ function FloorTabs() {
 export function TopBar() {
   const plan = useCurrentPlan();
   const savedAt = useStore((s) => s.savedAt);
+  const saveError = useStore((s) => s.saveError);
   const navigate = useStore((s) => s.navigate);
   const [, forceTick] = useState(0);
 
@@ -93,6 +94,14 @@ export function TopBar() {
         <span className="topbar__meta">
           {Math.round(area)}㎡ · {timeAgoLabel(savedAt)}
         </span>
+        {saveError && (
+          <span
+            className="topbar__save-error"
+            title="브라우저 저장 공간이 부족해 자동 저장이 실패했습니다. 대시보드에서 안 쓰는 도면을 지우거나 JSON 내보내기로 백업해 주세요."
+          >
+            ⚠ 저장 실패 — 공간 부족
+          </span>
+        )}
         <FloorTabs />
       </div>
 

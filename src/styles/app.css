@@ -113,6 +113,16 @@ input {
   white-space: nowrap;
 }
 
+.topbar__save-error {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--warn-deep, #b3411f);
+  background: var(--warn-tint, #fbeae2);
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
 /* ===== View tabs ===== */
 .viewtabs {
   display: flex;
