@@ -806,7 +806,13 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
           {detecting ? '인식 중…' : '벽 자동 인식'}
         </button>
       </div>
-      {status && <div className="underlay-panel__status">{status}</div>}
+      {status ? (
+        <div className="underlay-panel__status">{status}</div>
+      ) : (
+        <div className="underlay-panel__status underlay-panel__status--muted">
+          면적이 실제와 다르면 '스케일 맞추기'로 1회 보정하세요
+        </div>
+      )}
     </aside>
   );
 }

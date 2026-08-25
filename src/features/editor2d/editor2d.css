@@ -619,3 +619,7 @@
   font-size: 11px;
   padding: 5px 9px;
 }
+
+.underlay-panel__status--muted {
+  color: var(--text-muted);
+}
