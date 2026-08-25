@@ -256,7 +256,20 @@ export function Walkthrough() {
     return () => window.removeEventListener('keydown', onKey);
   }, [editItemId]);
 
-  // 락 상태에서 클릭 → 응시 중인 상호작용 대상 반응 (조명·TV on/off, 문 여닫기)
+  // 계단 트리거: 같은 건물의 다른 층 (다음 층 우선, 없으면 이전 층)
+  const plans = useStore((s) => s.plans);
+  const switchFloor = useStore((s) => s.switchFloor);
+  const stairsTarget = (() => {
+    if (!plan.buildingId) return null;
+    const floors = Object.values(plans)
+      .filter((p) => p.buildingId === plan.buildingId)
+      .sort((a, b) => (a.floorLabel ?? '').localeCompare(b.floorLabel ?? '', 'ko', { numeric: true }));
+    const idx = floors.findIndex((p) => p.id === plan.id);
+    if (idx < 0 || floors.length < 2) return null;
+    return floors[idx + 1] ?? floors[idx - 1] ?? null;
+  })();
+
+  // 락 상태에서 클릭 → 응시 중인 상호작용 대상 반응 (조명·TV on/off, 문 여닫기, 계단=층 이동)
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0 || !document.pointerLockElement || !gaze) return;
@@ -265,12 +278,18 @@ export function Walkthrough() {
         return;
       }
       const item = plan.items.find((i) => i.id === gaze.id);
-      if (!item || !isInteractiveItem(item.catalogId)) return;
+      if (!item) return;
+      // 계단: 같은 건물의 위/아래 층으로 이동 (워크스루 유지)
+      if (catalogById.get(item.catalogId)?.shape === 'stairs') {
+        if (stairsTarget) switchFloor(stairsTarget.id);
+        return;
+      }
+      if (!isInteractiveItem(item.catalogId)) return;
       updatePlan((pl) => togglePower(pl, gaze.id));
     };
     window.addEventListener('mousedown', onMouseDown);
     return () => window.removeEventListener('mousedown', onMouseDown);
-  }, [gaze, plan.items, updatePlan]);
+  }, [gaze, plan.items, updatePlan, stairsTarget, switchFloor]);
 
   // Tab: 포인터 락 ↔ 커서 모드 토글 (락 해제 상태에서 패널을 마우스로 조작)
   useEffect(() => {
@@ -405,10 +424,18 @@ export function Walkthrough() {
           <div className="gaze-chip">
             <span className="gaze-chip__name">{gazeCat.name}</span>
             <span className="gaze-chip__dist">{gaze!.distance.toFixed(1)} m</span>
-            {isInteractiveItem(gazeItem.catalogId) && (
+            {catalogById.get(gazeItem.catalogId)?.shape === 'stairs' ? (
               <span className="gaze-chip__action">
-                클릭 · {isPowered(gazeItem) ? '끄기' : '켜기'}
+                {stairsTarget
+                  ? `클릭 · ${stairsTarget.floorLabel ?? '다른 층'}으로 이동`
+                  : '연결된 층 없음 — 층 탭에서 추가'}
               </span>
+            ) : (
+              isInteractiveItem(gazeItem.catalogId) && (
+                <span className="gaze-chip__action">
+                  클릭 · {isPowered(gazeItem) ? '끄기' : '켜기'}
+                </span>
+              )
             )}
             <span className="gaze-chip__action">E · 편집</span>
           </div>

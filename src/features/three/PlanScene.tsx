@@ -782,6 +782,60 @@ function FurnitureMesh({
       );
       break;
     }
+    case 'stairs': {
+      // 계단: -d/2(아래 시작) → +d/2 로 올라가는 스텝 박스들. L자(w≈d)는 두 런+참.
+      const steps: React.ReactNode[] = [];
+      const isL = Math.abs(w - d) < 0.3 && w > 1.2;
+      if (!isL) {
+        const n = Math.max(6, Math.round(d / 0.25));
+        const stepD = d / n;
+        for (let i = 0; i < n; i++) {
+          const stepH = (h * (i + 1)) / n;
+          steps.push(
+            <Box
+              key={i}
+              args={[w, stepH, stepD]}
+              position={[0, stepH / 2, d / 2 - stepD * (i + 0.5)]}
+              color={i % 2 ? c : cDark}
+            />,
+          );
+        }
+      } else {
+        // L자: 하부 런(전방 y+측 절반) → 참 → 상부 런(좌측 x-측 절반)
+        const runW = w / 2;
+        const n1 = 6;
+        const half = h / 2;
+        for (let i = 0; i < n1; i++) {
+          const stepH = (half * (i + 1)) / n1;
+          const stepD = (d - runW) / n1;
+          steps.push(
+            <Box
+              key={`a${i}`}
+              args={[runW, stepH, stepD]}
+              position={[w / 2 - runW / 2, stepH / 2, d / 2 - stepD * (i + 0.5)]}
+              color={i % 2 ? c : cDark}
+            />,
+          );
+        }
+        steps.push(
+          <Box key="landing" args={[runW, half, runW]} position={[w / 2 - runW / 2, half / 2, -d / 2 + runW / 2]} color={c} />,
+        );
+        for (let i = 0; i < n1; i++) {
+          const stepH = half + (half * (i + 1)) / n1;
+          const stepW = (w - runW) / n1;
+          steps.push(
+            <Box
+              key={`b${i}`}
+              args={[stepW, stepH, runW]}
+              position={[w / 2 - runW - stepW * (i + 0.5), stepH / 2, -d / 2 + runW / 2]}
+              color={i % 2 ? c : cDark}
+            />,
+          );
+        }
+      }
+      body = <group>{steps}</group>;
+      break;
+    }
     default:
       body = <Box args={[w, h, d]} position={[0, h / 2, 0]} color={c} />;
   }

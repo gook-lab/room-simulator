@@ -154,7 +154,8 @@ export type CatalogShape =
   | 'frame'
   | 'wall-clock'
   | 'wall-mirror'
-  | 'wall-ac';
+  | 'wall-ac'
+  | 'stairs';
 
 export type Swatch = { id: string; label: string; color: string };
 

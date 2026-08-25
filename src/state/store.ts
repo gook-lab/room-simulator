@@ -56,6 +56,8 @@ export interface AppStore {
   renamePlan: (planId: string, name: string) => void;
   /** 문서 복제 (건물 연결은 끊고 독립 문서로) */
   duplicatePlan: (planId: string) => void;
+  /** 층 전환 — 현재 화면(view) 유지. 워크스루 계단 트리거용 */
+  switchFloor: (planId: string) => void;
   renameFloor: (planId: string, label: string) => void;
   /** 층(문서) 삭제 — 마지막 남은 문서는 삭제하지 않음 */
   deleteFloor: (planId: string) => void;
@@ -267,6 +269,22 @@ export const useStore = create<AppStore>((set, get) => {
         planOrder: [copy.id, ...s.planOrder],
       });
       scheduleSave();
+    },
+
+    switchFloor: (planId) => {
+      set((s) =>
+        s.plans[planId]
+          ? {
+              currentPlanId: planId,
+              selection: [],
+              placingCatalogId: null,
+              drag: null,
+              history: { past: [], future: [] },
+              pendingFitView: true,
+              walkthroughSpawn: null,
+            }
+          : s,
+      );
     },
 
     renameFloor: (planId, label) => {
