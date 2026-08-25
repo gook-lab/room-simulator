@@ -60,6 +60,7 @@ import {
 } from './PlanCanvas';
 import { CatalogPanel, Inspector, StatusBar, ToolDock, UnderlayPanel } from './panels';
 import { rescalePlanGeometry } from '../../model/underlay';
+import { detectRoomsFromWalls } from '../../model/roomDetect';
 import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
 import { sketchDraftPoints } from './sketchDraft';
 import { dragOriginPoses, type DragOriginPoses } from './dragPreview';
@@ -1456,6 +1457,20 @@ export function Editor2D() {
     );
   }, [setCamera2d]);
 
+  // 방 인식 — 현재 벽으로 닫힌 공간을 찾아 방 생성 (기존 방과 중복 스킵, 1 undo)
+  const detectRooms = useCallback(() => {
+    const pl = planRef.current;
+    const rooms = detectRoomsFromWalls(pl, () => newId('room'));
+    if (missHintTimer.current) clearTimeout(missHintTimer.current);
+    if (rooms.length === 0) {
+      setMissHint('닫힌 공간을 찾지 못했습니다 — 벽이 완전히 둘러싼 영역이 필요합니다');
+    } else {
+      updatePlan((p) => ({ ...p, rooms: [...p.rooms, ...rooms] }));
+      setMissHint(`방 ${rooms.length}개 인식됨 — 필요 없으면 Cmd+Z`);
+    }
+    missHintTimer.current = setTimeout(() => setMissHint(null), 2400);
+  }, [updatePlan]);
+
   // 충돌 후 액션 칩 위치
   const postDropItem = postDrop ? plan.items.find((i) => i.id === postDrop.itemId) : null;
   const postDropScreen = postDropItem
@@ -1500,7 +1515,7 @@ export function Editor2D() {
         cursor={cursor}
       />
       {missHint && <div className="miss-hint">{missHint}</div>}
-      <ToolDock onResetView={resetView} />
+      <ToolDock onResetView={resetView} onDetectRooms={detectRooms} />
       <CatalogPanel />
       <Inspector />
       <StatusBar t={t} />

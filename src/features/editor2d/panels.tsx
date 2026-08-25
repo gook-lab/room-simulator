@@ -39,6 +39,12 @@ const STROKE = {
 } as const;
 
 const ICONS: Record<string, React.ReactNode> = {
+  roomDetect: (
+    <svg width="20" height="20" viewBox="0 0 20 20" {...STROKE}>
+      <path d="M3.5 5.5v-2h2M14.5 3.5h2v2M16.5 14.5v2h-2M5.5 16.5h-2v-2" />
+      <rect x="6.5" y="6.5" width="7" height="7" rx="0.5" />
+    </svg>
+  ),
   hand: (
     <svg width="20" height="20" viewBox="0 0 20 20" {...STROKE}>
       <path d="M7 10.5V5.2a1.1 1.1 0 0 1 2.2 0v4.1V4.1a1.1 1.1 0 0 1 2.2 0v5.2V5.6a1.1 1.1 0 0 1 2.2 0v4.8l1.6-1.9a1.05 1.05 0 0 1 1.6 1.35l-3.1 4.6a4.4 4.4 0 0 1-3.65 1.95H9.4a4.4 4.4 0 0 1-3.5-1.75L4 12.4a1.1 1.1 0 0 1 1.7-1.4z" />
@@ -93,7 +99,13 @@ const TOOLS: { tool: Tool; icon: string; label: string; key: string }[] = [
   { tool: 'dimension', icon: 'dimension', label: '치수 (M)', key: 'M' },
 ];
 
-export function ToolDock({ onResetView }: { onResetView: () => void }) {
+export function ToolDock({
+  onResetView,
+  onDetectRooms,
+}: {
+  onResetView: () => void;
+  onDetectRooms?: () => void;
+}) {
   const tool = useStore((s) => s.tool);
   const setTool = useStore((s) => s.setTool);
   return (
@@ -109,6 +121,15 @@ export function ToolDock({ onResetView }: { onResetView: () => void }) {
         </button>
       ))}
       <div className="tooldock__divider" />
+      {onDetectRooms && (
+        <button
+          className="tooldock__btn"
+          title="방 인식 — 벽으로 닫힌 공간을 방으로"
+          onClick={onDetectRooms}
+        >
+          {ICONS.roomDetect}
+        </button>
+      )}
       <button className="tooldock__btn" title="뷰 리셋" onClick={onResetView}>
         {ICONS.zoom}
       </button>

@@ -64,7 +64,13 @@ export function rescalePlanGeometry(plan: Plan, factor: number): Plan {
  * L자형도 면적은 과대평가되지 않는다.
  */
 export function regionsToRooms(
-  regions: { min: Vec2; max: Vec2; areaCells: number; cellPx: number }[],
+  regions: {
+    min: Vec2;
+    max: Vec2;
+    areaCells: number;
+    cellPx: number;
+    polygon?: Vec2[];
+  }[],
   srcW: number,
   srcH: number,
   widthM: number,
@@ -73,20 +79,29 @@ export function regionsToRooms(
 ): Room[] {
   const sx = widthM / srcW;
   const sy = heightM / srcH;
+  const sp = (p: Vec2): Vec2 => ({
+    x: Number((p.x * sx).toFixed(3)),
+    y: Number((p.y * sy).toFixed(3)),
+  });
   return regions.map((r, i) => {
-    const min = { x: Number((r.min.x * sx).toFixed(3)), y: Number((r.min.y * sy).toFixed(3)) };
-    const max = { x: Number((r.max.x * sx).toFixed(3)), y: Number((r.max.y * sy).toFixed(3)) };
+    const min = sp(r.min);
+    const max = sp(r.max);
     const areaSqm = Number((r.areaCells * r.cellPx * r.cellPx * sx * sy).toFixed(2));
+    // 직교 윤곽 폴리곤(L자 지원) 우선, 없으면 bbox 폴백
+    const polygon =
+      r.polygon && r.polygon.length >= 4
+        ? r.polygon.map(sp)
+        : [
+            { x: min.x, y: min.y },
+            { x: max.x, y: min.y },
+            { x: max.x, y: max.y },
+            { x: min.x, y: max.y },
+          ];
     return {
       id: makeId(),
       name: `공간 ${i + 1}`,
       wallIds: [],
-      polygon: [
-        { x: min.x, y: min.y },
-        { x: max.x, y: min.y },
-        { x: max.x, y: max.y },
-        { x: min.x, y: max.y },
-      ],
+      polygon,
       areaSqm,
       floor: 'living' as const,
     };

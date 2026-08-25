@@ -18,7 +18,13 @@ export type AutoTraceResult = {
   lines: DetectedLine[];
   wallCount: number;
   /** 닫힌 공간 후보 (검출 캔버스 px 좌표, cellPx=격자 셀 크기) */
-  regions: { min: { x: number; y: number }; max: { x: number; y: number }; areaCells: number; cellPx: number }[];
+  regions: {
+    min: { x: number; y: number };
+    max: { x: number; y: number };
+    areaCells: number;
+    cellPx: number;
+    polygon?: { x: number; y: number }[];
+  }[];
 };
 
 const STEP = 2; // 다운샘플 간격 (px)
@@ -111,14 +117,17 @@ export function autoTraceImage(
           drawingCells = Number.isFinite(mnX) ? (mxX - mnX) * (mxY - mnY) : 0;
         }
         const minRoomCells = Math.max(120, Math.round(drawingCells * 0.004));
-        const regions = detectEnclosedRegions(mask, gw, gh, minRoomCells)
+        const regions = detectEnclosedRegions(mask, gw, gh, minRoomCells, {
+          polygonTol: Math.round(12 / STEP),
+        })
           .slice(0, 12)
           .map((r) => ({
-          min: { x: r.min.x * STEP, y: r.min.y * STEP },
-          max: { x: r.max.x * STEP, y: r.max.y * STEP },
-          areaCells: r.areaCells,
-          cellPx: STEP,
-        }));
+            min: { x: r.min.x * STEP, y: r.min.y * STEP },
+            max: { x: r.max.x * STEP, y: r.max.y * STEP },
+            areaCells: r.areaCells,
+            cellPx: STEP,
+            polygon: r.polygon?.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
+          }));
         const lines = gridLines.map((l) => ({
           ...l,
           points: l.points.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),

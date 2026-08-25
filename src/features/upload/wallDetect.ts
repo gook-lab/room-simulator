@@ -178,6 +178,109 @@ export function closeOutline(
   return [...interior, ...bridged];
 }
 
+/* ===== 영역 → 직교 폴리곤 추출 (L자 등 비직사각 지원) ===== */
+
+/**
+ * 라벨된 영역의 외곽 윤곽을 직교 폴리곤으로 추출한다.
+ * 경계 셀 변을 "영역이 왼쪽"이 되는 방향의 단위 엣지로 수집해 체인으로 잇고,
+ * 동일선 병합 후 tol 미만의 계단(지그재그)을 직선화한다. 구멍(내부 루프)은
+ * 무시하고 가장 긴 루프만 반환한다.
+ */
+export function traceRegionPolygon(
+  inRegion: (x: number, y: number) => boolean,
+  bounds: { min: Vec2; max: Vec2 },
+  simplifyTol: number,
+): Vec2[] {
+  // 1) 경계 엣지 수집 (셀 (x,y) 기준, 격자 정점 좌표계)
+  const edges = new Map<string, Vec2[]>(); // startKey → [end,...]
+  const key = (p: Vec2) => `${p.x},${p.y}`;
+  const addEdge = (a: Vec2, b: Vec2) => {
+    const list = edges.get(key(a));
+    if (list) list.push(b);
+    else edges.set(key(a), [b]);
+  };
+  for (let y = bounds.min.y; y <= bounds.max.y; y++) {
+    for (let x = bounds.min.x; x <= bounds.max.x; x++) {
+      if (!inRegion(x, y)) continue;
+      if (!inRegion(x, y - 1)) addEdge({ x, y }, { x: x + 1, y }); // 위 → 우향
+      if (!inRegion(x + 1, y)) addEdge({ x: x + 1, y }, { x: x + 1, y: y + 1 }); // 우 → 하향
+      if (!inRegion(x, y + 1)) addEdge({ x: x + 1, y: y + 1 }, { x, y: y + 1 }); // 아래 → 좌향
+      if (!inRegion(x - 1, y)) addEdge({ x, y: y + 1 }, { x, y }); // 좌 → 상향
+    }
+  }
+  // 2) 체인 걷기 — 가장 긴 루프 채택
+  let best: Vec2[] = [];
+  const visited = new Set<string>();
+  for (const [startKey, ends] of edges) {
+    for (let branch = 0; branch < ends.length; branch++) {
+      const edgeId = `${startKey}>${key(ends[branch])}`;
+      if (visited.has(edgeId)) continue;
+      const loop: Vec2[] = [];
+      const [sx, sy] = startKey.split(',').map(Number);
+      let cur: Vec2 = { x: sx, y: sy };
+      let guard = 0;
+      while (guard++ < 100000) {
+        const outs = edges.get(key(cur));
+        if (!outs || outs.length === 0) break;
+        let next: Vec2 | undefined;
+        for (const cand of outs) {
+          if (!visited.has(`${key(cur)}>${key(cand)}`)) {
+            next = cand;
+            break;
+          }
+        }
+        if (!next) break;
+        visited.add(`${key(cur)}>${key(next)}`);
+        loop.push({ ...cur });
+        cur = next;
+        if (cur.x === sx && cur.y === sy) break;
+      }
+      if (loop.length > best.length) best = loop;
+    }
+  }
+  if (best.length < 4) return best;
+  // 3) 동일선 병합
+  const collapse = (poly: Vec2[]): Vec2[] => {
+    const out: Vec2[] = [];
+    for (let i = 0; i < poly.length; i++) {
+      const prev = poly[(i - 1 + poly.length) % poly.length];
+      const cur = poly[i];
+      const next = poly[(i + 1) % poly.length];
+      const collinear =
+        (prev.x === cur.x && cur.x === next.x) || (prev.y === cur.y && cur.y === next.y);
+      if (!collinear) out.push(cur);
+    }
+    return out;
+  };
+  let poly = collapse(best);
+  // 4) 계단 직선화: H-V(짧음)-H / V-H(짧음)-V 패턴의 짧은 변 제거
+  let changed = true;
+  let guard2 = 0;
+  while (changed && guard2++ < 200 && poly.length > 4) {
+    changed = false;
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i];
+      const b = poly[(i + 1) % poly.length];
+      const len = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+      if (len === 0 || len >= simplifyTol) continue;
+      if (a.x === b.x) {
+        // 짧은 수직 변 → 이웃 수평 변을 같은 y 로
+        const y = Math.round((a.y + b.y) / 2);
+        a.y = y;
+        b.y = y;
+      } else {
+        const x = Math.round((a.x + b.x) / 2);
+        a.x = x;
+        b.x = x;
+      }
+      poly = collapse(poly);
+      changed = true;
+      break;
+    }
+  }
+  return poly;
+}
+
 /* ===== 닫힌 공간(방) 검출 — best-effort ===== */
 
 /**
@@ -284,6 +387,8 @@ export type EnclosedRegion = {
   max: Vec2;
   /** 실제 채움 셀 수 (면적 근사용 — bbox 과대평가 보정) */
   areaCells: number;
+  /** 직교 윤곽 폴리곤 (L자 지원) — 추출 실패 시 undefined (bbox 폴백) */
+  polygon?: Vec2[];
 };
 
 /**
@@ -296,6 +401,7 @@ export function detectEnclosedRegions(
   w: number,
   h: number,
   minAreaCells: number,
+  opts?: { polygonTol?: number },
 ): EnclosedRegion[] {
   const label = new Int32Array(w * h); // 0=미방문, -1=외부, n>0=영역 id
   const stack: number[] = [];
@@ -346,9 +452,19 @@ export function detectEnclosedRegions(
   let nextId = 1;
   for (let i = 0; i < w * h; i++) {
     if (label[i] === 0 && mask[i] === 0) {
-      const r = flood(i, nextId++);
+      const id = nextId++;
+      const r = flood(i, id);
       if (r.count >= minAreaCells) {
-        out.push({ min: r.min, max: r.max, areaCells: r.count });
+        let polygon: Vec2[] | undefined;
+        if (opts?.polygonTol != null) {
+          const poly = traceRegionPolygon(
+            (x, y) => x >= 0 && x < w && y >= 0 && y < h && label[y * w + x] === id,
+            { min: r.min, max: r.max },
+            opts.polygonTol,
+          );
+          if (poly.length >= 4) polygon = poly;
+        }
+        out.push({ min: r.min, max: r.max, areaCells: r.count, polygon });
       }
     }
   }
