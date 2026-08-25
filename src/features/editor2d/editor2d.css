@@ -623,3 +623,27 @@
 .underlay-panel__status--muted {
   color: var(--text-muted);
 }
+
+/* ---- 방 이름 인라인 편집 ---- */
+.inspector__title-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  padding: 2px 4px;
+  margin-left: -4px;
+  border-radius: 6px;
+}
+
+.inspector__title-input:hover {
+  background: var(--inset-a);
+}
+
+.inspector__title-input:focus {
+  outline: none;
+  background: var(--inset-a);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}

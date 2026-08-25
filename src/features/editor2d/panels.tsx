@@ -293,12 +293,46 @@ function RoomInspector({ roomId }: { roomId: string }) {
 
   const patch = (p: { floorFinish?: string | null; wallFinish?: string | null }) =>
     updatePlan((pl) => setRoomFinish(pl, room.id, p), { coalesceKey: `finish-${room.id}` });
+  const patchMeta = (p: Partial<Pick<typeof room, 'name' | 'floor'>>) =>
+    updatePlan(
+      (pl) => ({
+        ...pl,
+        rooms: pl.rooms.map((r) => (r.id === room.id ? { ...r, ...p } : r)),
+      }),
+      { coalesceKey: `room-meta-${room.id}` },
+    );
 
   return (
     <aside className="float-panel inspector">
       <div className="panel-header">
-        <span className="panel-header__title">{room.name}</span>
+        <input
+          className="inspector__title-input"
+          value={room.name}
+          placeholder="방 이름"
+          onChange={(e) => patchMeta({ name: e.target.value })}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        />
         <span className="badge-accent">{room.areaSqm.toFixed(1)}㎡</span>
+      </div>
+      <div className="inspector__swatches">
+        <span className="inspector__swatch-label">용도 — 기본 바닥색·견적 분류가 따라옵니다</span>
+        <div className="seg-row">
+          {(
+            [
+              ['living', '주거'],
+              ['kitchen', '주방'],
+              ['bath', '욕실'],
+            ] as const
+          ).map(([kind, label]) => (
+            <button
+              key={kind}
+              className={`seg${room.floor === kind ? ' is-active' : ''}`}
+              onClick={() => patchMeta({ floor: kind })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="inspector__swatches">
         <span className="inspector__swatch-label">바닥 마감</span>
