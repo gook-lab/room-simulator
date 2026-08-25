@@ -33,7 +33,7 @@ describe('renderPlanSvgString (도면 SVG 내보내기)', () => {
     const svg = renderPlanSvgString(plan);
     expect(svg).toContain('3.10 m'); // 치수 주석 라벨
     expect(svg).toContain('#f4ecdd'); // 헤링본 2D 색
-    expect(svg).toContain('Roomcast'); // 푸터
+    expect(svg).toContain('Room Simulator'); // 푸터
   });
 
   it('템플릿 전부 렌더 가능 (크래시·빈 출력 없음)', () => {
