@@ -5,6 +5,7 @@ import { polygonArea } from '../../model/geometry';
 import { TEMPLATES } from '../../model/templates';
 import { useStore } from '../../state/store';
 import { MiniPlan } from '../../components/MiniPlan';
+import { autoTraceImage } from './autoTrace';
 
 const PAPER_W = 780;
 const PAPER_H = 560;
@@ -67,12 +68,13 @@ export function UploadTrace() {
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [isSample, setIsSample] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [refLine, setRefLine] = useState<{ a: Vec2; b: Vec2 } | null>(null);
   const [drawingRef, setDrawingRef] = useState(false);
   const [meters, setMeters] = useState('4.20');
   const [traced, setTraced] = useState<TraceLine[]>([]);
+  // 실제 자동 인식 결과 (업로드 이미지에서 검출한 벽 후보) — null 은 인식 중
+  const [detected, setDetected] = useState<TraceLine[] | null>(null);
   const [current, setCurrent] = useState<Vec2[]>([]);
   const [cursor, setCursor] = useState<Vec2 | null>(null);
   const [dragVertex, setDragVertex] = useState<{ line: number; pt: number } | null>(null);
@@ -91,31 +93,40 @@ export function UploadTrace() {
     if (!file.type.startsWith('image/')) return;
     const reader = new FileReader();
     reader.onload = () => {
-      setImageUrl(reader.result as string);
-      setIsSample(false);
+      const url = reader.result as string;
+      setImageUrl(url);
+      setDetected(null); // 인식 중 표시
       setStep(2);
+      // 실제 벽 자동 인식 — 실패해도 빈 결과로 강등되어 수동 트레이싱 가능
+      autoTraceImage(url, PAPER_W, PAPER_H).then((r) => setDetected(r.lines));
     };
     reader.readAsDataURL(file);
   }, []);
 
   const useSample = useCallback(() => {
     setImageUrl(SAMPLE_URL);
-    setIsSample(true);
+    setDetected(SAMPLE_TRACE);
     setStep(2);
   }, []);
 
-  // 3단계 진입: 샘플이면 자동 인식 결과 프리필
+  // 3단계 진입: 자동 인식된 벽 후보 프리필 (샘플·실업로드 공통)
   const goStep3 = useCallback(() => {
-    if (isSample && traced.length === 0) {
-      setTraced(SAMPLE_TRACE.map((l) => ({ ...l, points: l.points.map((p) => ({ ...p })) })));
+    if (traced.length === 0 && detected && detected.length > 0) {
+      setTraced(detected.map((l) => ({ ...l, points: l.points.map((p) => ({ ...p })) })));
     }
     setStep(3);
-  }, [isSample, traced.length]);
+  }, [detected, traced.length]);
 
   /* ===== 포인터 (2단계: 기준선 / 3단계: 벽 그리기) ===== */
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     const p = toPaper(e);
+    try {
+      // 드래그가 캔버스 밖에서 끝나도 pointerup 을 받도록 캡처
+      svgRef.current?.setPointerCapture(e.pointerId);
+    } catch {
+      // 합성 이벤트 등 캡처 불가 — 무시
+    }
     if (step === 2) {
       setRefLine({ a: p, b: p });
       setDrawingRef(true);
@@ -166,6 +177,29 @@ export function UploadTrace() {
   const onPointerUp = () => {
     setDrawingRef(false);
     setDragVertex(null);
+  };
+
+  // 3단계: 선 더블클릭 → 해당 벽 후보 삭제 (오인식 정리)
+  const onDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (step !== 3) return;
+    const p = toPaper(e);
+    const distToSeg = (a: Vec2, b: Vec2): number => {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len2 = dx * dx + dy * dy;
+      const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+      return Math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y);
+    };
+    let best: { line: number; d: number } | null = null;
+    for (let li = 0; li < traced.length; li++) {
+      const pts = traced[li].points;
+      const segs = traced[li].closed ? pts.length : pts.length - 1;
+      for (let i = 0; i < segs; i++) {
+        const d = distToSeg(pts[i], pts[(i + 1) % pts.length]);
+        if (d < 8 && (!best || d < best.d)) best = { line: li, d };
+      }
+    }
+    if (best) setTraced((t) => t.filter((_, li) => li !== best!.line));
   };
 
   // Enter → 진행 중 폴리라인 확정, Esc → 취소
@@ -337,6 +371,7 @@ export function UploadTrace() {
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
+                onDoubleClick={onDoubleClick}
               >
                 {/* 3단계: 트레이싱 벽 오버레이 */}
                 {step === 3 && (
@@ -435,6 +470,13 @@ export function UploadTrace() {
               </svg>
             )}
 
+            {/* 2단계: 기준선 안내 (선을 긋기 전까지) */}
+            {step === 2 && !refLine && (
+              <div className="upload__hint-overlay">
+                도면에서 <b>길이를 아는 벽</b>을 드래그해 기준선을 그으세요
+              </div>
+            )}
+
             {/* 스케일 입력 칩 */}
             {step === 2 && refLine && (
               <div
@@ -507,25 +549,33 @@ export function UploadTrace() {
               <div className="result-card">
                 <div className="result-card__header">
                   <span className="result-card__title">자동 인식 결과</span>
-                  <span className="badge-accent">신뢰도 92%</span>
+                  <span className="badge-accent">
+                    {detected == null ? '인식 중…' : `벽 후보 ${detected.length}개`}
+                  </span>
                 </div>
                 <div className="result-row">
-                  <span>벽</span>
-                  <b>14개</b>
+                  <span>벽 후보</span>
+                  <b>{detected == null ? '인식 중…' : `${detected.length}개`}</b>
                 </div>
                 <div className="result-row">
                   <span>문 · 창</span>
-                  <b>6 · 4</b>
+                  <b>에디터에서 배치</b>
                 </div>
                 <div className="result-row">
-                  <span>추정 면적</span>
-                  <b>{pxPerM ? `${((PAPER_W - 160) * (PAPER_H - 160) * 0.8 / (pxPerM * pxPerM)).toFixed(1)}㎡` : '— (스케일 필요)'}</b>
+                  <span>면적</span>
+                  <b>{pxPerM ? '3단계에서 계산' : '— (스케일 필요)'}</b>
                 </div>
               </div>
               <div className="warn-card">
-                <div className="warn-card__title">확인 필요 2곳</div>
+                <div className="warn-card__title">
+                  {detected != null && detected.length === 0
+                    ? '벽을 인식하지 못했습니다'
+                    : '벽 후보는 제안입니다'}
+                </div>
                 <div className="warn-card__body">
-                  욕실 칸막이와 발코니 경계가 흐릿합니다. 3단계에서 직접 이어주세요.
+                  {detected != null && detected.length === 0
+                    ? '3단계에서 도면 위를 클릭해 직접 트레이싱하세요.'
+                    : '3단계에서 정점을 조정하고, 잘못 잡힌 선은 더블클릭으로 지우세요. 끊긴 벽은 클릭으로 이어 그립니다.'}
                 </div>
               </div>
               <div className="upload__side-footer">
@@ -537,6 +587,11 @@ export function UploadTrace() {
                 >
                   벽 확인으로
                 </button>
+                {!pxPerM && (
+                  <div className="upload__btn-reason">
+                    도면 위에 기준선을 긋고 실제 길이를 입력하면 진행할 수 있습니다
+                  </div>
+                )}
                 <button className="link-plain" onClick={() => buildAndOpen(true)}>
                   빈 도면에서 직접 그리기
                 </button>
@@ -548,9 +603,9 @@ export function UploadTrace() {
             <>
               <h2>벽을 확인하세요</h2>
               <p className="desc">
-                초록 선이 인식된 벽입니다. 정점을 드래그해 수정하고, 끊긴 벽은 클릭으로
-                이어 그리세요. 시작점을 다시 클릭하면 룸이 닫히고, Enter로 열린 벽을
-                확정합니다.
+                초록 선이 인식된 벽 후보입니다. 정점을 드래그해 수정하고, 잘못 잡힌
+                선은 <b>더블클릭으로 삭제</b>하세요. 끊긴 벽은 클릭으로 이어 그리고,
+                시작점을 다시 클릭하면 룸이 닫힙니다. Enter로 열린 벽을 확정합니다.
               </p>
               <div className="result-card">
                 <div className="result-card__header">
