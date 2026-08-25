@@ -1,23 +1,18 @@
 import { useEffect, useState } from 'react';
 import { timeAgoLabel, useCurrentPlan, useStore } from '../state/store';
 import { ViewTabs } from './ViewTabs';
+import { floorsOfBuilding } from '../model/floorStack';
 
 /** 층 탭 — 같은 buildingId 문서 묶음 전환 + 추가/이름변경/복제/삭제 */
 function FloorTabs() {
   const plan = useCurrentPlan();
   const plans = useStore((s) => s.plans);
-  const planOrder = useStore((s) => s.planOrder);
   const openPlan = useStore((s) => s.openPlan);
   const addFloor = useStore((s) => s.addFloor);
   const renameFloor = useStore((s) => s.renameFloor);
   const deleteFloor = useStore((s) => s.deleteFloor);
 
-  const floors = plan.buildingId
-    ? [...planOrder]
-        .map((id) => plans[id])
-        .filter((p) => p && p.buildingId === plan.buildingId)
-        .sort((a, b) => (a.floorLabel ?? '').localeCompare(b.floorLabel ?? '', 'ko', { numeric: true }))
-    : [plan];
+  const floors = floorsOfBuilding(plans, plan);
 
   return (
     <div className="floor-tabs">

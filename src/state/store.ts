@@ -425,7 +425,7 @@ export const useStore = create<AppStore>((set, get) => {
     viewer: {
       eyeHeight: 1.6,
       lighting: { preset: 'afternoon', indoorIntensity: 0.68, fov: 75, azimuthDeg: 180 },
-      display: { hideCeiling: true, shadows: true, dimensionLabels: false },
+      display: { hideCeiling: true, shadows: true, dimensionLabels: false, stackFloors: true },
       birdseyeMode: 'dollhouse',
     },
     setViewer: (patch) => set((s) => ({ viewer: { ...s.viewer, ...patch } })),

@@ -10,6 +10,7 @@ import { CanvasBoundary } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
 import { PRESET_LABELS, toggleDayNight } from '../three/lighting';
 import { planCenter } from '../three/wallGeometry';
+import { floorBaseY, floorsOfBuilding } from '../../model/floorStack';
 
 const PRESETS: LightPreset[] = ['afternoon', 'sunset', 'overcast', 'night'];
 
@@ -62,6 +63,12 @@ export function Birdseye() {
   const setViewer = useStore((s) => s.setViewer);
   const setView = useStore((s) => s.setView);
   const setWalkthroughSpawn = useStore((s) => s.setWalkthroughSpawn);
+
+  const plans = useStore((s) => s.plans);
+  // 층 스택: 같은 건물 층들을 y 오프셋(아래층 층고 합)으로 동시 렌더
+  const floors = useMemo(() => floorsOfBuilding(plans, plan), [plans, plan]);
+  const stacked = viewer.display.stackFloors && floors.length > 1;
+  const currentBaseY = stacked ? floorBaseY(floors, plan.id) : 0;
 
   const center = useMemo(() => planCenter(plan), [plan]);
   const captureRef = useRef<(() => { pos: { x: number; y: number }; yawDeg: number }) | null>(null);
@@ -137,12 +144,20 @@ export function Birdseye() {
               />
               <SectionClipping enabled={mode === 'section'} />
               <CameraCapture captureRef={captureRef} />
-              <PlanScene
-                plan={plan}
-                viewer={viewer}
-                showCeiling={!viewer.display.hideCeiling}
-                darkBackground={false}
-              />
+              {(stacked ? floors : [plan]).map((f) => (
+                <group
+                  key={f.id}
+                  position={[0, stacked ? floorBaseY(floors, f.id) : 0, 0]}
+                >
+                  <PlanScene
+                    plan={f}
+                    viewer={viewer}
+                    showCeiling={!viewer.display.hideCeiling}
+                    darkBackground={false}
+                    lights={f.id === plan.id}
+                  />
+                </group>
+              ))}
               {viewer.display.dimensionLabels &&
                 plan.rooms.map((r) => {
                   const c = r.polygon.reduce(
@@ -153,7 +168,7 @@ export function Birdseye() {
                     { x: 0, y: 0 },
                   );
                   return (
-                    <Html key={r.id} position={[c.x, 0.3, c.y]} center>
+                    <Html key={r.id} position={[c.x, currentBaseY + 0.3, c.y]} center>
                       <div
                         style={{
                           fontFamily: 'var(--font-mono)',
@@ -218,6 +233,7 @@ export function Birdseye() {
               ['천장 숨기기', 'hideCeiling'],
               ['그림자', 'shadows'],
               ['치수 라벨', 'dimensionLabels'],
+              ...(floors.length > 1 ? ([['모든 층 표시', 'stackFloors']] as const) : []),
             ] as const
           ).map(([label, key]) => (
             <div className="be-toggle-row" key={key}>

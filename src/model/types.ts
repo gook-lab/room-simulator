@@ -37,6 +37,8 @@ export type Room = {
   floorFinish?: string;
   /** 벽 마감(벽지 색) — 미지정 시 기본 벽색 */
   wallFinish?: string;
+  /** 오픈 천장(보이드) — 복층에서 이 방 위가 위층까지 뚫림. 천장 렌더 생략 */
+  openCeiling?: boolean;
 };
 
 export type ItemVariant = { material: string; color: string };
@@ -250,7 +252,13 @@ export type ViewerState = {
     /** 창 방향(태양 방위각, deg) — 180 = 남향 */
     azimuthDeg: number;
   };
-  display: { hideCeiling: boolean; shadows: boolean; dimensionLabels: boolean };
+  display: {
+    hideCeiling: boolean;
+    shadows: boolean;
+    dimensionLabels: boolean;
+    /** 조감도에서 같은 건물의 모든 층을 세로로 쌓아 렌더 */
+    stackFloors: boolean;
+  };
   /** 조감도 카메라 프리셋 */
   birdseyeMode: 'dollhouse' | 'section' | 'ortho';
 };

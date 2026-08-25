@@ -131,7 +131,8 @@ function Walls({ plan }: { plan: Plan }) {
 function Ceiling({ plan }: { plan: Plan }) {
   const shapes = useMemo(
     () =>
-      plan.rooms.map((r) => {
+      // 오픈 천장(보이드) 룸은 천장을 그리지 않는다 — 위층까지 뚫린 공간
+      plan.rooms.filter((r) => !r.openCeiling).map((r) => {
         const shape = new THREE.Shape();
         r.polygon.forEach((p, i) => {
           if (i === 0) shape.moveTo(p.x, p.y);
@@ -947,6 +948,7 @@ export function PlanScene({
   furnitureGroupRef,
   doorGroupRef,
   darkBackground = true,
+  lights = true,
   highlightItemId = null,
   highlightOpeningId = null,
 }: {
@@ -956,6 +958,8 @@ export function PlanScene({
   furnitureGroupRef?: React.RefObject<THREE.Group>;
   doorGroupRef?: React.RefObject<THREE.Group>;
   darkBackground?: boolean;
+  /** 층 스택 렌더 시 현재 층 외에는 false — 전역 조명(LightRig) 중복 방지 */
+  lights?: boolean;
   /** 응시 중 상호작용 가능 사물 하이라이트 */
   highlightItemId?: string | null;
   /** 응시 중 문 하이라이트 */
@@ -965,7 +969,7 @@ export function PlanScene({
   const lampIntensity = spec.lampBase * viewer.lighting.indoorIntensity * 1.6;
   return (
     <group>
-      <LightRig plan={plan} viewer={viewer} setBackground={darkBackground} />
+      {lights && <LightRig plan={plan} viewer={viewer} setBackground={darkBackground} />}
       <Floors plan={plan} />
       {/* 방 없는 문서(언더레이 전용 등)도 최소한의 바닥을 제공 */}
       {plan.rooms.length === 0 && (

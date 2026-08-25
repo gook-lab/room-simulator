@@ -384,7 +384,7 @@ function RoomInspector({ roomId }: { roomId: string }) {
 
   const patch = (p: { floorFinish?: string | null; wallFinish?: string | null }) =>
     updatePlan((pl) => setRoomFinish(pl, room.id, p), { coalesceKey: `finish-${room.id}` });
-  const patchMeta = (p: Partial<Pick<typeof room, 'name' | 'floor'>>) =>
+  const patchMeta = (p: Partial<Pick<typeof room, 'name' | 'floor' | 'openCeiling'>>) =>
     updatePlan(
       (pl) => ({
         ...pl,
@@ -424,6 +424,16 @@ function RoomInspector({ roomId }: { roomId: string }) {
             </button>
           ))}
         </div>
+      </div>
+      <div className="inspector__swatches">
+        <label className="inspector__swatch-label" style={{ display: 'flex', gap: 6, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={room.openCeiling === true}
+            onChange={(e) => patchMeta({ openCeiling: e.target.checked || undefined })}
+          />
+          오픈 천장 (보이드) — 복층에서 위층까지 뚫린 공간
+        </label>
       </div>
       <div className="inspector__swatches">
         <span className="inspector__swatch-label">바닥 마감</span>
