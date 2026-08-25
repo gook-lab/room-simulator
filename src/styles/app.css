@@ -417,3 +417,48 @@ input {
   min-height: 0;
   overflow: hidden;
 }
+
+/* ---- 층 탭 (다층 문서) ---- */
+.floor-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.floor-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+  background: var(--neutral-fill);
+  transition: background var(--ease-color), color var(--ease-color);
+}
+
+.floor-tab:hover {
+  background: var(--inset-b);
+}
+
+.floor-tab.is-active {
+  background: var(--ink);
+  color: var(--app-bg);
+}
+
+.floor-tab--add {
+  padding: 4px 8px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.floor-tab__close {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.floor-tab__close:hover {
+  opacity: 1;
+}

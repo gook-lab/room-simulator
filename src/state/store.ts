@@ -48,6 +48,13 @@ export interface AppStore {
   savedAt: number;
   openPlan: (id: string) => void;
   addPlan: (plan: Plan) => void;
+  /** 층 추가 — 'empty'=빈 층, 'duplicate'=현재 층 복제. 첫 호출 시 현재 문서를 1층으로 승격 */
+  addFloor: (source: 'empty' | 'duplicate') => void;
+  /** 업로드 문서를 현재 문서의 새 층으로 연결해 추가 */
+  addPlanAsFloor: (plan: Plan) => void;
+  renameFloor: (planId: string, label: string) => void;
+  /** 층(문서) 삭제 — 마지막 남은 문서는 삭제하지 않음 */
+  deleteFloor: (planId: string) => void;
   /**
    * 현재 도면을 변경. commit=true(기본)면 undo 히스토리에 스냅샷 push.
    * coalesceKey: 같은 키의 커밋이 400ms 내 연속되면 히스토리를 1개로 묶는다
@@ -141,6 +148,117 @@ export const useStore = create<AppStore>((set, get) => {
         plans: { ...s.plans, [plan.id]: plan },
         planOrder: [plan.id, ...s.planOrder.filter((id) => id !== plan.id)],
       }));
+      scheduleSave();
+    },
+
+    /* ---- 다층(층=연결된 문서) ---- */
+
+    addFloor: (source) => {
+      const s = get();
+      const cur = s.plans[s.currentPlanId];
+      if (!cur) return;
+      const buildingId = cur.buildingId ?? `bld-${Date.now().toString(36)}`;
+      const plans = { ...s.plans };
+      // 첫 층 승격: 현재 문서에 buildingId·'1층' 라벨 부여
+      if (!cur.buildingId) {
+        plans[cur.id] = { ...cur, buildingId, floorLabel: cur.floorLabel ?? '1층' };
+      }
+      const floorCount = Object.values(plans).filter((p) => p.buildingId === buildingId).length;
+      const base: Plan =
+        source === 'duplicate'
+          ? (JSON.parse(JSON.stringify(plans[s.currentPlanId])) as Plan)
+          : {
+              id: '',
+              name: cur.name,
+              unitScale: cur.unitScale,
+              walls: [],
+              openings: [],
+              rooms: [],
+              items: [],
+              updatedAt: '',
+            };
+      const next: Plan = {
+        ...base,
+        id: `plan-${Date.now().toString(36)}-fl${floorCount}`,
+        name: cur.name,
+        buildingId,
+        floorLabel: `${floorCount + 1}층`,
+        updatedAt: new Date().toISOString(),
+      };
+      set({
+        plans: { ...plans, [next.id]: next },
+        planOrder: [next.id, ...s.planOrder],
+        currentPlanId: next.id,
+        selection: [],
+        placingCatalogId: null,
+        drag: null,
+        history: { past: [], future: [] },
+        camera2d: { pan: { x: 0, y: 0 }, zoom: 1 },
+        pendingFitView: true,
+      });
+      scheduleSave();
+    },
+
+    addPlanAsFloor: (plan) => {
+      const s = get();
+      const cur = s.plans[s.currentPlanId];
+      if (!cur) {
+        get().addPlan(plan);
+        get().openPlan(plan.id);
+        return;
+      }
+      const buildingId = cur.buildingId ?? `bld-${Date.now().toString(36)}`;
+      const plans = { ...s.plans };
+      if (!cur.buildingId) {
+        plans[cur.id] = { ...cur, buildingId, floorLabel: cur.floorLabel ?? '1층' };
+      }
+      const floorCount = Object.values(plans).filter((p) => p.buildingId === buildingId).length;
+      const next: Plan = { ...plan, buildingId, floorLabel: `${floorCount + 1}층` };
+      set({
+        plans: { ...plans, [next.id]: next },
+        planOrder: [next.id, ...s.planOrder.filter((id) => id !== next.id)],
+        currentPlanId: next.id,
+        selection: [],
+        placingCatalogId: null,
+        drag: null,
+        history: { past: [], future: [] },
+        camera2d: { pan: { x: 0, y: 0 }, zoom: 1 },
+        pendingFitView: true,
+        screen: 'editor',
+        view: '2d',
+      });
+      scheduleSave();
+    },
+
+    renameFloor: (planId, label) => {
+      set((s) =>
+        s.plans[planId]
+          ? { plans: { ...s.plans, [planId]: { ...s.plans[planId], floorLabel: label } } }
+          : s,
+      );
+      scheduleSave();
+    },
+
+    deleteFloor: (planId) => {
+      const s = get();
+      if (!s.plans[planId] || s.planOrder.length <= 1) return; // 마지막 문서는 유지
+      const plans = { ...s.plans };
+      delete plans[planId];
+      const planOrder = s.planOrder.filter((id) => id !== planId);
+      const nextCurrent =
+        s.currentPlanId === planId
+          ? // 같은 건물의 다른 층 우선, 없으면 첫 문서
+            Object.values(plans).find(
+              (p) => p.buildingId != null && p.buildingId === s.plans[planId].buildingId,
+            )?.id ?? planOrder[0]
+          : s.currentPlanId;
+      set({
+        plans,
+        planOrder,
+        currentPlanId: nextCurrent,
+        selection: [],
+        history: s.currentPlanId === planId ? { past: [], future: [] } : s.history,
+      });
       scheduleSave();
     },
 

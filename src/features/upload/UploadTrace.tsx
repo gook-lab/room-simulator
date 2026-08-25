@@ -78,6 +78,9 @@ export function UploadTrace() {
   const navigate = useStore((s) => s.navigate);
   const addPlan = useStore((s) => s.addPlan);
   const openPlan = useStore((s) => s.openPlan);
+  const addPlanAsFloor = useStore((s) => s.addPlanAsFloor);
+  const hasCurrent = useStore((s) => s.plans[s.currentPlanId] != null);
+  const [asFloor, setAsFloor] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -127,10 +130,14 @@ export function UploadTrace() {
         },
         updatedAt: new Date().toISOString(),
       };
-      addPlan(plan);
-      openPlan(plan.id); // → 2D 스케치 화면
+      if (asFloor && hasCurrent) {
+        addPlanAsFloor(plan); // 현재 문서의 새 층으로 연결
+      } else {
+        addPlan(plan);
+        openPlan(plan.id); // → 2D 스케치 화면
+      }
     },
-    [addPlan, openPlan],
+    [addPlan, openPlan, addPlanAsFloor, asFloor, hasCurrent],
   );
 
   const acceptFile = useCallback(
@@ -231,6 +238,16 @@ export function UploadTrace() {
             않아도 가구 배치와 3D 미리보기를 쓸 수 있고, 필요하면 에디터의 '밑그림'
             패널에서 스케일을 맞추거나 벽을 자동 인식할 수 있습니다.
           </p>
+          {hasCurrent && (
+            <label className="upload__asfloor">
+              <input
+                type="checkbox"
+                checked={asFloor}
+                onChange={(e) => setAsFloor(e.target.checked)}
+              />
+              현재 문서의 <b>새 층</b>으로 추가 (Floor2 등 다층 도면)
+            </label>
+          )}
           <div className="tpl-section">
             <div className="tpl-section__title">또는 템플릿에서 시작</div>
             {TEMPLATES.map((tpl) => {

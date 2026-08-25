@@ -57,6 +57,13 @@ export function importPlan(json: string): ImportResult {
     return { ok: false, error: 'plan 객체가 없습니다.' };
   }
   if (!isStr(plan.name)) return { ok: false, error: 'plan.name 이 없습니다.' };
+  // 다층 연결 필드 (옵션) — v1 파일은 필드 없음 그대로 유효 (마이그레이션 불필요)
+  if (plan.buildingId != null && !isStr(plan.buildingId)) {
+    return { ok: false, error: 'plan.buildingId 가 잘못되었습니다.' };
+  }
+  if (plan.floorLabel != null && !isStr(plan.floorLabel)) {
+    return { ok: false, error: 'plan.floorLabel 이 잘못되었습니다.' };
+  }
   if (!isNum(plan.unitScale) || plan.unitScale <= 0) {
     return { ok: false, error: 'plan.unitScale 이 잘못되었습니다.' };
   }

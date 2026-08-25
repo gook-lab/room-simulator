@@ -176,7 +176,10 @@ export function Dashboard() {
                   <MiniPlan plan={p} width={280} height={150} />
                 </span>
                 <span className="plan-card__body">
-                  <div className="plan-card__name">{p.name}</div>
+                  <div className="plan-card__name">
+                    {p.name}
+                    {p.floorLabel && <span className="plan-card__floor">{p.floorLabel}</span>}
+                  </div>
                   <div className="plan-card__meta">
                     {Math.round(planArea(p))}㎡ · 가구 {p.items.length} ·{' '}
                     {shortPrice(totalPrice(p))}

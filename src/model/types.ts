@@ -95,6 +95,13 @@ export type Tracing = {
 export type Plan = {
   id: string;
   name: string;
+  /**
+   * 다층 건물 연결 — 같은 buildingId 를 가진 plan 들이 한 건물의 층 묶음.
+   * 층 = 독립 문서(엔진 무변경) 설계라 지오메트리·견적·3D는 층 단위로 동작한다.
+   */
+  buildingId?: string;
+  /** 층 이름 (예: '1층') — buildingId 있는 문서에서 사용 */
+  floorLabel?: string;
   /** px per meter — 업로드 트레이싱에서 확정 */
   unitScale: number;
   walls: Wall[];
