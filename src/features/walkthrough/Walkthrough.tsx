@@ -21,6 +21,7 @@ import { PlanScene } from '../three/PlanScene';
 import { PLAYER_RADIUS, buildColliders, moveAndSlide } from '../three/collision';
 import { toggleDayNight } from '../three/lighting';
 import { Minimap, type PlayerPose } from './Minimap';
+import { hotkeyAllowed, movementAllowed } from './menu';
 
 const WALK_SPEED = 1.4;
 const SPRINT_SPEED = 3.0;
@@ -81,8 +82,8 @@ function Player({
     const dt = Math.min(rawDt, 0.05);
     const pose = poseRef.current;
 
-    // 이동
-    if (!editOpen) {
+    // 이동 — 메뉴(커서 모드) 중에는 정지 (Tab=메뉴+커서 모드 계약)
+    if (movementAllowed(document.pointerLockElement != null, editOpen)) {
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
       const forward = new THREE.Vector2(dir.x, dir.z);
@@ -179,6 +180,8 @@ function Hotkeys({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 메뉴(커서 모드) 중에는 핫키 무시 — 마우스 조작 전용
+      if (!hotkeyAllowed(document.pointerLockElement != null)) return;
       if (e.code === 'Space') {
         const cur = useStore.getState().viewer.eyeHeight;
         setViewer({ eyeHeight: cur === 1.6 ? 1.15 : 1.6 });
@@ -218,6 +221,7 @@ export function Walkthrough() {
   const [gaze, setGaze] = useState<GazeInfo>(null);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [pose, setPose] = useState<PlayerPose>(poseRef.current);
+  const [showKeymap, setShowKeymap] = useState(false);
 
   // 미니맵/방 이름 10fps 갱신
   useEffect(() => {
@@ -225,16 +229,21 @@ export function Walkthrough() {
     return () => clearInterval(t);
   }, []);
 
-  // 잠금 해제 상태에서 Esc → 에디터 복귀
+  // 메뉴(커서 모드)에서 Esc → 메뉴 닫고 이동 모드 복귀 시도
+  // (브라우저가 Esc 언락 직후 재락을 쿨다운으로 거부하면 메뉴 유지 — Tab/클릭으로 복귀)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !document.pointerLockElement && !editItemId) {
-        setView('2d');
+        try {
+          controlsRef.current?.lock();
+        } catch {
+          // 락 쿨다운 — 무시
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setView, editItemId]);
+  }, [editItemId]);
 
   // 락 상태에서 클릭 → 응시 중인 상호작용 대상 반응 (조명·TV on/off, 문 여닫기)
   useEffect(() => {
@@ -333,7 +342,6 @@ export function Walkthrough() {
         </div>
 
         <button className="hud__esc" onClick={() => setView('2d')}>
-          <span className="keycap">ESC</span>
           에디터로 돌아가기
         </button>
 
@@ -377,9 +385,69 @@ export function Walkthrough() {
           </div>
         )}
 
+        {/* 인게임 메뉴 — Tab = 메뉴+커서 모드 (표시 중 이동 정지·마우스 자유) */}
         {!locked && !editItemId && (
-          <div className="start-hint">
-            커서 모드 — 패널을 마우스로 조작하거나, 클릭 / Tab 으로 이동 모드
+          <div className="wt-menu">
+            <div className="wt-menu__title">메뉴</div>
+            <div className="wt-menu__hint">
+              <span className="keycap">TAB</span> 닫고 이동 모드 · 패널은 마우스로 조작
+            </div>
+            <div className="wt-menu__items">
+              <button
+                className="wt-menu__item wt-menu__item--primary"
+                onClick={() => controlsRef.current?.lock()}
+              >
+                ▶ 이동 모드로
+              </button>
+              <button className="wt-menu__item" onClick={() => setView('birdseye')}>
+                조감도로 전환
+              </button>
+              <button
+                className="wt-menu__item"
+                onClick={() =>
+                  setLighting({ preset: toggleDayNight(viewer.lighting.preset) })
+                }
+              >
+                {viewer.lighting.preset === 'night' ? '주간으로 전환' : '야간으로 전환'}
+              </button>
+              <button className="wt-menu__item" onClick={() => setView('2d')}>
+                2D 평면도로
+              </button>
+              <button
+                className="wt-menu__item"
+                aria-expanded={showKeymap}
+                onClick={() => setShowKeymap((v) => !v)}
+              >
+                조작법 안내 {showKeymap ? '▴' : '▾'}
+              </button>
+            </div>
+            {showKeymap && (
+              <div className="wt-menu__keymap">
+                <div className="wt-menu__keymap-title">워크스루</div>
+                <div className="wt-menu__keymap-row">
+                  <span className="keycap">W A S D</span> 이동 ·{' '}
+                  <span className="keycap">SHIFT</span> 빠르게
+                </div>
+                <div className="wt-menu__keymap-row">
+                  <span className="keycap">마우스</span> 시선 ·{' '}
+                  <span className="keycap">SPACE</span> 앉기/서기
+                </div>
+                <div className="wt-menu__keymap-row">
+                  <span className="keycap">클릭</span> 조명·TV·문 조작 ·{' '}
+                  <span className="keycap">E</span> 응시 가구 편집
+                </div>
+                <div className="wt-menu__keymap-row">
+                  <span className="keycap">P</span> 스크린샷 ·{' '}
+                  <span className="keycap">TAB</span> 메뉴
+                </div>
+                <div className="wt-menu__keymap-title">조감도</div>
+                <div className="wt-menu__keymap-row">
+                  <span className="keycap">좌드래그</span> 회전 ·{' '}
+                  <span className="keycap">휠</span> 줌 ·{' '}
+                  <span className="keycap">우드래그</span> 팬
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -414,7 +482,7 @@ export function Walkthrough() {
                 <span className="keycap">SPACE</span> 앉은 시점 / 선 시점
               </div>
               <div className="controls-row">
-                <span className="keycap">TAB</span> {locked ? '커서 모드' : '이동 모드'}
+                <span className="keycap">TAB</span> {locked ? '메뉴' : '이동 모드'}
               </div>
             </div>
           </div>

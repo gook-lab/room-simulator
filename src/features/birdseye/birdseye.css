@@ -197,3 +197,78 @@
   height: 20px;
   background: var(--border-divider);
 }
+
+/* ---- Tab 미니 메뉴 (워크스루 인게임 메뉴와 대칭) ---- */
+.be-menu {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 280px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-dock);
+  z-index: 20;
+}
+
+.be-menu__title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.be-menu__hint {
+  margin: 4px 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.be-menu__items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.be-menu__item {
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--inset-a);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.be-menu__item:hover {
+  background: var(--neutral-fill);
+  transform: translateX(2px);
+}
+
+.be-menu__item--primary {
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+}
+
+.be-menu__keymap {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-divider);
+}
+
+.be-menu__keymap-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.be-menu__keymap-row {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+}
