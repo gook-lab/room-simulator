@@ -66,3 +66,37 @@ describe('rescalePlanGeometry (스케일 보정 = 문서 전체 배율)', () => 
     expect(rescalePlanGeometry(plan, 0)).toBe(plan);
   });
 });
+
+describe('consolidateWalls (토막 병합·고아 제거)', () => {
+  const seg = (id: string, ax: number, ay: number, bx: number, by: number, th = 0.15) => ({
+    id, a: { x: ax, y: ay }, b: { x: bx, y: by }, thickness: th, height: 2.4,
+  });
+
+  it('동일선상 인접 세그먼트를 gap 이내 병합', async () => {
+    const { consolidateWalls } = await import('../src/model/underlay');
+    const out = consolidateWalls(
+      [seg('a', 0, 2, 3, 2), seg('b', 3.5, 2.02, 7, 2.02), seg('c', 0, 5, 4, 5)],
+      { axisTol: 0.08, gapMax: 0.8, minLen: 0.4, joinTol: 0.2 },
+    );
+    const h2 = out.filter((w) => Math.abs(w.a.y - 2.01) < 0.05);
+    expect(h2).toHaveLength(1);
+    expect(h2[0].a.x).toBe(0);
+    expect(h2[0].b.x).toBe(7);
+    expect(out).toHaveLength(2);
+  });
+
+  it('짧은 고아 토막 폐기, 양끝 접합된 짧은 벽은 유지', async () => {
+    const { consolidateWalls } = await import('../src/model/underlay');
+    const out = consolidateWalls(
+      [
+        seg('long1', 0, 0, 5, 0),
+        seg('long2', 0, 0.3, 5, 0.3),
+        seg('joint', 2, 0, 2, 0.3), // 짧지만 양끝이 두 벽에 접합 → 유지
+        seg('orphan', 8, 8, 8.2, 8), // 0.2m 고아 → 폐기
+      ],
+      { axisTol: 0.05, gapMax: 0.5, minLen: 0.4, joinTol: 0.2 },
+    );
+    expect(out.some((w) => w.id === 'joint')).toBe(true);
+    expect(out.some((w) => w.id === 'orphan')).toBe(false);
+  });
+});

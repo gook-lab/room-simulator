@@ -281,6 +281,94 @@ export function traceRegionPolygon(
   return poly;
 }
 
+/* ===== 스케일 추정 — 벽 픽셀 두께 기반 ===== */
+
+/**
+ * 검출된 선분 위 여러 지점에서 수직 방향 어두운 런 길이를 재어
+ * 벽의 픽셀 두께 중앙값을 구한다. 실제 벽 두께(≈0.15~0.2m)와 비교하면
+ * 도면의 실세계 폭을 추정할 수 있다 — "폭 10m 가정"보다 훨씬 정확한 초기 스케일.
+ */
+export function estimateWallThickness(
+  grid: Uint8Array,
+  w: number,
+  h: number,
+  lines: DetectedLine[],
+): number {
+  const runs: number[] = [];
+  const runAt = (x: number, y: number, dx: number, dy: number): number => {
+    let n = 0;
+    let px = x;
+    let py = y;
+    while (px >= 0 && px < w && py >= 0 && py < h && grid[py * w + px] === 1 && n < 50) {
+      n++;
+      px += dx;
+      py += dy;
+    }
+    return n;
+  };
+  for (const line of lines) {
+    const [a, b] = line.points;
+    const horizontal = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
+    for (const t of [0.25, 0.5, 0.75]) {
+      const x = Math.round(a.x + (b.x - a.x) * t);
+      const y = Math.round(a.y + (b.y - a.y) * t);
+      if (x < 0 || x >= w || y < 0 || y >= h || grid[y * w + x] !== 1) continue;
+      const run = horizontal
+        ? runAt(x, y, 0, 1) + runAt(x, y, 0, -1) - 1
+        : runAt(x, y, 1, 0) + runAt(x, y, -1, 0) - 1;
+      if (run > 0 && run < 40) runs.push(run);
+    }
+  }
+  if (runs.length === 0) return 0;
+  runs.sort((a, b) => a - b);
+  return runs[Math.floor(runs.length / 2)];
+}
+
+/* ===== 건물 풋프린트 외곽 폴리곤 ===== */
+
+/**
+ * 실루엣 마스크에서 외부(테두리 flood)를 제외한 풋프린트의 외곽 윤곽을
+ * 직교 폴리곤으로 추출한다 — 외곽 벽 엔티티 생성용 (문·창 구간 포함 연속).
+ */
+export function footprintOutline(
+  silhouette: Uint8Array,
+  w: number,
+  h: number,
+  simplifyTol: number,
+): Vec2[] {
+  const exterior = new Uint8Array(w * h);
+  const stack: number[] = [];
+  const seed = (i: number) => {
+    if (silhouette[i] === 0 && exterior[i] === 0) {
+      exterior[i] = 1;
+      stack.push(i);
+    }
+  };
+  for (let x = 0; x < w; x++) {
+    seed(x);
+    seed((h - 1) * w + x);
+  }
+  for (let y = 0; y < h; y++) {
+    seed(y * w);
+    seed(y * w + w - 1);
+  }
+  while (stack.length) {
+    const i = stack.pop()!;
+    const x = i % w;
+    const y = (i / w) | 0;
+    if (x > 0) seed(i - 1);
+    if (x < w - 1) seed(i + 1);
+    if (y > 0) seed(i - w);
+    if (y < h - 1) seed(i + w);
+  }
+  // 풋프린트 = 외부가 아닌 모든 셀 (벽 + 내부)
+  return traceRegionPolygon(
+    (x, y) => x >= 0 && x < w && y >= 0 && y < h && exterior[y * w + x] === 0,
+    { min: { x: 0, y: 0 }, max: { x: w - 1, y: h - 1 } },
+    simplifyTol,
+  );
+}
+
 /* ===== 닫힌 공간(방) 검출 — best-effort ===== */
 
 /**

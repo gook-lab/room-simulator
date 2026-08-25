@@ -1,6 +1,8 @@
 import {
   detectEnclosedRegions,
   detectSegments,
+  estimateWallThickness,
+  footprintOutline,
   rasterizeSegments,
   silhouetteMask,
   type DetectedLine,
@@ -15,8 +17,13 @@ import {
  * 실패(CORS·디코드 오류 등)는 빈 결과로 조용히 강등 — 수동 트레이싱 경로 유지.
  */
 export type AutoTraceResult = {
+  /** 내부 벽 후보 (외곽 라인 제외) */
   lines: DetectedLine[];
   wallCount: number;
+  /** 건물 외곽 윤곽 폴리곤 (검출 캔버스 px) — 외곽 벽 생성용 */
+  outline: { x: number; y: number }[];
+  /** 벽 픽셀 두께 기반 추정 실세계 폭 (m) — 추정 불가 시 0 */
+  suggestedWidthM: number;
   /** 닫힌 공간 후보 (검출 캔버스 px 좌표, cellPx=격자 셀 크기) */
   regions: {
     min: { x: number; y: number };
@@ -40,9 +47,16 @@ export function autoTraceImage(
   imageUrl: string,
   paperW: number,
   paperH: number,
+  opts?: { knownWidthM?: number },
 ): Promise<AutoTraceResult> {
   return new Promise((resolve) => {
-    const empty: AutoTraceResult = { lines: [], wallCount: 0, regions: [] };
+    const empty: AutoTraceResult = {
+      lines: [],
+      wallCount: 0,
+      outline: [],
+      suggestedWidthM: 0,
+      regions: [],
+    };
     const img = new Image();
     img.onload = () => {
       try {
@@ -96,29 +110,66 @@ export function autoTraceImage(
             boundaryBridge: 90 / STEP,
           },
         }).filter((l) => ((l.points[0].y + l.points[1].y) / 2) * STEP < captionTop);
-        // 닫힌 공간(방) 검출 — 선분 마스크 + 실루엣 외피(둘레 완결) 기준.
-        const mask = silhouetteMask(rasterizeSegments(gridLines, gw, gh, 2), gw, gh);
-        // 최소 방 면적: 실제 스케일이 미정이므로 도면(선분 bbox) 크기에 상대적으로 —
-        // 그려진 영역의 0.4% 이상(하한 120셀), 상위 12개까지만 방으로 채택
-        let drawingCells = 0;
-        {
-          let mnX = Infinity;
-          let mnY = Infinity;
-          let mxX = -Infinity;
-          let mxY = -Infinity;
-          for (const l of gridLines) {
-            for (const p of l.points) {
-              mnX = Math.min(mnX, p.x);
-              mxX = Math.max(mxX, p.x);
-              mnY = Math.min(mnY, p.y);
-              mxY = Math.max(mxY, p.y);
-            }
+        // ── 스케일 추정: 벽 픽셀 두께 → 실세계 폭 (실벽 ≈ REAL_WALL_M 가정)
+        const thicknessCells = estimateWallThickness(grid, gw, gh, gridLines);
+        const REAL_WALL_M = 0.2;
+        const suggestedWidthM =
+          thicknessCells > 0
+            ? Math.min(30, Math.max(6, (REAL_WALL_M * gw) / thicknessCells))
+            : 0;
+        const widthM = opts?.knownWidthM ?? (suggestedWidthM || 10);
+        const cellM = widthM / gw; // 격자 셀 하나의 실세계 크기
+
+        // ── 건물 외곽 윤곽 (실루엣 풋프린트) — 외곽 벽 생성용
+        const silhouette = silhouetteMask(rasterizeSegments(gridLines, gw, gh, 2), gw, gh);
+        const outlineGrid = footprintOutline(silhouette, gw, gh, Math.round(0.3 / cellM));
+
+        // ── 외곽 라인 위에 놓인 검출 선분은 외곽 벽으로 대체 (이중 벽 방지)
+        const distToOutline = (p: { x: number; y: number }): number => {
+          let best = Infinity;
+          for (let i = 0; i < outlineGrid.length; i++) {
+            const a = outlineGrid[i];
+            const b = outlineGrid[(i + 1) % outlineGrid.length];
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const len2 = dx * dx + dy * dy;
+            const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+            best = Math.min(best, Math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y));
           }
-          drawingCells = Number.isFinite(mnX) ? (mxX - mnX) * (mxY - mnY) : 0;
-        }
-        const minRoomCells = Math.max(120, Math.round(drawingCells * 0.004));
+          return best;
+        };
+        const onOutlineTol = Math.max(3, Math.round(0.25 / cellM));
+        const interiorLines =
+          outlineGrid.length >= 3
+            ? gridLines.filter((l) => {
+                const mid = {
+                  x: (l.points[0].x + l.points[1].x) / 2,
+                  y: (l.points[0].y + l.points[1].y) / 2,
+                };
+                return !(
+                  distToOutline(l.points[0]) < onOutlineTol &&
+                  distToOutline(l.points[1]) < onOutlineTol &&
+                  distToOutline(mid) < onOutlineTol
+                );
+              })
+            : gridLines;
+
+        // ── 닫힌 공간(방) 검출 — 내부 벽 + 외곽 윤곽 마스크 기준
+        const outlineEdges: DetectedLine[] =
+          outlineGrid.length >= 3
+            ? outlineGrid.map((p, i) => ({
+                points: [p, outlineGrid[(i + 1) % outlineGrid.length]],
+                closed: false,
+              }))
+            : [];
+        const mask = rasterizeSegments([...interiorLines, ...outlineEdges], gw, gh, 2);
+        // 최소 방 면적: 절대 3㎡(추정 스케일 기준) + 도면 상대 0.4% 병행, 상위 12개
+        const minRoomCells = Math.max(
+          Math.round(3 / (cellM * cellM)),
+          Math.round(gw * gh * 0.004),
+        );
         const regions = detectEnclosedRegions(mask, gw, gh, minRoomCells, {
-          polygonTol: Math.round(12 / STEP),
+          polygonTol: Math.round(0.3 / cellM),
         })
           .slice(0, 12)
           .map((r) => ({
@@ -128,11 +179,17 @@ export function autoTraceImage(
             cellPx: STEP,
             polygon: r.polygon?.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
           }));
-        const lines = gridLines.map((l) => ({
+        const lines = interiorLines.map((l) => ({
           ...l,
           points: l.points.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
         }));
-        resolve({ lines, wallCount: lines.length, regions });
+        resolve({
+          lines,
+          wallCount: lines.length,
+          outline: outlineGrid.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
+          suggestedWidthM,
+          regions,
+        });
       } catch {
         resolve(empty);
       }

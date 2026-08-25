@@ -794,30 +794,25 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
     const srcW = 780;
     const srcH = Math.round((srcW * tracing.heightM) / tracing.widthM);
     const { autoTraceImage } = await import('../upload/autoTrace');
-    const { linesToWalls, regionsToRooms } = await import('../../model/underlay');
-    const r = await autoTraceImage(tracing.imageUrl, srcW, srcH);
-    if (r.lines.length === 0) {
+    const { buildAutoGeometry } = await import('../../model/underlay');
+    // 재실행은 현재(보정된) 스케일 기준으로 면적 임계·외곽 정리 수행
+    const r = await autoTraceImage(tracing.imageUrl, srcW, srcH, {
+      knownWidthM: tracing.widthM,
+    });
+    if (r.lines.length === 0 && r.outline.length < 3) {
       setStatus('벽을 인식하지 못했습니다 — 선 그리기(S)로 직접 그리세요');
       setDetecting(false);
       return;
     }
     let seq = 0;
     const stamp = Date.now().toString(36);
-    const walls = linesToWalls(
-      r.lines,
+    const { walls, rooms } = buildAutoGeometry(
+      r,
       srcW,
       srcH,
       tracing.widthM,
       tracing.heightM,
-      () => `wall-${stamp}-ad${seq++}`,
-    );
-    const rooms = regionsToRooms(
-      r.regions,
-      srcW,
-      srcH,
-      tracing.widthM,
-      tracing.heightM,
-      () => `room-${stamp}-ad${seq++}`,
+      () => `g-${stamp}-ad${seq++}`,
     );
     // 재실행: 이전 자동 인식분('-ad')은 교체, 사용자가 그린 것은 유지 — undo 1회로 취소
     updatePlan((pl) => ({

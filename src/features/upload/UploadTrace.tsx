@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import './upload.css';
 import type { Plan } from '../../model/types';
 import { TEMPLATES } from '../../model/templates';
-import { linesToWalls, regionsToRooms, underlaySize } from '../../model/underlay';
+import { DEFAULT_UNDERLAY_WIDTH_M, buildAutoGeometry, underlaySize } from '../../model/underlay';
 import { autoTraceImage } from './autoTrace';
 import { useStore } from '../../state/store';
 import { MiniPlan } from '../../components/MiniPlan';
@@ -90,27 +90,20 @@ export function UploadTrace() {
     async (rawUrl: string, name: string) => {
       setLoading(true);
       const { url, w, h } = await normalizeImage(rawUrl);
-      const size = underlaySize(w, h);
       // 벽·닫힌 공간 자동 인식 — "넣자마자 벽이 세워진 도면"이 기본 (실패 시 빈 도면으로 강등)
       const srcW = 780;
       const srcH = Math.max(1, Math.round((srcW * h) / w));
       const trace = await autoTraceImage(url, srcW, srcH);
+      // 스케일: 벽 픽셀 두께 기반 추정 (실패 시 폭 10m 가정)
+      const size = underlaySize(w, h, trace.suggestedWidthM || DEFAULT_UNDERLAY_WIDTH_M);
       let seq = 0;
-      const walls = linesToWalls(
-        trace.lines,
+      const { walls, rooms } = buildAutoGeometry(
+        trace,
         srcW,
         srcH,
         size.widthM,
         size.heightM,
-        () => `${newId('wall')}-ad${seq++}`,
-      );
-      const rooms = regionsToRooms(
-        trace.regions,
-        srcW,
-        srcH,
-        size.widthM,
-        size.heightM,
-        () => `${newId('room')}-ad${seq++}`,
+        () => `${newId('g')}-ad${seq++}`,
       );
       const plan: Plan = {
         id: newId('plan'),
