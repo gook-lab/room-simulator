@@ -26,11 +26,13 @@ import { hotkeyAllowed, movementAllowed } from './menu';
 const WALK_SPEED = 1.4;
 const SPRINT_SPEED = 3.0;
 
-function defaultSpawn(plan: Plan): Vec2 {
-  const biggest = [...plan.rooms].sort((a, b) => b.areaSqm - a.areaSqm)[0];
-  if (!biggest) return { x: 1, y: 1 };
-  const c = biggest.polygon.reduce(
-    (acc, p) => ({ x: acc.x + p.x / biggest.polygon.length, y: acc.y + p.y / biggest.polygon.length }),
+function defaultSpawn(plan: Plan, selection: string[] = []): Vec2 {
+  // 선택된 방 > 가장 큰 방 중심으로 스폰
+  const selected = plan.rooms.find((r) => selection.includes(r.id));
+  const target = selected ?? [...plan.rooms].sort((a, b) => b.areaSqm - a.areaSqm)[0];
+  if (!target) return { x: 1, y: 1 };
+  const c = target.polygon.reduce(
+    (acc, p) => ({ x: acc.x + p.x / target.polygon.length, y: acc.y + p.y / target.polygon.length }),
     { x: 0, y: 0 },
   );
   return c;
@@ -209,9 +211,10 @@ export function Walkthrough() {
   const setLighting = useStore((s) => s.setLighting);
   const updatePlan = useStore((s) => s.updatePlan);
   const spawn = useStore((s) => s.walkthroughSpawn);
+  const selection = useStore((s) => s.selection);
 
   const poseRef = useRef<PlayerPose>({
-    pos: spawn?.pos ?? defaultSpawn(plan),
+    pos: spawn?.pos ?? defaultSpawn(plan, selection),
     yawDeg: spawn?.yawDeg ?? 0,
   });
   const furnitureGroupRef = useRef<THREE.Group>(null!);
@@ -294,6 +297,36 @@ export function Walkthrough() {
   const editItem = editItemId ? plan.items.find((i) => i.id === editItemId) : null;
   const editCat = editItem ? catalogById.get(editItem.catalogId) : null;
   const currentRoom = roomAt(plan.rooms, pose.pos);
+
+  // 방 없는 도면은 워크스루 진입 불가 — 걸을 공간이 없어 검은 화면(무한 로드처럼 보임)이 됨
+  if (plan.rooms.length === 0) {
+    return (
+      <div className="walkthrough">
+        <div className="hud">
+          <div className="hud__tabs">
+            <ViewTabs dark />
+          </div>
+          <div className="wt-menu" style={{ width: 340 }}>
+            <div className="wt-menu__title">아직 걸어볼 공간이 없습니다</div>
+            <div className="wt-menu__hint">
+              방(닫힌 벽)을 먼저 그리거나 템플릿에서 시작하면 3D 워크스루를 쓸 수 있습니다.
+            </div>
+            <div className="wt-menu__items">
+              <button
+                className="wt-menu__item wt-menu__item--primary"
+                onClick={() => setView('2d')}
+              >
+                2D 스케치로 돌아가 방 그리기
+              </button>
+              <button className="wt-menu__item" onClick={() => setView('birdseye')}>
+                조감도로 보기
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="walkthrough">

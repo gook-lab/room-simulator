@@ -540,3 +540,82 @@
 .inspector__product-link:hover {
   color: var(--accent-deep);
 }
+
+/* ---- 밑그림(언더레이) 패널 + 스케일 보정 ---- */
+.underlay-panel {
+  left: 20px;
+  bottom: 84px;
+  width: 218px;
+  padding-bottom: 12px;
+}
+
+.underlay-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.underlay-panel__row .slider {
+  flex: 1;
+}
+
+.underlay-panel__actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px;
+}
+
+.underlay-panel__actions .btn {
+  flex: 1;
+  font-size: 11px;
+  padding: 7px 6px;
+}
+
+.underlay-panel__status {
+  padding: 8px 16px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-deep);
+  line-height: 1.5;
+}
+
+.scale-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 14;
+}
+
+.scale-input-chip {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-dock);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 15;
+}
+
+.scale-input-chip input {
+  width: 58px;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.scale-input-chip .btn {
+  font-size: 11px;
+  padding: 5px 9px;
+}

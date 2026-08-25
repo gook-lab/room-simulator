@@ -107,7 +107,8 @@ export const useStore = create<AppStore>((set, get) => {
   };
 
   return {
-    screen: 'editor',
+    // 진입점은 대시보드(도면 목록+견적) — 문서 열기/생성/업로드 시 2D 스케치로 이동
+    screen: 'dashboard',
     view: '2d',
     navigate: (screen) => set({ screen, placingCatalogId: null, drag: null }),
     setView: (view) => set({ view, placingCatalogId: null, drag: null }),

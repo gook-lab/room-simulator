@@ -716,6 +716,86 @@ export function Inspector() {
 
 /* ===== 상태바 ===== */
 
+/* ===== 밑그림(언더레이) 패널 — 업로드 즉시 로드의 선택 기능들 ===== */
+
+export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
+  const plan = useCurrentPlan();
+  const updatePlan = useStore((s) => s.updatePlan);
+  const [status, setStatus] = useState<string | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const tracing = plan.tracing;
+  if (!tracing) return null;
+
+  const patch = (p: Partial<NonNullable<typeof tracing>>, coalesce?: string) =>
+    updatePlan(
+      (pl) => (pl.tracing ? { ...pl, tracing: { ...pl.tracing, ...p } } : pl),
+      coalesce ? { coalesceKey: coalesce } : undefined,
+    );
+
+  const autoDetect = async () => {
+    if (detecting || !tracing.widthM || !tracing.heightM) return;
+    setDetecting(true);
+    setStatus(null);
+    const srcW = 780;
+    const srcH = Math.round((srcW * tracing.heightM) / tracing.widthM);
+    const { autoTraceImage } = await import('../upload/autoTrace');
+    const { linesToWalls } = await import('../../model/underlay');
+    const r = await autoTraceImage(tracing.imageUrl, srcW, srcH);
+    if (r.lines.length === 0) {
+      setStatus('벽을 인식하지 못했습니다 — 선 그리기(S)로 직접 그리세요');
+      setDetecting(false);
+      return;
+    }
+    let seq = 0;
+    const walls = linesToWalls(
+      r.lines,
+      srcW,
+      srcH,
+      tracing.widthM,
+      tracing.heightM,
+      () => `wall-${Date.now().toString(36)}-ad${seq++}`,
+    );
+    // 벽 후보 일괄 추가 — undo 1회로 전체 취소 가능
+    updatePlan((pl) => ({ ...pl, walls: [...pl.walls, ...walls] }));
+    setStatus(`벽 후보 ${walls.length}개 추가 — 필요 없으면 Cmd+Z`);
+    setDetecting(false);
+  };
+
+  return (
+    <aside className="float-panel underlay-panel">
+      <div className="panel-header">
+        <span className="panel-header__title">밑그림</span>
+        <button
+          className={`toggle${tracing.visible ? ' is-on' : ''}`}
+          aria-pressed={tracing.visible}
+          title="표시/숨김"
+          onClick={() => patch({ visible: !tracing.visible })}
+        />
+      </div>
+      <div className="underlay-panel__row">
+        <span>불투명도</span>
+        <input
+          type="range"
+          className="slider"
+          min={10}
+          max={90}
+          value={Math.round(tracing.opacity * 100)}
+          onChange={(e) => patch({ opacity: Number(e.target.value) / 100 }, 'underlay-op')}
+        />
+      </div>
+      <div className="underlay-panel__actions">
+        <button className="btn btn--outline" onClick={onStartScale}>
+          스케일 맞추기
+        </button>
+        <button className="btn btn--outline" disabled={detecting} onClick={() => void autoDetect()}>
+          {detecting ? '인식 중…' : '벽 자동 인식'}
+        </button>
+      </div>
+      {status && <div className="underlay-panel__status">{status}</div>}
+    </aside>
+  );
+}
+
 export function StatusBar({ t }: { t: ViewTransform }) {
   const plan = useCurrentPlan();
   const snapping = useStore((s) => s.snapping);

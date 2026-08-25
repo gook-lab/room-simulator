@@ -58,7 +58,8 @@ import {
   type WallDraft,
   type WallItemGhost,
 } from './PlanCanvas';
-import { CatalogPanel, Inspector, StatusBar, ToolDock } from './panels';
+import { CatalogPanel, Inspector, StatusBar, ToolDock, UnderlayPanel } from './panels';
+import { rescaleTracing } from '../../model/underlay';
 import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
 import { sketchDraftPoints } from './sketchDraft';
 import { dragOriginPoses, type DragOriginPoses } from './dragPreview';
@@ -150,10 +151,21 @@ export function Editor2D() {
   const [postDrop, setPostDrop] = useState<{ itemId: string } | null>(null);
   const [missHint, setMissHint] = useState<string | null>(null);
   const missHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * 밑그림 스케일 보정 모드 — 언더레이 위에 기준선을 긋고 실측을 입력하면
+   * 언더레이만 리스케일한다 (그린 벽·가구는 불변).
+   */
+  const [scaleMode, setScaleMode] = useState<
+    | null
+    | { stage: 'draw'; line: { a: Vec2; b: Vec2 } | null }
+    | { stage: 'input'; line: { a: Vec2; b: Vec2 }; meters: string }
+  >(null);
 
   // 최신 상태를 이벤트 핸들러에서 안전하게 읽기 위한 ref
   const planRef = useRef(plan);
   planRef.current = plan;
+  const scaleModeRef = useRef(scaleMode);
+  scaleModeRef.current = scaleMode;
 
   useEffect(() => {
     const el = hostRef.current;
@@ -421,6 +433,14 @@ export function Editor2D() {
         svgRef.current.setPointerCapture(e.pointerId);
       } catch {
         // 합성 이벤트 등 capture 불가 — 무시
+      }
+
+      // 밑그림 스케일 보정 모드: 기준선 드래그가 모든 도구보다 우선
+      if (scaleMode) {
+        if (scaleMode.stage === 'draw') {
+          setScaleMode({ stage: 'draw', line: { a: world, b: world } });
+        }
+        return;
       }
 
       // 카탈로그 배치 모드
@@ -768,6 +788,7 @@ export function Editor2D() {
       updatePlan,
       setPlacing,
       setSelection,
+      scaleMode,
     ],
   );
 
@@ -776,6 +797,14 @@ export function Editor2D() {
       const g = gestureRef.current;
       const pl = planRef.current;
       const world = toWorld(e);
+
+      // 밑그림 스케일 보정: 기준선 드래그 중
+      if (scaleMode) {
+        if (scaleMode.stage === 'draw' && scaleMode.line && e.buttons === 1) {
+          setScaleMode({ stage: 'draw', line: { a: scaleMode.line.a, b: world } });
+        }
+        return;
+      }
 
       if (g?.type === 'pan') {
         setCamera2d({
@@ -1063,7 +1092,7 @@ export function Editor2D() {
         setHoverDoor(!hover && openingNear(pl, world, tRef.current.s) != null);
       }
     },
-    [toWorld, tool, wallDraft, placingCatalogId, patchItem, setDrag, setCamera2d, snapWallPoint],
+    [toWorld, tool, wallDraft, placingCatalogId, patchItem, setDrag, setCamera2d, snapWallPoint, scaleMode],
   );
 
   const onPointerUp = useCallback(
@@ -1075,6 +1104,14 @@ export function Editor2D() {
         svgRef.current.releasePointerCapture(e.pointerId);
       } catch {
         // capture 없음 — 무시
+      }
+
+      // 밑그림 스케일 보정: 드래그 종료 → 실측 입력 단계
+      if (scaleMode?.stage === 'draw' && scaleMode.line) {
+        const L = scaleMode.line;
+        const len = Math.hypot(L.b.x - L.a.x, L.b.y - L.a.y);
+        setScaleMode(len > 0.2 ? { stage: 'input', line: L, meters: '' } : { stage: 'draw', line: null });
+        return;
       }
 
       if (!g) return;
@@ -1191,7 +1228,7 @@ export function Editor2D() {
         setDrag(null);
       }
     },
-    [pushHistory, patchItem, setDrag],
+    [pushHistory, patchItem, setDrag, scaleMode],
   );
 
   /* ===== 휠 줌 ===== */
@@ -1246,6 +1283,11 @@ export function Editor2D() {
         return;
       }
       if (e.key === 'Escape') {
+        // 밑그림 스케일 보정 모드 취소
+        if (scaleModeRef.current) {
+          setScaleMode(null);
+          return;
+        }
         // 진행 중 드래그 취소 — 시작 스냅샷으로 원위치 복원 (미리보기=커밋 계약의 취소 경로)
         const g = gestureRef.current;
         if (g && 'before' in g) {
@@ -1462,6 +1504,69 @@ export function Editor2D() {
       <CatalogPanel />
       <Inspector />
       <StatusBar t={t} />
+      {plan.tracing && (
+        <UnderlayPanel onStartScale={() => setScaleMode({ stage: 'draw', line: null })} />
+      )}
+
+      {/* 밑그림 스케일 보정 오버레이 */}
+      {scaleMode && (
+        <>
+          {scaleMode.stage === 'draw' && !scaleMode.line && (
+            <div className="miss-hint" style={{ bottom: 132 }}>
+              밑그림에서 길이를 아는 벽을 드래그해 기준선을 그으세요 (Esc 취소)
+            </div>
+          )}
+          {scaleMode.line &&
+            (() => {
+              const a = w2s(t, scaleMode.line.a);
+              const b = w2s(t, scaleMode.line.b);
+              return (
+                <svg className="scale-overlay" width={viewport.w} height={viewport.h}>
+                  <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#e8590c" strokeWidth={3} />
+                  <circle cx={a.x} cy={a.y} r={4} fill="#e8590c" />
+                  <circle cx={b.x} cy={b.y} r={4} fill="#e8590c" />
+                </svg>
+              );
+            })()}
+          {scaleMode.stage === 'input' &&
+            (() => {
+              const mid = w2s(t, {
+                x: (scaleMode.line.a.x + scaleMode.line.b.x) / 2,
+                y: (scaleMode.line.a.y + scaleMode.line.b.y) / 2,
+              });
+              const applyScale = () => {
+                const m = parseFloat(scaleMode.meters);
+                const L = scaleMode.line;
+                const len = Math.hypot(L.b.x - L.a.x, L.b.y - L.a.y);
+                if (!m || m <= 0 || len < 1e-6) return;
+                updatePlan((pl) =>
+                  pl.tracing ? { ...pl, tracing: rescaleTracing(pl.tracing, m / len) } : pl,
+                );
+                setScaleMode(null);
+              };
+              return (
+                <div className="scale-input-chip" style={{ left: mid.x, top: mid.y - 52 }}>
+                  이 선의 실제 길이
+                  <input
+                    autoFocus
+                    value={scaleMode.meters}
+                    onChange={(e) =>
+                      setScaleMode({ ...scaleMode, meters: e.target.value })
+                    }
+                    onKeyDown={(e) => e.key === 'Enter' && applyScale()}
+                  />
+                  m
+                  <button className="btn btn--primary" onClick={applyScale}>
+                    적용
+                  </button>
+                  <button className="btn btn--outline" onClick={() => setScaleMode(null)}>
+                    취소
+                  </button>
+                </div>
+              );
+            })()}
+        </>
+      )}
       {postDropItem && postDropHasCollision && postDropScreen && (
         <div
           className="collision-actions"

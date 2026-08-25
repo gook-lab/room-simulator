@@ -1,4 +1,5 @@
 import type { Opening, Plan, Wall } from '../../model/types';
+import { planBounds } from '../../model/geometry';
 import { isDoorOpen } from '../../model/interactions3d';
 
 export const DOOR_HEIGHT = 2.0;
@@ -78,15 +79,7 @@ export function collisionSpans(wall: Wall, openings: Opening[]): { start: number
 }
 
 export function planCenter(plan: Plan): { x: number; y: number } {
-  const xs: number[] = [];
-  const ys: number[] = [];
-  for (const w of plan.walls) {
-    xs.push(w.a.x, w.b.x);
-    ys.push(w.a.y, w.b.y);
-  }
-  if (xs.length === 0) return { x: 0, y: 0 };
-  return {
-    x: (Math.min(...xs) + Math.max(...xs)) / 2,
-    y: (Math.min(...ys) + Math.max(...ys)) / 2,
-  };
+  // 벽 없는 문서(언더레이 전용 포함)도 planBounds 폴백으로 안전한 중심을 얻는다
+  const b = planBounds(plan);
+  return { x: (b.min.x + b.max.x) / 2, y: (b.min.y + b.max.y) / 2 };
 }

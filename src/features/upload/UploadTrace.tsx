@@ -1,14 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import './upload.css';
-import type { Plan, Room, Vec2, Wall } from '../../model/types';
-import { polygonArea } from '../../model/geometry';
+import type { Plan } from '../../model/types';
 import { TEMPLATES } from '../../model/templates';
+import { underlaySize } from '../../model/underlay';
 import { useStore } from '../../state/store';
 import { MiniPlan } from '../../components/MiniPlan';
-import { autoTraceImage } from './autoTrace';
 
-const PAPER_W = 780;
-const PAPER_H = 560;
+/**
+ * 업로드 = 즉시 로드.
+ *
+ * 이미지를 넣으면 곧바로 2D 스케치 화면에 밑그림(언더레이)으로 깔린 새 문서가
+ * 열린다 (스케일은 폭 10m 가정으로 시작). 스케일 보정과 벽 자동 인식은
+ * 에디터 안 '밑그림' 패널의 선택 기능이다 — 필수 단계가 아니다.
+ *
+ * localStorage 용량 보호: 긴 변이 1600px 을 넘으면 다운스케일 후 JPEG 재인코딩.
+ * 이미지는 plan.tracing 에 저장되므로 재열기·JSON 내보내기에도 유지된다.
+ */
+
+const MAX_IMG_DIM = 1600;
 
 /** 스캔 도면 느낌의 샘플 이미지 (data URL SVG) */
 const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="780" height="560">
@@ -29,274 +38,108 @@ const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="780" height="
 </svg>`;
 const SAMPLE_URL = `data:image/svg+xml;utf8,${encodeURIComponent(SAMPLE_SVG)}`;
 
-/** 샘플 자동 인식 결과 (목업 수준의 프리필) */
-const SAMPLE_TRACE: TraceLine[] = [
-  {
-    points: [
-      { x: 140, y: 80 },
-      { x: 700, y: 80 },
-      { x: 700, y: 480 },
-      { x: 140, y: 480 },
-    ],
-    closed: true,
-  },
-  {
-    points: [
-      { x: 420, y: 80 },
-      { x: 420, y: 480 },
-    ],
-    closed: false,
-  },
-  {
-    points: [
-      { x: 420, y: 270 },
-      { x: 700, y: 270 },
-    ],
-    closed: false,
-  },
-];
-
-type TraceLine = { points: Vec2[]; closed: boolean };
-
 let idSeq = 0;
 const newId = (p: string) => `${p}-${Date.now().toString(36)}-${idSeq++}`;
+
+/** 큰 이미지는 다운스케일 + JPEG 재인코딩 (localStorage 보호) */
+function normalizeImage(url: string): Promise<{ url: string; w: number; h: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const { naturalWidth: w, naturalHeight: h } = img;
+      const maxDim = Math.max(w, h);
+      if (maxDim <= MAX_IMG_DIM) return resolve({ url, w, h });
+      try {
+        const s = MAX_IMG_DIM / maxDim;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(w * s);
+        canvas.height = Math.round(h * s);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve({ url, w, h });
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve({
+          url: canvas.toDataURL('image/jpeg', 0.85),
+          w: canvas.width,
+          h: canvas.height,
+        });
+      } catch {
+        resolve({ url, w, h });
+      }
+    };
+    img.onerror = () => resolve({ url, w: 1, h: 1 });
+    img.src = url;
+  });
+}
 
 export function UploadTrace() {
   const navigate = useStore((s) => s.navigate);
   const addPlan = useStore((s) => s.addPlan);
   const openPlan = useStore((s) => s.openPlan);
-
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [refLine, setRefLine] = useState<{ a: Vec2; b: Vec2 } | null>(null);
-  const [drawingRef, setDrawingRef] = useState(false);
-  const [meters, setMeters] = useState('4.20');
-  const [traced, setTraced] = useState<TraceLine[]>([]);
-  // 실제 자동 인식 결과 (업로드 이미지에서 검출한 벽 후보) — null 은 인식 중
-  const [detected, setDetected] = useState<TraceLine[] | null>(null);
-  const [current, setCurrent] = useState<Vec2[]>([]);
-  const [cursor, setCursor] = useState<Vec2 | null>(null);
-  const [dragVertex, setDragVertex] = useState<{ line: number; pt: number } | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const toPaper = useCallback((e: { clientX: number; clientY: number }): Vec2 => {
-    const rect = svgRef.current!.getBoundingClientRect();
-    return {
-      x: Math.max(0, Math.min(PAPER_W, e.clientX - rect.left)),
-      y: Math.max(0, Math.min(PAPER_H, e.clientY - rect.top)),
-    };
-  }, []);
-
-  const acceptFile = useCallback((file: File) => {
-    if (!file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = reader.result as string;
-      setImageUrl(url);
-      setDetected(null); // 인식 중 표시
-      setStep(2);
-      // 실제 벽 자동 인식 — 실패해도 빈 결과로 강등되어 수동 트레이싱 가능
-      autoTraceImage(url, PAPER_W, PAPER_H).then((r) => setDetected(r.lines));
-    };
-    reader.readAsDataURL(file);
-  }, []);
-
-  const useSample = useCallback(() => {
-    setImageUrl(SAMPLE_URL);
-    setDetected(SAMPLE_TRACE);
-    setStep(2);
-  }, []);
-
-  // 3단계 진입: 자동 인식된 벽 후보 프리필 (샘플·실업로드 공통)
-  const goStep3 = useCallback(() => {
-    if (traced.length === 0 && detected && detected.length > 0) {
-      setTraced(detected.map((l) => ({ ...l, points: l.points.map((p) => ({ ...p })) })));
-    }
-    setStep(3);
-  }, [detected, traced.length]);
-
-  /* ===== 포인터 (2단계: 기준선 / 3단계: 벽 그리기) ===== */
-
-  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    const p = toPaper(e);
-    try {
-      // 드래그가 캔버스 밖에서 끝나도 pointerup 을 받도록 캡처
-      svgRef.current?.setPointerCapture(e.pointerId);
-    } catch {
-      // 합성 이벤트 등 캡처 불가 — 무시
-    }
-    if (step === 2) {
-      setRefLine({ a: p, b: p });
-      setDrawingRef(true);
-      return;
-    }
-    if (step === 3) {
-      // 정점 히트 → 드래그 편집
-      for (let li = 0; li < traced.length; li++) {
-        for (let pi = 0; pi < traced[li].points.length; pi++) {
-          const v = traced[li].points[pi];
-          if (Math.hypot(v.x - p.x, v.y - p.y) < 9) {
-            setDragVertex({ line: li, pt: pi });
-            return;
-          }
-        }
-      }
-      // 폴리라인 그리기
-      if (current.length >= 3 && Math.hypot(current[0].x - p.x, current[0].y - p.y) < 12) {
-        setTraced((t) => [...t, { points: current, closed: true }]);
-        setCurrent([]);
-        return;
-      }
-      setCurrent((c) => [...c, p]);
-    }
-  };
-
-  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    const p = toPaper(e);
-    if (step === 2 && drawingRef) {
-      setRefLine((l) => (l ? { ...l, b: p } : l));
-      return;
-    }
-    if (step === 3) {
-      if (dragVertex) {
-        setTraced((t) =>
-          t.map((line, li) =>
-            li === dragVertex.line
-              ? { ...line, points: line.points.map((pt, pi) => (pi === dragVertex.pt ? p : pt)) }
-              : line,
-          ),
-        );
-        return;
-      }
-      setCursor(p);
-    }
-  };
-
-  const onPointerUp = () => {
-    setDrawingRef(false);
-    setDragVertex(null);
-  };
-
-  // 3단계: 선 더블클릭 → 해당 벽 후보 삭제 (오인식 정리)
-  const onDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (step !== 3) return;
-    const p = toPaper(e);
-    const distToSeg = (a: Vec2, b: Vec2): number => {
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const len2 = dx * dx + dy * dy;
-      const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
-      return Math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y);
-    };
-    let best: { line: number; d: number } | null = null;
-    for (let li = 0; li < traced.length; li++) {
-      const pts = traced[li].points;
-      const segs = traced[li].closed ? pts.length : pts.length - 1;
-      for (let i = 0; i < segs; i++) {
-        const d = distToSeg(pts[i], pts[(i + 1) % pts.length]);
-        if (d < 8 && (!best || d < best.d)) best = { line: li, d };
-      }
-    }
-    if (best) setTraced((t) => t.filter((_, li) => li !== best!.line));
-  };
-
-  // Enter → 진행 중 폴리라인 확정, Esc → 취소
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
-      if (e.key === 'Enter' && current.length >= 2) {
-        setTraced((t) => [...t, { points: current, closed: false }]);
-        setCurrent([]);
-      } else if (e.key === 'Escape') {
-        if (current.length > 0) setCurrent([]);
-        else navigate('dashboard');
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [current, navigate]);
-
-  /* ===== Plan 생성 ===== */
-
-  const pxPerM = (() => {
-    const m = parseFloat(meters);
-    if (!refLine || !m || m <= 0) return null;
-    const len = Math.hypot(refLine.b.x - refLine.a.x, refLine.b.y - refLine.a.y);
-    return len > 10 ? len / m : null;
-  })();
-
-  const wallSegCount = traced.reduce(
-    (s, l) => s + (l.closed ? l.points.length : l.points.length - 1),
-    0,
+  /** 이미지 URL → 언더레이 문서 생성 + 즉시 에디터 진입 */
+  const openWithUnderlay = useCallback(
+    async (rawUrl: string, name: string) => {
+      setLoading(true);
+      const { url, w, h } = await normalizeImage(rawUrl);
+      const size = underlaySize(w, h);
+      const plan: Plan = {
+        id: newId('plan'),
+        name,
+        unitScale: 60,
+        walls: [],
+        openings: [],
+        rooms: [],
+        items: [],
+        tracing: {
+          imageUrl: url,
+          opacity: 0.5,
+          locked: true,
+          visible: true,
+          widthM: size.widthM,
+          heightM: size.heightM,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      addPlan(plan);
+      openPlan(plan.id); // → 2D 스케치 화면
+    },
+    [addPlan, openPlan],
   );
-  const closedRooms = traced.filter((l) => l.closed);
-  const estAreaSqm = pxPerM
-    ? closedRooms.reduce((s, l) => s + polygonArea(l.points) / (pxPerM * pxPerM), 0)
-    : 0;
 
-  const buildAndOpen = (empty: boolean) => {
-    const scale = pxPerM ?? 60;
-    const toM = (p: Vec2): Vec2 => ({
-      x: Number((p.x / scale).toFixed(3)),
-      y: Number((p.y / scale).toFixed(3)),
-    });
-    const walls: Wall[] = [];
-    const rooms: Room[] = [];
-    if (!empty) {
-      for (const line of traced) {
-        const segs = line.closed ? line.points.length : line.points.length - 1;
-        for (let i = 0; i < segs; i++) {
-          walls.push({
-            id: newId('wall'),
-            a: toM(line.points[i]),
-            b: toM(line.points[(i + 1) % line.points.length]),
-            thickness: 0.15,
-            height: 2.4,
-          });
-        }
-        if (line.closed && line.points.length >= 3) {
-          const polygon = line.points.map(toM);
-          rooms.push({
-            id: newId('room'),
-            name: `방 ${rooms.length + 1}`,
-            wallIds: walls.slice(-segs).map((w) => w.id),
-            polygon,
-            areaSqm: polygonArea(polygon),
-            floor: 'living',
-          });
-        }
-      }
-    }
+  const acceptFile = useCallback(
+    (file: File) => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        void openWithUnderlay(
+          reader.result as string,
+          file.name.replace(/\.[^.]+$/, '') || '업로드 도면',
+        );
+      };
+      reader.readAsDataURL(file);
+    },
+    [openWithUnderlay],
+  );
+
+  const startEmpty = useCallback(() => {
     const plan: Plan = {
       id: newId('plan'),
-      name: empty ? '새 도면' : '업로드 도면',
-      unitScale: scale,
-      walls,
+      name: '새 도면',
+      unitScale: 60,
+      walls: [],
       openings: [],
-      rooms,
+      rooms: [],
       items: [],
-      tracing:
-        !empty && imageUrl
-          ? {
-              imageUrl,
-              opacity: 0.5,
-              locked: true,
-              visible: true,
-              widthM: PAPER_W / scale,
-              heightM: PAPER_H / scale,
-            }
-          : undefined,
       updatedAt: new Date().toISOString(),
     };
     addPlan(plan);
     openPlan(plan.id);
-  };
-
-  /* ===== 렌더 ===== */
-
-  const stepState = (n: number) => (n < step ? 'is-done' : n === step ? 'is-current' : '');
+  }, [addPlan, openPlan]);
 
   return (
     <div className="upload">
@@ -305,341 +148,96 @@ export function UploadTrace() {
           <span className="brand__mark" />
         </button>
         <span className="upload__title">새 도면 만들기</span>
-        <div className="stepper">
-          {(['업로드', '스케일', '벽 확인'] as const).map((label, i) => (
-            <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {i > 0 && <span className="stepper__line" />}
-              <span className={`stepper__step ${stepState(i + 1)}`}>
-                <span className="stepper__dot">{i + 1}</span>
-                {label}
-              </span>
-            </span>
-          ))}
-        </div>
       </header>
 
       <div className="upload__body">
         <div className="upload__canvas">
           <div className="upload__paper">
-            {imageUrl && <img className="upload__paper-img" src={imageUrl} alt="원본 도면" />}
-
-            {step === 1 && (
-              <div
-                className={`dropzone${dragOver ? ' is-over' : ''}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOver(false);
-                  const f = e.dataTransfer.files[0];
+            <div
+              className={`dropzone${dragOver ? ' is-over' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const f = e.dataTransfer.files[0];
+                if (f) acceptFile(f);
+              }}
+            >
+              <span className="dropzone__icon">↑</span>
+              <span>
+                {loading
+                  ? '불러오는 중…'
+                  : '평면도 이미지를 끌어다 놓으면 바로 스케치 화면에 열립니다'}
+              </span>
+              <span className="dropzone__hint">
+                PNG · JPG — 스케일 보정·벽 자동 인식은 에디터의 '밑그림' 패널에서
+              </span>
+              <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                <button className="btn btn--dark" onClick={() => fileRef.current?.click()}>
+                  파일 선택
+                </button>
+                <button
+                  className="btn btn--outline"
+                  onClick={() => void openWithUnderlay(SAMPLE_URL, '샘플 도면')}
+                >
+                  샘플 도면 사용
+                </button>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
                   if (f) acceptFile(f);
+                  e.target.value = '';
                 }}
-              >
-                <span className="dropzone__icon">↑</span>
-                <span>평면도 이미지를 끌어다 놓거나 선택하세요</span>
-                <span className="dropzone__hint">PNG · JPG (PDF는 이미지로 변환 후)</span>
-                <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-                  <button className="btn btn--dark" onClick={() => fileRef.current?.click()}>
-                    파일 선택
-                  </button>
-                  <button className="btn btn--outline" onClick={useSample}>
-                    샘플 도면 사용
-                  </button>
-                </div>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) acceptFile(f);
-                  }}
-                />
-              </div>
-            )}
-
-            {step >= 2 && (
-              <svg
-                ref={svgRef}
-                width={PAPER_W}
-                height={PAPER_H}
-                style={{ cursor: 'crosshair' }}
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onDoubleClick={onDoubleClick}
-              >
-                {/* 3단계: 트레이싱 벽 오버레이 */}
-                {step === 3 && (
-                  <g>
-                    {traced.map((line, li) => (
-                      <g key={li}>
-                        <polyline
-                          points={line.points
-                            .concat(line.closed ? [line.points[0]] : [])
-                            .map((p) => `${p.x},${p.y}`)
-                            .join(' ')}
-                          fill="none"
-                          stroke="#0e9f6e"
-                          strokeWidth={6}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          opacity={0.9}
-                        />
-                        {line.points.map((p, pi) => (
-                          <circle
-                            key={pi}
-                            cx={p.x}
-                            cy={p.y}
-                            r={6}
-                            fill="#ffffff"
-                            stroke="#0e9f6e"
-                            strokeWidth={2}
-                            style={{ cursor: 'grab' }}
-                          />
-                        ))}
-                      </g>
-                    ))}
-                    {current.length > 0 && (
-                      <g>
-                        <polyline
-                          points={current
-                            .concat(cursor ? [cursor] : [])
-                            .map((p) => `${p.x},${p.y}`)
-                            .join(' ')}
-                          fill="none"
-                          stroke="#0e9f6e"
-                          strokeWidth={4}
-                          strokeDasharray="7 5"
-                          strokeLinecap="round"
-                        />
-                        {current.map((p, pi) => (
-                          <circle key={pi} cx={p.x} cy={p.y} r={5} fill="#0e9f6e" />
-                        ))}
-                        {current.length >= 3 && (
-                          <circle
-                            cx={current[0].x}
-                            cy={current[0].y}
-                            r={12}
-                            fill="none"
-                            stroke="#0e9f6e"
-                            strokeWidth={1.5}
-                            strokeDasharray="3 3"
-                          />
-                        )}
-                      </g>
-                    )}
-                  </g>
-                )}
-
-                {/* 2단계: 스케일 기준선 */}
-                {step === 2 && refLine && (
-                  <g>
-                    <line
-                      x1={refLine.a.x}
-                      y1={refLine.a.y}
-                      x2={refLine.b.x}
-                      y2={refLine.b.y}
-                      stroke="#e8590c"
-                      strokeWidth={3}
-                    />
-                    {[refLine.a, refLine.b].map((p, i) => {
-                      const dx = refLine.b.x - refLine.a.x;
-                      const dy = refLine.b.y - refLine.a.y;
-                      const len = Math.hypot(dx, dy) || 1;
-                      const nx = (-dy / len) * 10;
-                      const ny = (dx / len) * 10;
-                      return (
-                        <line
-                          key={i}
-                          x1={p.x - nx}
-                          y1={p.y - ny}
-                          x2={p.x + nx}
-                          y2={p.y + ny}
-                          stroke="#e8590c"
-                          strokeWidth={3}
-                        />
-                      );
-                    })}
-                  </g>
-                )}
-              </svg>
-            )}
-
-            {/* 2단계: 기준선 안내 (선을 긋기 전까지) */}
-            {step === 2 && !refLine && (
-              <div className="upload__hint-overlay">
-                도면에서 <b>길이를 아는 벽</b>을 드래그해 기준선을 그으세요
-              </div>
-            )}
-
-            {/* 스케일 입력 칩 */}
-            {step === 2 && refLine && (
-              <div
-                className="scale-chip"
-                style={{
-                  left: (refLine.a.x + refLine.b.x) / 2,
-                  top: Math.min(refLine.a.y, refLine.b.y),
-                }}
-              >
-                이 선의 실제 길이
-                <input
-                  value={meters}
-                  onChange={(e) => setMeters(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                />
-                m
-              </div>
-            )}
+              />
+            </div>
           </div>
         </div>
 
-        {/* 우측 패널 */}
         <aside className="upload__side">
-          {step === 1 && (
-            <>
-              <h2>평면도를 업로드하세요</h2>
-              <p className="desc">
-                기존 도면 이미지를 올리면 그 위에 벽을 트레이싱해 편집 가능한 평면도를
-                만듭니다. 스캔본·사진 모두 가능합니다.
-              </p>
-              <div className="tpl-section">
-                <div className="tpl-section__title">또는 템플릿에서 시작</div>
-                {TEMPLATES.map((tpl) => {
-                  const preview = tpl.build();
-                  return (
-                    <button
-                      key={tpl.id}
-                      className="tpl-card"
-                      onClick={() => {
-                        const plan = tpl.build();
-                        addPlan(plan);
-                        openPlan(plan.id);
-                      }}
-                    >
-                      <span className="tpl-card__thumb">
-                        <MiniPlan plan={preview} width={104} height={68} />
-                      </span>
-                      <span className="tpl-card__body">
-                        <span className="tpl-card__name">{tpl.name}</span>
-                        <span className="tpl-card__meta mono">{tpl.sizeLabel}</span>
-                        <span className="tpl-card__desc">{tpl.desc}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-                <button className="link-plain" onClick={() => buildAndOpen(true)}>
-                  빈 도면에서 시작
-                </button>
-              </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <h2>스케일을 맞춰주세요</h2>
-              <p className="desc">
-                도면에서 길이를 아는 벽 하나를 그어 실제 치수를 입력하면, 나머지 치수가
-                자동으로 계산됩니다.
-              </p>
-              <div className="result-card">
-                <div className="result-card__header">
-                  <span className="result-card__title">자동 인식 결과</span>
-                  <span className="badge-accent">
-                    {detected == null ? '인식 중…' : `벽 후보 ${detected.length}개`}
+          <h2>평면도를 업로드하세요</h2>
+          <p className="desc">
+            이미지를 올리면 곧바로 스케치 화면에 밑그림으로 깔립니다. 벽을 그리지
+            않아도 가구 배치와 3D 미리보기를 쓸 수 있고, 필요하면 에디터의 '밑그림'
+            패널에서 스케일을 맞추거나 벽을 자동 인식할 수 있습니다.
+          </p>
+          <div className="tpl-section">
+            <div className="tpl-section__title">또는 템플릿에서 시작</div>
+            {TEMPLATES.map((tpl) => {
+              const preview = tpl.build();
+              return (
+                <button
+                  key={tpl.id}
+                  className="tpl-card"
+                  onClick={() => {
+                    const plan = tpl.build();
+                    addPlan(plan);
+                    openPlan(plan.id);
+                  }}
+                >
+                  <span className="tpl-card__thumb">
+                    <MiniPlan plan={preview} width={104} height={68} />
                   </span>
-                </div>
-                <div className="result-row">
-                  <span>벽 후보</span>
-                  <b>{detected == null ? '인식 중…' : `${detected.length}개`}</b>
-                </div>
-                <div className="result-row">
-                  <span>문 · 창</span>
-                  <b>에디터에서 배치</b>
-                </div>
-                <div className="result-row">
-                  <span>면적</span>
-                  <b>{pxPerM ? '3단계에서 계산' : '— (스케일 필요)'}</b>
-                </div>
-              </div>
-              <div className="warn-card">
-                <div className="warn-card__title">
-                  {detected != null && detected.length === 0
-                    ? '벽을 인식하지 못했습니다'
-                    : '벽 후보는 제안입니다'}
-                </div>
-                <div className="warn-card__body">
-                  {detected != null && detected.length === 0
-                    ? '3단계에서 도면 위를 클릭해 직접 트레이싱하세요.'
-                    : '3단계에서 정점을 조정하고, 잘못 잡힌 선은 더블클릭으로 지우세요. 끊긴 벽은 클릭으로 이어 그립니다.'}
-                </div>
-              </div>
-              <div className="upload__side-footer">
-                <button
-                  className="btn btn--primary btn--block"
-                  disabled={!pxPerM}
-                  style={pxPerM ? undefined : { opacity: 0.45, cursor: 'not-allowed' }}
-                  onClick={goStep3}
-                >
-                  벽 확인으로
+                  <span className="tpl-card__body">
+                    <span className="tpl-card__name">{tpl.name}</span>
+                    <span className="tpl-card__meta mono">{tpl.sizeLabel}</span>
+                    <span className="tpl-card__desc">{tpl.desc}</span>
+                  </span>
                 </button>
-                {!pxPerM && (
-                  <div className="upload__btn-reason">
-                    도면 위에 기준선을 긋고 실제 길이를 입력하면 진행할 수 있습니다
-                  </div>
-                )}
-                <button className="link-plain" onClick={() => buildAndOpen(true)}>
-                  빈 도면에서 직접 그리기
-                </button>
-              </div>
-            </>
-          )}
-
-          {step === 3 && (
-            <>
-              <h2>벽을 확인하세요</h2>
-              <p className="desc">
-                초록 선이 인식된 벽 후보입니다. 정점을 드래그해 수정하고, 잘못 잡힌
-                선은 <b>더블클릭으로 삭제</b>하세요. 끊긴 벽은 클릭으로 이어 그리고,
-                시작점을 다시 클릭하면 룸이 닫힙니다. Enter로 열린 벽을 확정합니다.
-              </p>
-              <div className="result-card">
-                <div className="result-card__header">
-                  <span className="result-card__title">트레이싱 현황</span>
-                  <span className="badge-accent">수동 확인</span>
-                </div>
-                <div className="result-row">
-                  <span>벽 세그먼트</span>
-                  <b>{wallSegCount}개</b>
-                </div>
-                <div className="result-row">
-                  <span>닫힌 룸</span>
-                  <b>{closedRooms.length}개</b>
-                </div>
-                <div className="result-row">
-                  <span>추정 면적</span>
-                  <b>{estAreaSqm.toFixed(1)}㎡</b>
-                </div>
-              </div>
-              <div className="upload__side-footer">
-                <button
-                  className="btn btn--primary btn--block"
-                  disabled={wallSegCount === 0}
-                  style={wallSegCount ? undefined : { opacity: 0.45, cursor: 'not-allowed' }}
-                  onClick={() => buildAndOpen(false)}
-                >
-                  에디터에서 열기
-                </button>
-                <button className="link-plain" onClick={() => buildAndOpen(true)}>
-                  빈 도면에서 직접 그리기
-                </button>
-              </div>
-            </>
-          )}
+              );
+            })}
+            <button className="link-plain" onClick={startEmpty}>
+              빈 도면에서 시작
+            </button>
+          </div>
         </aside>
       </div>
     </div>

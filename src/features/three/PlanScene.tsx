@@ -905,6 +905,17 @@ export function PlanScene({
     <group>
       <LightRig plan={plan} viewer={viewer} setBackground={darkBackground} />
       <Floors plan={plan} />
+      {/* 방 없는 문서(언더레이 전용 등)도 최소한의 바닥을 제공 */}
+      {plan.rooms.length === 0 && (
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[planCenter(plan).x, -0.001, planCenter(plan).y]}
+          receiveShadow
+        >
+          <planeGeometry args={[40, 40]} />
+          <meshStandardMaterial color="#e8e2d6" roughness={0.95} />
+        </mesh>
+      )}
       <Walls plan={plan} />
       <Doors plan={plan} doorGroupRef={doorGroupRef} highlightOpeningId={highlightOpeningId} />
       {(plan.wallItems ?? []).map((wi) => (

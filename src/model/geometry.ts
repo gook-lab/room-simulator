@@ -144,6 +144,13 @@ export function planBounds(plan: Plan): { min: Vec2; max: Vec2 } {
     xs.push(w.a.x, w.b.x);
     ys.push(w.a.y, w.b.y);
   }
+  // 벽 없는 언더레이 문서(즉시 로드 업로드)는 밑그림 영역이 곧 도면 범위
+  if (xs.length === 0 && plan.tracing?.widthM && plan.tracing.heightM) {
+    return {
+      min: { x: 0, y: 0 },
+      max: { x: plan.tracing.widthM, y: plan.tracing.heightM },
+    };
+  }
   if (xs.length === 0) return { min: { x: 0, y: 0 }, max: { x: 10, y: 8 } };
   return {
     min: { x: Math.min(...xs), y: Math.min(...ys) },
