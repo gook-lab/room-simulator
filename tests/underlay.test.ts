@@ -100,3 +100,39 @@ describe('consolidateWalls (토막 병합·고아 제거)', () => {
     expect(out.some((w) => w.id === 'orphan')).toBe(false);
   });
 });
+
+describe('buildAutoGeometry — 개구부 부착·외곽 루프 보존', () => {
+  it('갭 개구부가 가장 가까운 벽에 문/창으로 부착된다', async () => {
+    const { buildAutoGeometry } = await import('../src/model/underlay');
+    let n = 0;
+    const r = buildAutoGeometry(
+      {
+        lines: [{ points: [{ x: 100, y: 200 }, { x: 500, y: 200 }] }],
+        outline: [
+          { x: 50, y: 50 },
+          { x: 600, y: 50 },
+          { x: 600, y: 400 },
+          { x: 50, y: 400 },
+        ],
+        regions: [],
+        gapOpenings: [
+          { center: { x: 300, y: 200 }, width: 60, exterior: false }, // 내벽 → 문
+          { center: { x: 300, y: 50 }, width: 80, exterior: true }, // 외곽 → 창
+        ],
+      },
+      780,
+      546,
+      15.6, // 50px = 1m
+      10.92,
+      () => `id${n++}`,
+    );
+    expect(r.openings).toHaveLength(2);
+    const door = r.openings.find((o) => o.kind === 'door')!;
+    const win = r.openings.find((o) => o.kind === 'window')!;
+    expect(door.width).toBeCloseTo(1.2, 1);
+    expect(win).toBeDefined();
+    // 외곽 벽 4변은 병합 없이 그대로 폐루프 유지
+    const exterior = r.walls.filter((w) => w.thickness > 0.18);
+    expect(exterior).toHaveLength(4);
+  });
+});

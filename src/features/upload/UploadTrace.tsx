@@ -97,7 +97,7 @@ export function UploadTrace() {
       // 스케일: 벽 픽셀 두께 기반 추정 (실패 시 폭 10m 가정)
       const size = underlaySize(w, h, trace.suggestedWidthM || DEFAULT_UNDERLAY_WIDTH_M);
       let seq = 0;
-      const { walls, rooms } = buildAutoGeometry(
+      const { walls, rooms, openings } = buildAutoGeometry(
         trace,
         srcW,
         srcH,
@@ -110,7 +110,7 @@ export function UploadTrace() {
         name,
         unitScale: 60,
         walls,
-        openings: [],
+        openings,
         rooms,
         items: [],
         tracing: {

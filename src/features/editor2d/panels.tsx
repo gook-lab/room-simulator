@@ -806,7 +806,7 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
     }
     let seq = 0;
     const stamp = Date.now().toString(36);
-    const { walls, rooms } = buildAutoGeometry(
+    const { walls, rooms, openings } = buildAutoGeometry(
       r,
       srcW,
       srcH,
@@ -819,9 +819,10 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
       ...pl,
       walls: [...pl.walls.filter((w) => !/-ad\d+$/.test(w.id)), ...walls],
       rooms: [...pl.rooms.filter((rm) => !/-ad\d+$/.test(rm.id)), ...rooms],
+      openings: [...pl.openings.filter((o) => !/-ad\d+$/.test(o.id)), ...openings],
     }));
     setStatus(
-      `벽 ${walls.length}개 · 공간 ${rooms.length}개 인식 — 필요 없으면 Cmd+Z`,
+      `벽 ${walls.length} · 공간 ${rooms.length} · 문/창 ${openings.length} 인식 — 필요 없으면 Cmd+Z`,
     );
     setDetecting(false);
   };

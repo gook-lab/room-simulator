@@ -281,6 +281,53 @@ export function traceRegionPolygon(
   return poly;
 }
 
+/* ===== 개구부(문·창) 검출 — 벽 선 위의 밝은 갭 ===== */
+
+/**
+ * 벽 선분을 따라가며 원본 래스터의 "밝은 갭"을 찾는다.
+ * 선 검출이 gap 이음으로 개구부를 관통해 벽을 만들었으므로, 그 갭 구간이
+ * 곧 문(내벽)·창(외벽) 후보다. band 는 벽 두께 절반+여유 — 문짝 호 등
+ * 주변 심볼에 걸리지 않게 좁게 잡는다.
+ */
+export function findGapsAlongLine(
+  isDark: (x: number, y: number) => boolean,
+  a: Vec2,
+  b: Vec2,
+  opts: { band: number; minGap: number; maxGap: number },
+): { center: Vec2; width: number }[] {
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  if (len < 1) return [];
+  const ux = (b.x - a.x) / len;
+  const uy = (b.y - a.y) / len;
+  const nx = -uy;
+  const ny = ux;
+  const darkAt = (t: number): boolean => {
+    const cx = a.x + ux * t;
+    const cy = a.y + uy * t;
+    for (let o = -opts.band; o <= opts.band; o++) {
+      if (isDark(Math.round(cx + nx * o), Math.round(cy + ny * o))) return true;
+    }
+    return false;
+  };
+  const out: { center: Vec2; width: number }[] = [];
+  let gapStart = -1;
+  for (let t = 0; t <= len; t++) {
+    const dark = darkAt(t);
+    if (!dark && gapStart < 0) gapStart = t;
+    if ((dark || t >= len) && gapStart >= 0) {
+      const gapEnd = t;
+      const width = gapEnd - gapStart;
+      // 선분 끝의 갭(코너 접합부)은 제외 — 내부 갭만 개구부 후보
+      if (width >= opts.minGap && width <= opts.maxGap && gapStart > 2 && gapEnd < len - 2) {
+        const mid = (gapStart + gapEnd) / 2;
+        out.push({ center: { x: a.x + ux * mid, y: a.y + uy * mid }, width });
+      }
+      gapStart = -1;
+    }
+  }
+  return out;
+}
+
 /* ===== 스케일 추정 — 벽 픽셀 두께 기반 ===== */
 
 /**

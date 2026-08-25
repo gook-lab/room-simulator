@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { closeOutline, detectEnclosedRegions, detectSegments, mergeParallel, rasterizeSegments, scanRuns } from '../src/features/upload/wallDetect';
+import { closeOutline, detectEnclosedRegions, detectSegments, findGapsAlongLine, mergeParallel, rasterizeSegments, scanRuns } from '../src/features/upload/wallDetect';
 
 /** 문자열 아트로 이진 격자 생성 ('#'=어두움) */
 function gridOf(rows: string[]): { grid: Uint8Array; w: number; h: number } {
@@ -131,5 +131,34 @@ describe('외곽 폐합 + 닫힌 공간 검출', () => {
     // 내부 bbox 는 벽 안쪽
     expect(regions[0].min.x).toBeGreaterThan(2);
     expect(regions[0].max.x).toBeLessThan(22);
+  });
+});
+
+describe('개구부 검출 (findGapsAlongLine)', () => {
+  it('벽 선 위 밝은 갭을 개구부로, 끝단 갭·과대 갭은 제외', () => {
+    // 가로 벽 y=5, x 0..60 — x 20~28 문 갭, x 45~47 미세 갭(minGap 미달)
+    const isDark = (x: number, y: number) =>
+      Math.abs(y - 5) <= 1 && x >= 0 && x <= 60 && !(x >= 20 && x < 28) && !(x >= 45 && x < 47);
+    const gaps = findGapsAlongLine(isDark, { x: 0, y: 5 }, { x: 60, y: 5 }, {
+      band: 1,
+      minGap: 5,
+      maxGap: 15,
+    });
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].center.x).toBeGreaterThan(21);
+    expect(gaps[0].center.x).toBeLessThan(27);
+    expect(gaps[0].width).toBeGreaterThanOrEqual(6);
+  });
+
+  it('갭 없는 벽·전부 밝은 선은 개구부 없음', () => {
+    const solid = (x: number, y: number) => Math.abs(y - 3) <= 1 && x >= 0 && x <= 40;
+    expect(
+      findGapsAlongLine(solid, { x: 0, y: 3 }, { x: 40, y: 3 }, { band: 1, minGap: 5, maxGap: 15 }),
+    ).toHaveLength(0);
+    const empty = () => false;
+    // 전부 갭 = 끝단 접합 갭 취급이라 제외 (maxGap 로도 걸러짐)
+    expect(
+      findGapsAlongLine(empty, { x: 0, y: 3 }, { x: 40, y: 3 }, { band: 1, minGap: 5, maxGap: 15 }),
+    ).toHaveLength(0);
   });
 });

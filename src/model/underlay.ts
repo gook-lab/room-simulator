@@ -1,4 +1,4 @@
-import type { Plan, Room, Tracing, Vec2, Wall } from './types';
+import type { Opening, Plan, Room, Tracing, Vec2, Wall } from './types';
 
 /**
  * 업로드 언더레이(밑그림) 헬퍼 — "넣는 대로 즉시 로드" 경로의 순수 계산.
@@ -266,21 +266,63 @@ export function buildAutoGeometry(
     lines: { points: Vec2[] }[];
     outline: Vec2[];
     regions: Parameters<typeof regionsToRooms>[0];
+    gapOpenings?: { center: Vec2; width: number; exterior: boolean }[];
   },
   srcW: number,
   srcH: number,
   widthM: number,
   heightM: number,
   makeId: () => string,
-): { walls: Wall[]; rooms: Room[] } {
+): { walls: Wall[]; rooms: Room[]; openings: Opening[] } {
   const interior = linesToWalls(trace.lines, srcW, srcH, widthM, heightM, makeId, 0.15);
+  // 외곽 벽은 이미 닫힌 폐루프 — 병합 대상에서 제외해 루프 연속성을 보존한다
   const outline = outlineToWalls(trace.outline, srcW, srcH, widthM, heightM, makeId, 0.2);
-  const walls = consolidateWalls([...outline, ...interior], {
-    axisTol: 0.08,
-    gapMax: 0.8,
-    minLen: 0.4,
-    joinTol: 0.2,
-  });
+  const walls = [
+    ...outline,
+    ...consolidateWalls(interior, {
+      axisTol: 0.08,
+      gapMax: 0.8,
+      minLen: 0.4,
+      joinTol: 0.2,
+    }),
+  ];
   const rooms = regionsToRooms(trace.regions, srcW, srcH, widthM, heightM, makeId);
-  return { walls, rooms };
+
+  // 개구부: 벽 선 위 밝은 갭 → 가장 가까운 최종 벽에 부착 (내벽=문, 외벽=창)
+  const sx = widthM / srcW;
+  const sy = heightM / srcH;
+  const openings: Opening[] = [];
+  for (const g of trace.gapOpenings ?? []) {
+    const p = { x: g.center.x * sx, y: g.center.y * sy };
+    const widthWorld = Math.min(1.2, Math.max(0.6, g.width * sx));
+    let best: { wall: Wall; t: number; d: number } | null = null;
+    for (const w of walls) {
+      const dx = w.b.x - w.a.x;
+      const dy = w.b.y - w.a.y;
+      const len2 = dx * dx + dy * dy;
+      if (len2 < 1e-9) continue;
+      const t = Math.max(0, Math.min(1, ((p.x - w.a.x) * dx + (p.y - w.a.y) * dy) / len2));
+      const d = Math.hypot(w.a.x + dx * t - p.x, w.a.y + dy * t - p.y);
+      if (d < 0.3 && (!best || d < best.d)) best = { wall: w, t, d };
+    }
+    if (!best) continue;
+    const wallLen = Math.hypot(best.wall.b.x - best.wall.a.x, best.wall.b.y - best.wall.a.y);
+    if (wallLen <= widthWorld + 0.2) continue; // 개구부보다 짧은 벽은 스킵
+    const halfT = widthWorld / 2 / wallLen;
+    const t = Math.min(1 - halfT, Math.max(halfT, best.t));
+    // 같은 벽 위 근접 중복 제거
+    const dup = openings.some(
+      (o) => o.wallId === best!.wall.id && Math.abs(o.t - t) * wallLen < widthWorld * 0.8,
+    );
+    if (dup) continue;
+    openings.push({
+      id: makeId(),
+      wallId: best.wall.id,
+      t,
+      width: Number(widthWorld.toFixed(2)),
+      kind: g.exterior ? 'window' : 'door',
+      swing: g.exterior ? undefined : 'left',
+    });
+  }
+  return { walls, rooms, openings };
 }

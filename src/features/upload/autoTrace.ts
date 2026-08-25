@@ -2,6 +2,7 @@ import {
   detectEnclosedRegions,
   detectSegments,
   estimateWallThickness,
+  findGapsAlongLine,
   footprintOutline,
   rasterizeSegments,
   silhouetteMask,
@@ -24,6 +25,8 @@ export type AutoTraceResult = {
   outline: { x: number; y: number }[];
   /** 벽 픽셀 두께 기반 추정 실세계 폭 (m) — 추정 불가 시 0 */
   suggestedWidthM: number;
+  /** 벽 선 위 밝은 갭 = 개구부 후보 (px 좌표, exterior=외곽 벽 위) */
+  gapOpenings: { center: { x: number; y: number }; width: number; exterior: boolean }[];
   /** 닫힌 공간 후보 (검출 캔버스 px 좌표, cellPx=격자 셀 크기) */
   regions: {
     min: { x: number; y: number };
@@ -55,6 +58,7 @@ export function autoTraceImage(
       wallCount: 0,
       outline: [],
       suggestedWidthM: 0,
+      gapOpenings: [],
       regions: [],
     };
     const img = new Image();
@@ -195,11 +199,34 @@ export function autoTraceImage(
           ...l,
           points: l.points.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
         }));
+        const outlinePx = outlineGrid.map((p) => ({ x: p.x * STEP, y: p.y * STEP }));
+        // ── 개구부(문·창): 벽 선 위 밝은 갭 스캔 (원본 해상도, 문 0.5~1.4m 상당)
+        const mPerPx = widthM / paperW;
+        const gapBand = Math.max(2, Math.round(thicknessPx / 2) + 1);
+        const gapOpts = {
+          band: gapBand,
+          minGap: Math.max(6, Math.round(0.5 / mPerPx)),
+          maxGap: Math.round(1.4 / mPerPx),
+        };
+        const gapOpenings: { center: { x: number; y: number }; width: number; exterior: boolean }[] = [];
+        for (const l of lines) {
+          for (const g of findGapsAlongLine(isDarkPx, l.points[0], l.points[1], gapOpts)) {
+            gapOpenings.push({ ...g, exterior: false });
+          }
+        }
+        for (let i = 0; i < outlinePx.length; i++) {
+          const a = outlinePx[i];
+          const b = outlinePx[(i + 1) % outlinePx.length];
+          for (const g of findGapsAlongLine(isDarkPx, a, b, gapOpts)) {
+            gapOpenings.push({ ...g, exterior: true });
+          }
+        }
         resolve({
           lines,
           wallCount: lines.length,
-          outline: outlineGrid.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
+          outline: outlinePx,
           suggestedWidthM,
+          gapOpenings,
           regions,
         });
       } catch {
