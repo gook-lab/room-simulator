@@ -11,11 +11,13 @@ export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
   rug: '러그',
   kids: '아이방',
   decor: '소품',
+  structure: '구조',
 };
 
 export const CATEGORY_ORDER: CatalogCategory[] = [
   'sofa',
   'table',
+  'structure',
   'bed',
   'storage',
   'appliance',
@@ -929,7 +931,7 @@ export const CATALOG: CatalogItem[] = [
     id: 'stairs-straight',
     name: '직진 계단',
     keywords: ['계단', '층계'],
-    category: 'decor',
+    category: 'structure',
     shape: 'stairs',
     size: { w: 0.9, d: 3.0, h: 2.4 },
     price: 2_900_000,
@@ -940,7 +942,7 @@ export const CATALOG: CatalogItem[] = [
     id: 'stairs-l',
     name: 'L자 계단',
     keywords: ['계단', '층계'],
-    category: 'decor',
+    category: 'structure',
     shape: 'stairs',
     size: { w: 1.8, d: 1.8, h: 2.4 },
     price: 3_400_000,

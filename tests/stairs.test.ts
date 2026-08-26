@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { catalogById, searchCatalog } from '../src/model/catalog';
+import { CATEGORY_ORDER, catalogById, searchCatalog } from '../src/model/catalog';
 import { NON_COLLIDING_SHAPES } from '../src/features/editor2d/symbols';
 import { useStore } from '../src/state/store';
 
@@ -32,5 +32,13 @@ describe('계단 (수동 배치 + 층 전환)', () => {
     expect(after.view).toBe('walkthrough'); // 화면 유지
     expect(after.walkthroughSpawn).toBeNull();
     useStore.getState().setView('2d');
+  });
+});
+
+describe('계단 발견성 — 구조 카테고리', () => {
+  it("계단 2종은 category 'structure' 이고, '구조' 탭은 pill 순서 앞쪽(3번째)", () => {
+    expect(catalogById.get('stairs-straight')?.category).toBe('structure');
+    expect(catalogById.get('stairs-l')?.category).toBe('structure');
+    expect(CATEGORY_ORDER[2]).toBe('structure');
   });
 });

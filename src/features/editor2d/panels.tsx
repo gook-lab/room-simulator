@@ -348,7 +348,8 @@ export function FloorAlignPanel({
         ))}
       </div>
       <span className="inspector__swatch-label">
-        이동은 문서 전체(벽·가구·밑그림)에 적용되고 undo 대상입니다
+        이동은 문서 전체(벽·가구·밑그림)에 적용되고 undo 대상입니다. 계단(카탈로그 '구조'
+        탭)을 배치하면 워크스루에서 층을 오갈 수 있습니다.
       </span>
     </aside>
   );

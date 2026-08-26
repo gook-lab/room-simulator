@@ -420,6 +420,16 @@ export function Walkthrough() {
           <span />
         </div>
 
+        {/* 다층인데 이 층에 계단이 없으면: 층 이동 수단 안내 (계단↔층 이동 연결의 유일한 학습 접점) */}
+        {locked &&
+          stairsTarget &&
+          !editItemId &&
+          !plan.items.some((i) => catalogById.get(i.catalogId)?.shape === 'stairs') && (
+            <div className="wt-stairs-hint">
+              {stairsTarget.floorLabel ?? '다른 층'}으로 가려면 2D 에디터에서 계단을
+              배치하세요 — 카탈로그 '구조' 탭
+            </div>
+          )}
         {locked && gazeItem && gazeCat && !editItemId && (
           <div className="gaze-chip">
             <span className="gaze-chip__name">{gazeCat.name}</span>
