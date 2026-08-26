@@ -38,8 +38,6 @@ export function Dashboard() {
   const deletePlan = useStore((s) => s.deleteFloor); // 층 문서는 해당 층만 삭제 (마지막 문서 보호)
   const renamePlan = useStore((s) => s.renamePlan);
   const duplicatePlan = useStore((s) => s.duplicatePlan);
-  const [shareViewers3d, setShareViewers3d] = useState(true);
-  const [copied, setCopied] = useState(false);
   const [listCopied, setListCopied] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -163,20 +161,6 @@ export function Dashboard() {
       // clipboard 권한 없음 — 무시
     }
   };
-  const shareUrl = estimatePlan
-    ? `room-simulator.app/p/${estimatePlan.id.replace('plan-', '')}-${shareViewers3d ? '3d' : 'ro'}`
-    : '';
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(`https://${shareUrl}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // clipboard 권한 없음 — 무시
-    }
-  };
-
   return (
     <div className="dashboard">
       <header className="dashboard__topbar">
@@ -341,20 +325,18 @@ export function Dashboard() {
 
           <div className="share-card">
             <div className="share-card__title">공유</div>
-            <div className="share-link">
-              <span className="share-link__url">{shareUrl}</span>
-              <button className="share-link__copy" onClick={copyLink}>
-                {copied ? '복사됨' : '복사'}
-              </button>
+            {/* 링크 공유는 백엔드가 없어 아직 실동작하지 않음 — 가짜 URL 대신 정직하게 안내 */}
+            <div className="share-card__pending">
+              링크 공유는 준비 중입니다. 지금은 JSON 파일로 도면을 전달할 수 있어요 — 받은
+              사람이 「JSON 가져오기」로 열면 됩니다.
             </div>
-            <div className="share-toggle">
-              <span>보는 사람도 3D 이동 가능</span>
-              <button
-                className={`toggle${shareViewers3d ? ' is-on' : ''}`}
-                aria-pressed={shareViewers3d}
-                onClick={() => setShareViewers3d((v) => !v)}
-              />
-            </div>
+            <button
+              className="btn btn--outline"
+              onClick={() => estimatePlan && downloadJson(estimatePlan)}
+              disabled={!estimatePlan}
+            >
+              JSON 내보내기로 공유
+            </button>
           </div>
 
           <div className="share-card">

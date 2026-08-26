@@ -133,7 +133,8 @@ export type CatalogCategory =
   | 'lighting'
   | 'rug'
   | 'kids'
-  | 'decor';
+  | 'decor'
+  | 'structure';
 
 /** 2D 심볼 / 3D 프리미티브 선택용 형태 힌트 */
 export type CatalogShape =

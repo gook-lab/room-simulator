@@ -445,3 +445,19 @@
   font-weight: 600;
   color: var(--hud-text-2);
 }
+
+/* 다층 문서에서 계단 미배치 안내 */
+.wt-stairs-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  background: rgba(20, 26, 23, 0.82);
+  color: #f2efe9;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+}

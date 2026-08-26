@@ -465,3 +465,11 @@
 .snackbar button:hover {
   color: #a8ecd0;
 }
+
+.share-card__pending {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
