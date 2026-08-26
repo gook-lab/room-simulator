@@ -148,10 +148,51 @@
   letter-spacing: 0.04em;
 }
 
+/* ---- 카탈로그 검색 ---- */
+.catalog-search {
+  padding: 0 16px 10px;
+}
+
+.catalog-search__input {
+  width: 100%;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-field);
+  background: var(--inset-a);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.catalog-search__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.catalog-search__input::placeholder {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.catalog-empty {
+  grid-column: 1 / -1;
+  padding: 18px 0 10px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 /* ---- 인스펙터 ---- */
 .inspector {
   right: var(--panel-margin);
   bottom: var(--panel-bottom);
+  /* 카탈로그(상단)와 겹치지 않도록 높이 제한 + 내부 스크롤 */
+  max-height: min(44vh, 420px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  overscroll-behavior: contain;
 }
 
 .inspector__grid {
@@ -412,4 +453,220 @@
   font-size: 12px;
   padding: 7px 12px;
   box-shadow: var(--shadow-dock);
+}
+
+/* ---- 인스펙터 검증 경고 ---- */
+.inspector__warn {
+  margin: 0 16px 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--warn-deep);
+  background: var(--warn-tint);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+}
+
+/* ---- 도구 미스 클릭 안내 ---- */
+.miss-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #f7f4ef;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 9px;
+  box-shadow: var(--shadow-dock);
+  z-index: 12;
+  pointer-events: none;
+}
+
+/* ---- 표면 적층 ---- */
+.inspector__mount-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 16px 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-deep);
+  background: var(--accent-tint);
+  border-radius: 8px;
+}
+
+.inspector__mount-row .btn {
+  font-size: 11px;
+  padding: 5px 9px;
+  flex: none;
+}
+
+/* ---- 상품 연동 ---- */
+.catalog-item__price {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-deep);
+}
+
+.catalog-item__link {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.catalog-item__link:hover {
+  color: var(--accent-deep);
+}
+
+.inspector__product-link {
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-tint);
+  padding: 3px 7px;
+  border-radius: 5px;
+  text-decoration: none;
+}
+
+.inspector__product-link:hover {
+  color: var(--accent-deep);
+}
+
+/* ---- 밑그림(언더레이) 패널 + 스케일 보정 ---- */
+.underlay-panel {
+  left: 20px;
+  bottom: 84px;
+  width: 218px;
+  padding-bottom: 12px;
+}
+
+.underlay-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.underlay-panel__row .slider {
+  flex: 1;
+}
+
+.underlay-panel__actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px;
+}
+
+.underlay-panel__actions .btn {
+  flex: 1;
+  font-size: 11px;
+  padding: 7px 6px;
+}
+
+.underlay-panel__status {
+  padding: 8px 16px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-deep);
+  line-height: 1.5;
+}
+
+.scale-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 14;
+}
+
+.scale-input-chip {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-dock);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 15;
+}
+
+.scale-input-chip input {
+  width: 58px;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.scale-input-chip .btn {
+  font-size: 11px;
+  padding: 5px 9px;
+}
+
+.underlay-panel__status--muted {
+  color: var(--text-muted);
+}
+
+/* ---- 방 이름 인라인 편집 ---- */
+.inspector__title-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  padding: 2px 4px;
+  margin-left: -4px;
+  border-radius: 6px;
+}
+
+.inspector__title-input:hover {
+  background: var(--inset-a);
+}
+
+.inspector__title-input:focus {
+  outline: none;
+  background: var(--inset-a);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+/* ---- 층 정렬 패널 ---- */
+.floor-align-panel {
+  position: absolute;
+  left: 20px;
+  right: auto;
+  bottom: 268px; /* 밑그림 패널 위에 쌓임 (같은 좌하단 도크) */
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.floor-align-panel__nudge {
+  display: flex;
+  gap: 6px;
+}
+
+.floor-align-panel__nudge .btn {
+  flex: 1;
+  padding: 6px 0;
 }

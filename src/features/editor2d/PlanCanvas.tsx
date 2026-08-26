@@ -11,6 +11,7 @@ import { doorZones } from '../../model/doorZones';
 import { floorColor2d } from '../../model/finishes';
 import { itemAabb, planBounds, wallPointAt } from '../../model/geometry';
 import { FurnitureSymbol, shapeOf } from './symbols';
+import type { DragOriginPoses } from './dragPreview';
 import { w2s, type ViewTransform } from './view';
 
 export type WallDraft = { points: Vec2[]; cursor: Vec2 | null };
@@ -95,7 +96,46 @@ export function WallItemGlyph({
 }
 export type OpeningHover = { wallId: string; t: number; kind: 'door' | 'window' };
 export type Measure = { a: Vec2; b: Vec2 };
-export type PlacingGhost = { catalogId: string; pos: Vec2; valid: boolean };
+export type PlacingGhost = {
+  catalogId: string;
+  pos: Vec2;
+  valid: boolean;
+  /** 표면 적층: 올려놓을 대상 표면 가구 id (하이라이트) */
+  surfaceTargetId?: string;
+};
+
+/** 표면 대상 가구 외곽 하이라이트 (드래그·배치 공용) */
+function SurfaceTargetOutline({
+  plan,
+  id,
+  t,
+  invalid,
+}: {
+  plan: Plan;
+  id: string;
+  t: ViewTransform;
+  invalid: boolean;
+}) {
+  const parent = plan.items.find((i) => i.id === id);
+  if (!parent) return null;
+  return (
+    <g
+      transform={`translate(${parent.position.x * t.s + t.ox} ${parent.position.y * t.s + t.oy}) rotate(${parent.rotationDeg}) scale(${t.s})`}
+    >
+      <rect
+        x={-parent.size.w / 2}
+        y={-parent.size.d / 2}
+        width={parent.size.w}
+        height={parent.size.d}
+        fill={invalid ? '#e8590c' : '#0e9f6e'}
+        opacity={0.1}
+        stroke={invalid ? '#e8590c' : '#0e9f6e'}
+        strokeWidth={2}
+        {...NSS}
+      />
+    </g>
+  );
+}
 
 export type PlanCanvasProps = {
   plan: Plan;
@@ -113,6 +153,12 @@ export type PlanCanvasProps = {
   wallItemGhost: WallItemGhost;
   rotatingItemId: string | null;
   resizingItemId: string | null;
+  /** 미리보기=커밋 계약 — 드래그 원본 잔상 (제스처 시작 스냅샷 포즈) */
+  dragOrigin?: DragOriginPoses | null;
+  /** 회전 프리뷰 HUD — 스냅 적용된 라이브 각도 */
+  rotateHud?: { itemId: string; deg: number } | null;
+  /** 층 정렬 — 아래층 고스트 (벽·룸 반투명, 비인터랙티브) */
+  ghostPlan?: Plan | null;
   svgRef: React.RefObject<SVGSVGElement>;
   onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => void;
   onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => void;
@@ -120,8 +166,9 @@ export type PlanCanvasProps = {
   cursor: string;
 };
 
-/** 아이템 z-레이어: 러그 < 가구 < 조명 */
+/** 아이템 z-레이어: 러그 < 가구 < 조명 < 표면 위 자식 */
 export function itemLayer(item: PlacedItem): number {
+  if (item.parentId) return 3; // 표면 위 자식은 항상 부모 위에 그린다 (클릭도 자식 우선)
   const shape = shapeOf(item.catalogId);
   if (shape === 'rug') return 0;
   if (shape === 'floor-lamp' || shape === 'pendant-lamp') return 2;
@@ -421,6 +468,53 @@ function SelectionUI({ item, t }: { item: PlacedItem; t: ViewTransform }) {
   );
 }
 
+/**
+ * 미리보기=커밋 계약 — 원본 잔상.
+ * 드래그 중 라이브 상태(스냅 반영)가 프리뷰이고, 원래 있던 자리는 여기서
+ * 반투명 심볼 + 점선 외곽으로 남긴다. 벽 드래그는 원래 벽 선을 점선으로.
+ */
+function DragOriginGhost({ origin, t }: { origin: DragOriginPoses; t: ViewTransform }) {
+  return (
+    <g pointerEvents="none">
+      {origin.walls.map((w) => (
+        <line
+          key={`ow-${w.id}`}
+          x1={w.a.x * t.s + t.ox}
+          y1={w.a.y * t.s + t.oy}
+          x2={w.b.x * t.s + t.ox}
+          y2={w.b.y * t.s + t.oy}
+          stroke="#17201c"
+          strokeWidth={Math.max(2, w.thickness * t.s * 0.6)}
+          strokeDasharray="7 6"
+          opacity={0.3}
+          strokeLinecap="round"
+        />
+      ))}
+      {origin.items.map((item) => (
+        <g
+          key={`oi-${item.id}`}
+          transform={`translate(${item.position.x * t.s + t.ox} ${item.position.y * t.s + t.oy}) rotate(${item.rotationDeg}) scale(${t.s})`}
+        >
+          <g opacity={0.28}>
+            <FurnitureSymbol item={item} />
+          </g>
+          <rect
+            x={-item.size.w / 2}
+            y={-item.size.d / 2}
+            width={item.size.w}
+            height={item.size.d}
+            fill="none"
+            stroke="#8a938d"
+            strokeWidth={1.5}
+            strokeDasharray="5 5"
+            {...NSS}
+          />
+        </g>
+      ))}
+    </g>
+  );
+}
+
 function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTransform }) {
   const item = plan.items.find((i) => i.id === drag.itemId);
   if (!item) return null;
@@ -429,10 +523,20 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
   const cm = (v: number) => Math.round(v * 100);
   const colliding = drag.collisions.length > 0;
   const doorBlocked = drag.blockedDoors.length > 0;
-  const warn = colliding || doorBlocked;
+  const onSurface = drag.surfaceTargetId != null;
+  const warn = colliding || doorBlocked || drag.surfaceInvalid === true;
 
   return (
     <g>
+      {/* 표면 적층: 드롭 대상 표면 하이라이트 */}
+      {onSurface && (
+        <SurfaceTargetOutline
+          plan={plan}
+          id={drag.surfaceTargetId!}
+          t={t}
+          invalid={drag.surfaceInvalid === true}
+        />
+      )}
       {/* 침범 중인 문 클리어런스 존 */}
       {doorBlocked &&
         doorZones(plan)
@@ -457,6 +561,34 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
       {drag.snap && (
         <SnapGuides plan={plan} item={item} t={t} snap={drag.snap} />
       )}
+      {/* 정렬 가이드 — 다른 가구의 엣지/센터와 수평·수직 정렬 (accent 얇은 선) */}
+      {drag.alignGuides?.map((g, i) =>
+        g.axis === 'x' ? (
+          <line
+            key={`ag-${i}`}
+            x1={g.line * t.s + t.ox}
+            y1={g.from * t.s + t.oy}
+            x2={g.line * t.s + t.ox}
+            y2={g.to * t.s + t.oy}
+            stroke="#0e9f6e"
+            strokeWidth={1.2}
+            strokeDasharray="4 3"
+            {...NSS}
+          />
+        ) : (
+          <line
+            key={`ag-${i}`}
+            x1={g.from * t.s + t.ox}
+            y1={g.line * t.s + t.oy}
+            x2={g.to * t.s + t.ox}
+            y2={g.line * t.s + t.oy}
+            stroke="#0e9f6e"
+            strokeWidth={1.2}
+            strokeDasharray="4 3"
+            {...NSS}
+          />
+        ),
+      )}
       {/* 고스트 외곽 dashed (1c-1) / 충돌 시 warn (1c-4) */}
       <g transform={`translate(${item.position.x * t.s + t.ox} ${item.position.y * t.s + t.oy}) rotate(${item.rotationDeg}) scale(${t.s})`}>
         <rect
@@ -473,7 +605,19 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
         />
       </g>
       {/* 치수/충돌/문 경고 칩 */}
-      {colliding ? (
+      {onSurface ? (
+        <ScreenChip
+          x={topCenter.x}
+          y={topCenter.y - 20}
+          text={
+            drag.surfaceInvalid
+              ? '상판 밖이거나 다른 물건과 겹칩니다'
+              : `${catalogById.get(plan.items.find((i) => i.id === drag.surfaceTargetId)?.catalogId ?? '')?.name ?? '가구'} 위에 올려놓기`
+          }
+          bg={drag.surfaceInvalid ? '#e8590c' : '#0e9f6e'}
+          mono={false}
+        />
+      ) : colliding ? (
         <ScreenChip
           x={topCenter.x}
           y={topCenter.y - 20}
@@ -749,7 +893,15 @@ function MeasureOverlay({ measure, t }: { measure: Measure; t: ViewTransform }) 
   );
 }
 
-function PlacingGhostPreview({ ghost, t }: { ghost: PlacingGhost; t: ViewTransform }) {
+function PlacingGhostPreview({
+  ghost,
+  t,
+  plan,
+}: {
+  ghost: PlacingGhost;
+  t: ViewTransform;
+  plan: Plan;
+}) {
   const cat = catalogById.get(ghost.catalogId);
   if (!cat) return null;
   const cm = (v: number) => Math.round(v * 100);
@@ -766,6 +918,14 @@ function PlacingGhostPreview({ ghost, t }: { ghost: PlacingGhost; t: ViewTransfo
   const p = w2s(t, ghost.pos);
   return (
     <g>
+      {ghost.surfaceTargetId && (
+        <SurfaceTargetOutline
+          plan={plan}
+          id={ghost.surfaceTargetId}
+          t={t}
+          invalid={!ghost.valid}
+        />
+      )}
       <g
         transform={`translate(${p.x} ${p.y}) scale(${t.s})`}
         opacity={0.45}
@@ -791,7 +951,7 @@ function PlacingGhostPreview({ ghost, t }: { ghost: PlacingGhost; t: ViewTransfo
 }
 
 export function PlanCanvas(props: PlanCanvasProps) {
-  const { plan, t, viewport, selection, hoverItemId, drag } = props;
+  const { plan, t, viewport, selection, hoverItemId, drag, ghostPlan } = props;
   const items = sortedItems(plan);
   const selectedItems = plan.items.filter((i) => selection.includes(i.id));
 
@@ -824,19 +984,44 @@ export function PlanCanvas(props: PlanCanvasProps) {
               key={`sel-${r.id}`}
               points={r.polygon.map((p) => `${p.x},${p.y}`).join(' ')}
               fill="#0e9f6e"
-              opacity={0.06}
+              opacity={0.03}
               stroke="#0e9f6e"
               strokeWidth={2}
               strokeDasharray="8 5"
               {...NSS}
             />
           ))}
+        {/* 층 정렬 — 아래층 고스트 (최하단, 비인터랙티브) */}
+        {ghostPlan && (
+          <g opacity={0.35} pointerEvents="none">
+            {ghostPlan.rooms.map((r) => (
+              <polygon
+                key={`gh-r-${r.id}`}
+                points={r.polygon.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill="#8d95a1"
+                opacity={0.15}
+              />
+            ))}
+            {ghostPlan.walls.map((w) => (
+              <line
+                key={`gh-w-${w.id}`}
+                x1={w.a.x}
+                y1={w.a.y}
+                x2={w.b.x}
+                y2={w.b.y}
+                stroke="#8d95a1"
+                strokeWidth={w.thickness}
+                strokeLinecap="square"
+              />
+            ))}
+          </g>
+        )}
         {/* 트레이싱 원본 */}
         {plan.tracing?.visible && plan.tracing.widthM != null && (
           <image
             href={plan.tracing.imageUrl}
-            x={0}
-            y={0}
+            x={plan.tracing.offset?.x ?? 0}
+            y={plan.tracing.offset?.y ?? 0}
             width={plan.tracing.widthM}
             height={plan.tracing.heightM}
             opacity={plan.tracing.opacity}
@@ -968,7 +1153,22 @@ export function PlanCanvas(props: PlanCanvasProps) {
       <RoomLabels plan={plan} t={t} />
       <BoundsDimensions plan={plan} t={t} />
       <DimensionNotes plan={plan} t={t} selection={selection} />
+      {props.dragOrigin && <DragOriginGhost origin={props.dragOrigin} t={t} />}
       {drag && <DragOverlay plan={plan} drag={drag} t={t} />}
+      {props.rotateHud &&
+        (() => {
+          const it = plan.items.find((i) => i.id === props.rotateHud!.itemId);
+          if (!it) return null;
+          const top = w2s(t, { x: it.position.x, y: itemAabb(it).min.y });
+          return (
+            <ScreenChip
+              x={top.x}
+              y={top.y - 34}
+              text={`${props.rotateHud!.deg}°`}
+              bg="#17201c"
+            />
+          );
+        })()}
       {props.rotatingItemId &&
         (() => {
           const it = plan.items.find((i) => i.id === props.rotatingItemId);
@@ -1013,7 +1213,9 @@ export function PlanCanvas(props: PlanCanvasProps) {
             />
           );
         })()}
-      {props.placingGhost && <PlacingGhostPreview ghost={props.placingGhost} t={t} />}
+      {props.placingGhost && (
+        <PlacingGhostPreview ghost={props.placingGhost} t={t} plan={plan} />
+      )}
     </svg>
   );
 }

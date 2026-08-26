@@ -5,6 +5,7 @@ import type { Opening, PlacedItem, Plan, ViewerState, Wall } from '../../model/t
 import { catalogById } from '../../model/catalog';
 import { DEFAULT_WALL_3D, floorColor3d, wallFaceColors } from '../../model/finishes';
 import { isDoorOpen, isPowered } from '../../model/interactions3d';
+import { mountBaseHeight } from '../../model/surfaces';
 import { darken, lampPartColors, lighten } from '../editor2d/symbols';
 import { LIGHT_PRESETS } from './lighting';
 import { DOOR_HEIGHT, planCenter, wallBoxes, wallLength } from './wallGeometry';
@@ -130,7 +131,8 @@ function Walls({ plan }: { plan: Plan }) {
 function Ceiling({ plan }: { plan: Plan }) {
   const shapes = useMemo(
     () =>
-      plan.rooms.map((r) => {
+      // 오픈 천장(보이드) 룸은 천장을 그리지 않는다 — 위층까지 뚫린 공간
+      plan.rooms.filter((r) => !r.openCeiling).map((r) => {
         const shape = new THREE.Shape();
         r.polygon.forEach((p, i) => {
           if (i === 0) shape.moveTo(p.x, p.y);
@@ -141,11 +143,19 @@ function Ceiling({ plan }: { plan: Plan }) {
       }),
     [plan.rooms],
   );
-  const height = plan.walls[0]?.height ?? 2.4;
+  // 룸별 천장 높이 = 그 룸 벽들의 최대 높이 (낮은 파티션이 천장을 끌어내리지 않도록 max)
+  const fallbackH = plan.defaultWallHeight ?? 2.4;
+  const heightFor = (roomId: string) => {
+    const room = plan.rooms.find((r) => r.id === roomId);
+    const hs = (room?.wallIds ?? [])
+      .map((wid) => plan.walls.find((w) => w.id === wid)?.height)
+      .filter((h): h is number => h != null);
+    return hs.length > 0 ? Math.max(...hs) : fallbackH;
+  };
   return (
     <group>
       {shapes.map(({ id, shape }) => (
-        <mesh key={id} rotation={[Math.PI / 2, 0, 0]} position={[0, height, 0]}>
+        <mesh key={id} rotation={[Math.PI / 2, 0, 0]} position={[0, heightFor(id), 0]}>
           <shapeGeometry args={[shape]} />
           <meshStandardMaterial color={CEILING_COLOR} roughness={0.95} side={THREE.DoubleSide} />
         </mesh>
@@ -329,6 +339,21 @@ function WallItemMesh({ plan, id }: { plan: Plan; id: string }) {
         </group>
       );
       break;
+    case 'wall-ac':
+      // 벽걸이 에어컨 — 본체 박스 + 하단 송풍구 슬릿
+      body = (
+        <group>
+          <mesh castShadow>
+            <boxGeometry args={[w, h, d]} />
+            <meshStandardMaterial color={c} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, -h / 2 + 0.035, d / 2 + 0.002]}>
+            <planeGeometry args={[w - 0.12, 0.045]} />
+            <meshStandardMaterial color={darken(c, 0.3)} roughness={0.6} />
+          </mesh>
+        </group>
+      );
+      break;
     default: // frame
       body = (
         <group>
@@ -386,10 +411,13 @@ function FurnitureMesh({
   item,
   lampIntensity,
   highlighted = false,
+  baseY = 0,
 }: {
   item: PlacedItem;
   lampIntensity: number;
   highlighted?: boolean;
+  /** 표면 적층: 부모 상판 높이 (자식은 상판 위에 렌더) */
+  baseY?: number;
 }) {
   const cat = catalogById.get(item.catalogId);
   const shape = cat?.shape ?? 'rect-table';
@@ -763,13 +791,67 @@ function FurnitureMesh({
       );
       break;
     }
+    case 'stairs': {
+      // 계단: -d/2(아래 시작) → +d/2 로 올라가는 스텝 박스들. L자(w≈d)는 두 런+참.
+      const steps: React.ReactNode[] = [];
+      const isL = Math.abs(w - d) < 0.3 && w > 1.2;
+      if (!isL) {
+        const n = Math.max(6, Math.round(d / 0.25));
+        const stepD = d / n;
+        for (let i = 0; i < n; i++) {
+          const stepH = (h * (i + 1)) / n;
+          steps.push(
+            <Box
+              key={i}
+              args={[w, stepH, stepD]}
+              position={[0, stepH / 2, d / 2 - stepD * (i + 0.5)]}
+              color={i % 2 ? c : cDark}
+            />,
+          );
+        }
+      } else {
+        // L자: 하부 런(전방 y+측 절반) → 참 → 상부 런(좌측 x-측 절반)
+        const runW = w / 2;
+        const n1 = 6;
+        const half = h / 2;
+        for (let i = 0; i < n1; i++) {
+          const stepH = (half * (i + 1)) / n1;
+          const stepD = (d - runW) / n1;
+          steps.push(
+            <Box
+              key={`a${i}`}
+              args={[runW, stepH, stepD]}
+              position={[w / 2 - runW / 2, stepH / 2, d / 2 - stepD * (i + 0.5)]}
+              color={i % 2 ? c : cDark}
+            />,
+          );
+        }
+        steps.push(
+          <Box key="landing" args={[runW, half, runW]} position={[w / 2 - runW / 2, half / 2, -d / 2 + runW / 2]} color={c} />,
+        );
+        for (let i = 0; i < n1; i++) {
+          const stepH = half + (half * (i + 1)) / n1;
+          const stepW = (w - runW) / n1;
+          steps.push(
+            <Box
+              key={`b${i}`}
+              args={[stepW, stepH, runW]}
+              position={[w / 2 - runW - stepW * (i + 0.5), stepH / 2, -d / 2 + runW / 2]}
+              color={i % 2 ? c : cDark}
+            />,
+          );
+        }
+      }
+      body = <group>{steps}</group>;
+      break;
+    }
     default:
       body = <Box args={[w, h, d]} position={[0, h / 2, 0]} color={c} />;
   }
 
   return (
     <group
-      position={[item.position.x, 0, item.position.y]}
+      position={[item.position.x, baseY, item.position.y]}
       rotation={[0, -(item.rotationDeg * Math.PI) / 180, 0]}
       userData={{ itemId: item.id }}
     >
@@ -866,6 +948,7 @@ export function PlanScene({
   furnitureGroupRef,
   doorGroupRef,
   darkBackground = true,
+  lights = true,
   highlightItemId = null,
   highlightOpeningId = null,
 }: {
@@ -875,6 +958,8 @@ export function PlanScene({
   furnitureGroupRef?: React.RefObject<THREE.Group>;
   doorGroupRef?: React.RefObject<THREE.Group>;
   darkBackground?: boolean;
+  /** 층 스택 렌더 시 현재 층 외에는 false — 전역 조명(LightRig) 중복 방지 */
+  lights?: boolean;
   /** 응시 중 상호작용 가능 사물 하이라이트 */
   highlightItemId?: string | null;
   /** 응시 중 문 하이라이트 */
@@ -884,8 +969,19 @@ export function PlanScene({
   const lampIntensity = spec.lampBase * viewer.lighting.indoorIntensity * 1.6;
   return (
     <group>
-      <LightRig plan={plan} viewer={viewer} setBackground={darkBackground} />
+      {lights && <LightRig plan={plan} viewer={viewer} setBackground={darkBackground} />}
       <Floors plan={plan} />
+      {/* 방 없는 문서(언더레이 전용 등)도 최소한의 바닥을 제공 */}
+      {plan.rooms.length === 0 && (
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[planCenter(plan).x, -0.001, planCenter(plan).y]}
+          receiveShadow
+        >
+          <planeGeometry args={[40, 40]} />
+          <meshStandardMaterial color="#e8e2d6" roughness={0.95} />
+        </mesh>
+      )}
       <Walls plan={plan} />
       <Doors plan={plan} doorGroupRef={doorGroupRef} highlightOpeningId={highlightOpeningId} />
       {(plan.wallItems ?? []).map((wi) => (
@@ -899,6 +995,7 @@ export function PlanScene({
             item={item}
             lampIntensity={lampIntensity}
             highlighted={item.id === highlightItemId}
+            baseY={mountBaseHeight(plan, item)}
           />
         ))}
       </group>

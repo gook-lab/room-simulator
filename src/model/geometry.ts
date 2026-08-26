@@ -99,6 +99,7 @@ export function collidingItemIds(
   const out: string[] = [];
   for (const other of plan.items) {
     if (other.id === moving.id) continue;
+    if (other.parentId) continue; // 표면 위 자식은 바닥 충돌 대상 아님
     if (ignoreShapes.has(shapeOf(other.catalogId))) continue;
     if (polysOverlap(movingCorners, itemCorners(other))) out.push(other.id);
   }
@@ -142,6 +143,13 @@ export function planBounds(plan: Plan): { min: Vec2; max: Vec2 } {
   for (const w of plan.walls) {
     xs.push(w.a.x, w.b.x);
     ys.push(w.a.y, w.b.y);
+  }
+  // 벽 없는 언더레이 문서(즉시 로드 업로드)는 밑그림 영역이 곧 도면 범위
+  if (xs.length === 0 && plan.tracing?.widthM && plan.tracing.heightM) {
+    return {
+      min: { x: 0, y: 0 },
+      max: { x: plan.tracing.widthM, y: plan.tracing.heightM },
+    };
   }
   if (xs.length === 0) return { min: { x: 0, y: 0 }, max: { x: 10, y: 8 } };
   return {

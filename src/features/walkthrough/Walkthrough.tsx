@@ -6,7 +6,7 @@ import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdli
 import './walkthrough.css';
 import type { Plan, Vec2 } from '../../model/types';
 import { catalogById, formatPrice } from '../../model/catalog';
-import { roomAt } from '../../model/geometry';
+import { planBounds, roomAt } from '../../model/geometry';
 import {
   isDoorOpen,
   isInteractiveItem,
@@ -18,18 +18,29 @@ import { useCurrentPlan, useStore } from '../../state/store';
 import { ViewTabs } from '../../components/ViewTabs';
 import { CanvasBoundary } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
-import { PLAYER_RADIUS, buildColliders, moveAndSlide } from '../three/collision';
+import { PLAYER_RADIUS, buildColliders, moveAndSlide, resolveCollisions } from '../three/collision';
 import { toggleDayNight } from '../three/lighting';
 import { Minimap, type PlayerPose } from './Minimap';
+import { hotkeyAllowed, movementAllowed, walkthroughAllowed } from './menu';
 
 const WALK_SPEED = 1.4;
 const SPRINT_SPEED = 3.0;
 
-function defaultSpawn(plan: Plan): Vec2 {
-  const biggest = [...plan.rooms].sort((a, b) => b.areaSqm - a.areaSqm)[0];
-  if (!biggest) return { x: 1, y: 1 };
-  const c = biggest.polygon.reduce(
-    (acc, p) => ({ x: acc.x + p.x / biggest.polygon.length, y: acc.y + p.y / biggest.polygon.length }),
+function defaultSpawn(plan: Plan, selection: string[] = []): Vec2 {
+  // 선택된 방 > 가장 큰 방 중심으로 스폰
+  const selected = plan.rooms.find((r) => selection.includes(r.id));
+  const target = selected ?? [...plan.rooms].sort((a, b) => b.areaSqm - a.areaSqm)[0];
+  if (!target) {
+    // 방 없이 벽만 있는 도면: 도면 중심에서 벽 충돌만 밀어낸 지점
+    if (plan.walls.length > 0) {
+      const b = planBounds(plan);
+      const center = { x: (b.min.x + b.max.x) / 2, y: (b.min.y + b.max.y) / 2 };
+      return resolveCollisions(center, buildColliders(plan), PLAYER_RADIUS);
+    }
+    return { x: 1, y: 1 };
+  }
+  const c = target.polygon.reduce(
+    (acc, p) => ({ x: acc.x + p.x / target.polygon.length, y: acc.y + p.y / target.polygon.length }),
     { x: 0, y: 0 },
   );
   return c;
@@ -81,8 +92,8 @@ function Player({
     const dt = Math.min(rawDt, 0.05);
     const pose = poseRef.current;
 
-    // 이동
-    if (!editOpen) {
+    // 이동 — 메뉴(커서 모드) 중에는 정지 (Tab=메뉴+커서 모드 계약)
+    if (movementAllowed(document.pointerLockElement != null, editOpen)) {
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
       const forward = new THREE.Vector2(dir.x, dir.z);
@@ -179,6 +190,8 @@ function Hotkeys({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 메뉴(커서 모드) 중에는 핫키 무시 — 마우스 조작 전용
+      if (!hotkeyAllowed(document.pointerLockElement != null)) return;
       if (e.code === 'Space') {
         const cur = useStore.getState().viewer.eyeHeight;
         setViewer({ eyeHeight: cur === 1.6 ? 1.15 : 1.6 });
@@ -186,7 +199,7 @@ function Hotkeys({
         const url = gl.domElement.toDataURL('image/png');
         const a = document.createElement('a');
         a.href = url;
-        a.download = `roomcast-${Date.now()}.png`;
+        a.download = `room-simulator-${Date.now()}.png`;
         a.click();
       } else if (e.code === 'KeyE' && gaze?.kind === 'item') {
         onToggleEdit();
@@ -206,9 +219,10 @@ export function Walkthrough() {
   const setLighting = useStore((s) => s.setLighting);
   const updatePlan = useStore((s) => s.updatePlan);
   const spawn = useStore((s) => s.walkthroughSpawn);
+  const selection = useStore((s) => s.selection);
 
   const poseRef = useRef<PlayerPose>({
-    pos: spawn?.pos ?? defaultSpawn(plan),
+    pos: spawn?.pos ?? defaultSpawn(plan, selection),
     yawDeg: spawn?.yawDeg ?? 0,
   });
   const furnitureGroupRef = useRef<THREE.Group>(null!);
@@ -218,6 +232,7 @@ export function Walkthrough() {
   const [gaze, setGaze] = useState<GazeInfo>(null);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [pose, setPose] = useState<PlayerPose>(poseRef.current);
+  const [showKeymap, setShowKeymap] = useState(false);
 
   // 미니맵/방 이름 10fps 갱신
   useEffect(() => {
@@ -225,18 +240,36 @@ export function Walkthrough() {
     return () => clearInterval(t);
   }, []);
 
-  // 잠금 해제 상태에서 Esc → 에디터 복귀
+  // 메뉴(커서 모드)에서 Esc → 메뉴 닫고 이동 모드 복귀 시도
+  // (브라우저가 Esc 언락 직후 재락을 쿨다운으로 거부하면 메뉴 유지 — Tab/클릭으로 복귀)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !document.pointerLockElement && !editItemId) {
-        setView('2d');
+        try {
+          controlsRef.current?.lock();
+        } catch {
+          // 락 쿨다운 — 무시
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setView, editItemId]);
+  }, [editItemId]);
 
-  // 락 상태에서 클릭 → 응시 중인 상호작용 대상 반응 (조명·TV on/off, 문 여닫기)
+  // 계단 트리거: 같은 건물의 다른 층 (다음 층 우선, 없으면 이전 층)
+  const plans = useStore((s) => s.plans);
+  const switchFloor = useStore((s) => s.switchFloor);
+  const stairsTarget = (() => {
+    if (!plan.buildingId) return null;
+    const floors = Object.values(plans)
+      .filter((p) => p.buildingId === plan.buildingId)
+      .sort((a, b) => (a.floorLabel ?? '').localeCompare(b.floorLabel ?? '', 'ko', { numeric: true }));
+    const idx = floors.findIndex((p) => p.id === plan.id);
+    if (idx < 0 || floors.length < 2) return null;
+    return floors[idx + 1] ?? floors[idx - 1] ?? null;
+  })();
+
+  // 락 상태에서 클릭 → 응시 중인 상호작용 대상 반응 (조명·TV on/off, 문 여닫기, 계단=층 이동)
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0 || !document.pointerLockElement || !gaze) return;
@@ -245,12 +278,18 @@ export function Walkthrough() {
         return;
       }
       const item = plan.items.find((i) => i.id === gaze.id);
-      if (!item || !isInteractiveItem(item.catalogId)) return;
+      if (!item) return;
+      // 계단: 같은 건물의 위/아래 층으로 이동 (워크스루 유지)
+      if (catalogById.get(item.catalogId)?.shape === 'stairs') {
+        if (stairsTarget) switchFloor(stairsTarget.id);
+        return;
+      }
+      if (!isInteractiveItem(item.catalogId)) return;
       updatePlan((pl) => togglePower(pl, gaze.id));
     };
     window.addEventListener('mousedown', onMouseDown);
     return () => window.removeEventListener('mousedown', onMouseDown);
-  }, [gaze, plan.items, updatePlan]);
+  }, [gaze, plan.items, updatePlan, stairsTarget, switchFloor]);
 
   // Tab: 포인터 락 ↔ 커서 모드 토글 (락 해제 상태에서 패널을 마우스로 조작)
   useEffect(() => {
@@ -285,6 +324,36 @@ export function Walkthrough() {
   const editItem = editItemId ? plan.items.find((i) => i.id === editItemId) : null;
   const editCat = editItem ? catalogById.get(editItem.catalogId) : null;
   const currentRoom = roomAt(plan.rooms, pose.pos);
+
+  // 벽도 방도 없는 진짜 빈 도면만 진입 차단 — 벽만 있으면 중립 바닥 위를 걷는다
+  if (!walkthroughAllowed(plan.rooms.length, plan.walls.length)) {
+    return (
+      <div className="walkthrough">
+        <div className="hud">
+          <div className="hud__tabs">
+            <ViewTabs dark />
+          </div>
+          <div className="wt-menu" style={{ width: 340 }}>
+            <div className="wt-menu__title">아직 걸어볼 공간이 없습니다</div>
+            <div className="wt-menu__hint">
+              방(닫힌 벽)을 먼저 그리거나 템플릿에서 시작하면 3D 워크스루를 쓸 수 있습니다.
+            </div>
+            <div className="wt-menu__items">
+              <button
+                className="wt-menu__item wt-menu__item--primary"
+                onClick={() => setView('2d')}
+              >
+                2D 스케치로 돌아가 방 그리기
+              </button>
+              <button className="wt-menu__item" onClick={() => setView('birdseye')}>
+                조감도로 보기
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="walkthrough">
@@ -333,7 +402,6 @@ export function Walkthrough() {
         </div>
 
         <button className="hud__esc" onClick={() => setView('2d')}>
-          <span className="keycap">ESC</span>
           에디터로 돌아가기
         </button>
 
@@ -356,10 +424,18 @@ export function Walkthrough() {
           <div className="gaze-chip">
             <span className="gaze-chip__name">{gazeCat.name}</span>
             <span className="gaze-chip__dist">{gaze!.distance.toFixed(1)} m</span>
-            {isInteractiveItem(gazeItem.catalogId) && (
+            {catalogById.get(gazeItem.catalogId)?.shape === 'stairs' ? (
               <span className="gaze-chip__action">
-                클릭 · {isPowered(gazeItem) ? '끄기' : '켜기'}
+                {stairsTarget
+                  ? `클릭 · ${stairsTarget.floorLabel ?? '다른 층'}으로 이동`
+                  : '연결된 층 없음 — 층 탭에서 추가'}
               </span>
+            ) : (
+              isInteractiveItem(gazeItem.catalogId) && (
+                <span className="gaze-chip__action">
+                  클릭 · {isPowered(gazeItem) ? '끄기' : '켜기'}
+                </span>
+              )
             )}
             <span className="gaze-chip__action">E · 편집</span>
           </div>
@@ -377,9 +453,69 @@ export function Walkthrough() {
           </div>
         )}
 
+        {/* 인게임 메뉴 — Tab = 메뉴+커서 모드 (표시 중 이동 정지·마우스 자유) */}
         {!locked && !editItemId && (
-          <div className="start-hint">
-            커서 모드 — 패널을 마우스로 조작하거나, 클릭 / Tab 으로 이동 모드
+          <div className="wt-menu">
+            <div className="wt-menu__title">메뉴</div>
+            <div className="wt-menu__hint">
+              <span className="keycap">TAB</span> 닫고 이동 모드 · 패널은 마우스로 조작
+            </div>
+            <div className="wt-menu__items">
+              <button
+                className="wt-menu__item wt-menu__item--primary"
+                onClick={() => controlsRef.current?.lock()}
+              >
+                ▶ 이동 모드로
+              </button>
+              <button className="wt-menu__item" onClick={() => setView('birdseye')}>
+                조감도로 전환
+              </button>
+              <button
+                className="wt-menu__item"
+                onClick={() =>
+                  setLighting({ preset: toggleDayNight(viewer.lighting.preset) })
+                }
+              >
+                {viewer.lighting.preset === 'night' ? '주간으로 전환' : '야간으로 전환'}
+              </button>
+              <button className="wt-menu__item" onClick={() => setView('2d')}>
+                2D 평면도로
+              </button>
+              <button
+                className="wt-menu__item"
+                aria-expanded={showKeymap}
+                onClick={() => setShowKeymap((v) => !v)}
+              >
+                조작법 안내 {showKeymap ? '▴' : '▾'}
+              </button>
+            </div>
+            {showKeymap && (
+              <div className="wt-menu__keymap">
+                <div className="wt-menu__keymap-title">워크스루</div>
+                <div className="wt-menu__keymap-row">
+                  <span className="keycap">W A S D</span> 이동 ·{' '}
+                  <span className="keycap">SHIFT</span> 빠르게
+                </div>
+                <div className="wt-menu__keymap-row">
+                  <span className="keycap">마우스</span> 시선 ·{' '}
+                  <span className="keycap">SPACE</span> 앉기/서기
+                </div>
+                <div className="wt-menu__keymap-row">
+                  <span className="keycap">클릭</span> 조명·TV·문 조작 ·{' '}
+                  <span className="keycap">E</span> 응시 가구 편집
+                </div>
+                <div className="wt-menu__keymap-row">
+                  <span className="keycap">P</span> 스크린샷 ·{' '}
+                  <span className="keycap">TAB</span> 메뉴
+                </div>
+                <div className="wt-menu__keymap-title">조감도</div>
+                <div className="wt-menu__keymap-row">
+                  <span className="keycap">좌드래그</span> 회전 ·{' '}
+                  <span className="keycap">휠</span> 줌 ·{' '}
+                  <span className="keycap">우드래그</span> 팬
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -414,7 +550,7 @@ export function Walkthrough() {
                 <span className="keycap">SPACE</span> 앉은 시점 / 선 시점
               </div>
               <div className="controls-row">
-                <span className="keycap">TAB</span> {locked ? '커서 모드' : '이동 모드'}
+                <span className="keycap">TAB</span> {locked ? '메뉴' : '이동 모드'}
               </div>
             </div>
           </div>

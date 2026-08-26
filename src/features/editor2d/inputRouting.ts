@@ -17,6 +17,33 @@ export const OVERLAY_SELECTOR =
  * wheel 이벤트를 캔버스 줌으로 라우팅해도 되는가.
  * target이 오버레이 서브트리 안이면 false — 패널 스크롤에 양보한다.
  */
+/**
+ * 도구 단축키 매핑 — IME 조합과 무관하도록 물리 키코드(e.code) 기준.
+ * V=선택, H=핸드(그랩 이동), S=선 그리기(스케치, 프라이머리)·W=하위호환,
+ * D=문, N=창, M=치수. 수정키 조합은 호출측에서 걸러진다.
+ */
+export function toolForKeyCode(
+  code: string,
+): 'select' | 'hand' | 'wall' | 'door' | 'window' | 'dimension' | null {
+  switch (code) {
+    case 'KeyV':
+      return 'select';
+    case 'KeyH':
+      return 'hand';
+    case 'KeyS':
+    case 'KeyW':
+      return 'wall';
+    case 'KeyD':
+      return 'door';
+    case 'KeyN':
+      return 'window';
+    case 'KeyM':
+      return 'dimension';
+    default:
+      return null;
+  }
+}
+
 export function wheelTargetsCanvas(
   target: { closest?: (selector: string) => unknown } | null | undefined,
 ): boolean {

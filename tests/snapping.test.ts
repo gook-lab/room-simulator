@@ -10,7 +10,9 @@ describe('snapItemMove', () => {
   const sofa = { id: 'probe', rotationDeg: 0, size: { w: 2.2, d: 0.92 } };
 
   it('그리드 10cm 스냅', () => {
-    const { position } = snapItemMove(plan, sofa, { x: 2.533, y: 3.348 }, PX_PER_M, snapping);
+    // 순수 그리드 검증 — 다른 가구가 있으면 정렬 스냅(우선순위 상위)이 개입하므로 비운다
+    const empty = { ...plan, items: [] };
+    const { position } = snapItemMove(empty, sofa, { x: 2.533, y: 3.348 }, PX_PER_M, snapping);
     // 벽에서 멀면 그리드에만 스냅
     expect(position.x * 10).toBeCloseTo(Math.round(position.x * 10));
     expect(position.y * 10).toBeCloseTo(Math.round(position.y * 10));

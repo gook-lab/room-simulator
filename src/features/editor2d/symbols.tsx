@@ -251,6 +251,31 @@ export function FurnitureSymbol({ item }: { item: PlacedItem }) {
           <circle cx={-hw * 0.3} cy={hw * 0.3} r={hw * 0.28} fill={lighten(fill, 0.15)} stroke={stroke} strokeWidth={1} {...SW} />
         </g>
       );
+    case 'stairs': {
+      // 디딤판 라인 다발 + 진행 방향 화살표 (위 = 올라가는 방향)
+      const treads = Math.max(4, Math.round(d / 0.25));
+      const lines = [];
+      for (let i = 1; i < treads; i++) {
+        const y = -hd + (d * i) / treads;
+        lines.push(
+          <line key={i} x1={-hw} y1={y} x2={hw} y2={y} stroke={stroke} strokeWidth={0.9} opacity={0.7} {...SW} />,
+        );
+      }
+      return (
+        <g>
+          <rect x={-hw} y={-hd} width={w} height={d} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />
+          {lines}
+          <line x1={0} y1={hd * 0.7} x2={0} y2={-hd * 0.55} stroke={darken(fill, 0.45)} strokeWidth={1.6} {...SW} />
+          <path
+            d={`M ${-w * 0.09} ${-hd * 0.32} L 0 ${-hd * 0.6} L ${w * 0.09} ${-hd * 0.32}`}
+            fill="none"
+            stroke={darken(fill, 0.45)}
+            strokeWidth={1.6}
+            {...SW}
+          />
+        </g>
+      );
+    }
     // ---- 벽 부착 소품: 카탈로그 썸네일용 정면 뷰 (w × h 박스) ----
     case 'frame': {
       const hh = item.size.h / 2;
@@ -278,13 +303,24 @@ export function FurnitureSymbol({ item }: { item: PlacedItem }) {
         </g>
       );
     }
+    case 'wall-ac': {
+      // 벽걸이 에어컨 정면 뷰 — 본체 + 하단 송풍구 라인
+      const hh = item.size.h / 2;
+      return (
+        <g>
+          <rect x={-hw} y={-hh} width={w} height={item.size.h} rx={0.05} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />
+          <line x1={-hw + 0.08} y1={hh - 0.08} x2={hw - 0.08} y2={hh - 0.08} stroke={darken(fill, 0.25)} strokeWidth={1.6} {...SW} />
+          <circle cx={hw - 0.12} cy={-hh + 0.1} r={0.025} fill={darken(fill, 0.3)} />
+        </g>
+      );
+    }
     default:
       return <rect x={-hw} y={-hd} width={w} height={d} fill={fill} stroke={stroke} strokeWidth={1.5} {...SW} />;
   }
 }
 
 /** 러그·펜던트는 충돌 검사 제외 */
-export const NON_COLLIDING_SHAPES = new Set<string>(['rug', 'pendant-lamp']);
+export const NON_COLLIDING_SHAPES = new Set<string>(['rug', 'pendant-lamp', 'stairs']);
 
 export function shapeOf(catalogId: string): string {
   return catalogById.get(catalogId)?.shape ?? 'rect-table';

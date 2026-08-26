@@ -2,6 +2,7 @@ import type { Plan, Vec2 } from './types';
 
 /** 내보내기 포맷 버전 — 스키마 변경 시 올린다 */
 export const PLAN_EXPORT_VERSION = 1;
+// 데이터 포맷 식별자 — 브랜드 개명(Room Simulator) 후에도 기존 내보내기 호환을 위해 유지
 export const PLAN_EXPORT_FORMAT = 'roomcast-plan';
 
 export type PlanExport = {
@@ -41,7 +42,7 @@ export function importPlan(json: string): ImportResult {
   }
   const data = raw as Partial<PlanExport>;
   if (data?.format !== PLAN_EXPORT_FORMAT) {
-    return { ok: false, error: `Roomcast 도면 파일이 아닙니다 (format: ${String(data?.format)})` };
+    return { ok: false, error: `룸 시뮬레이터 도면 파일이 아닙니다 (format: ${String(data?.format)})` };
   }
   if (!isNum(data.version) || data.version < 1) {
     return { ok: false, error: '버전 필드가 없거나 잘못되었습니다.' };
@@ -57,6 +58,16 @@ export function importPlan(json: string): ImportResult {
     return { ok: false, error: 'plan 객체가 없습니다.' };
   }
   if (!isStr(plan.name)) return { ok: false, error: 'plan.name 이 없습니다.' };
+  // 다층 연결 필드 (옵션) — v1 파일은 필드 없음 그대로 유효 (마이그레이션 불필요)
+  if (plan.buildingId != null && !isStr(plan.buildingId)) {
+    return { ok: false, error: 'plan.buildingId 가 잘못되었습니다.' };
+  }
+  if (plan.floorLabel != null && !isStr(plan.floorLabel)) {
+    return { ok: false, error: 'plan.floorLabel 이 잘못되었습니다.' };
+  }
+  if (plan.defaultWallHeight != null && !(isNum(plan.defaultWallHeight) && plan.defaultWallHeight > 0)) {
+    return { ok: false, error: 'plan.defaultWallHeight 가 잘못되었습니다.' };
+  }
   if (!isNum(plan.unitScale) || plan.unitScale <= 0) {
     return { ok: false, error: 'plan.unitScale 이 잘못되었습니다.' };
   }
@@ -117,6 +128,19 @@ export function importPlan(json: string): ImportResult {
       !isNum(i.price)
     ) {
       return { ok: false, error: `가구 데이터가 잘못되었습니다 (id: ${String(i?.id)})` };
+    }
+    // 표면 적층: parentId 는 존재하는 아이템을 가리켜야 하고, 깊이는 1단(부모는 바닥 배치)
+    if (i.parentId != null) {
+      if (!isStr(i.parentId)) {
+        return { ok: false, error: `가구 ${i.id} 의 parentId 가 잘못되었습니다.` };
+      }
+      const parent = plan.items.find((p) => p.id === i.parentId);
+      if (!parent) {
+        return { ok: false, error: `가구 ${i.id} 가 존재하지 않는 부모(${i.parentId})를 참조합니다.` };
+      }
+      if (parent.parentId != null) {
+        return { ok: false, error: `가구 ${i.id} 의 부모(${i.parentId})가 이미 다른 표면 위에 있습니다 (적층은 1단).` };
+      }
     }
   }
   if (plan.wallItems != null) {

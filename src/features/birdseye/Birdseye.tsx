@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Html, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
@@ -10,6 +10,7 @@ import { CanvasBoundary } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
 import { PRESET_LABELS, toggleDayNight } from '../three/lighting';
 import { planCenter } from '../three/wallGeometry';
+import { floorBaseY, floorsOfBuilding } from '../../model/floorStack';
 
 const PRESETS: LightPreset[] = ['afternoon', 'sunset', 'overcast', 'night'];
 
@@ -63,9 +64,30 @@ export function Birdseye() {
   const setView = useStore((s) => s.setView);
   const setWalkthroughSpawn = useStore((s) => s.setWalkthroughSpawn);
 
+  const plans = useStore((s) => s.plans);
+  // 층 스택: 같은 건물 층들을 y 오프셋(아래층 층고 합)으로 동시 렌더
+  const floors = useMemo(() => floorsOfBuilding(plans, plan), [plans, plan]);
+  const stacked = viewer.display.stackFloors && floors.length > 1;
+  const currentBaseY = stacked ? floorBaseY(floors, plan.id) : 0;
+
   const center = useMemo(() => planCenter(plan), [plan]);
   const captureRef = useRef<(() => { pos: { x: number; y: number }; yawDeg: number }) | null>(null);
   const mode = viewer.birdseyeMode;
+  // 워크스루와 대칭인 Tab 미니 메뉴 (Esc 로도 닫힘)
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        setMenuOpen((v) => !v);
+      } else if (e.key === 'Escape') {
+        setMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // 방위각 기반의 가벼운 일조 시간 데코 수치
   const daylight = useMemo(() => {
@@ -122,12 +144,20 @@ export function Birdseye() {
               />
               <SectionClipping enabled={mode === 'section'} />
               <CameraCapture captureRef={captureRef} />
-              <PlanScene
-                plan={plan}
-                viewer={viewer}
-                showCeiling={!viewer.display.hideCeiling}
-                darkBackground={false}
-              />
+              {(stacked ? floors : [plan]).map((f) => (
+                <group
+                  key={f.id}
+                  position={[0, stacked ? floorBaseY(floors, f.id) : 0, 0]}
+                >
+                  <PlanScene
+                    plan={f}
+                    viewer={viewer}
+                    showCeiling={!viewer.display.hideCeiling}
+                    darkBackground={false}
+                    lights={f.id === plan.id}
+                  />
+                </group>
+              ))}
               {viewer.display.dimensionLabels &&
                 plan.rooms.map((r) => {
                   const c = r.polygon.reduce(
@@ -138,7 +168,7 @@ export function Birdseye() {
                     { x: 0, y: 0 },
                   );
                   return (
-                    <Html key={r.id} position={[c.x, 0.3, c.y]} center>
+                    <Html key={r.id} position={[c.x, currentBaseY + 0.3, c.y]} center>
                       <div
                         style={{
                           fontFamily: 'var(--font-mono)',
@@ -203,6 +233,7 @@ export function Birdseye() {
               ['천장 숨기기', 'hideCeiling'],
               ['그림자', 'shadows'],
               ['치수 라벨', 'dimensionLabels'],
+              ...(floors.length > 1 ? ([['모든 층 표시', 'stackFloors']] as const) : []),
             ] as const
           ).map(([label, key]) => (
             <div className="be-toggle-row" key={key}>
@@ -246,7 +277,40 @@ export function Birdseye() {
           <button className="btn--text-accent" onClick={startWalkthrough}>
             이 시점에서 워크스루 시작
           </button>
+          <span className="be-camera-bar__divider" />
+          <button className="chip-toggle" onClick={() => setMenuOpen((v) => !v)}>
+            TAB 메뉴
+          </button>
         </div>
+
+        {/* Tab 미니 메뉴 — 워크스루 인게임 메뉴와 대칭 */}
+        {menuOpen && (
+          <div className="be-menu">
+            <div className="be-menu__title">메뉴</div>
+            <div className="be-menu__hint">TAB / ESC — 닫기</div>
+            <div className="be-menu__items">
+              <button className="be-menu__item be-menu__item--primary" onClick={startWalkthrough}>
+                ▶ 이 시점에서 워크스루
+              </button>
+              <button className="be-menu__item" onClick={() => setView('2d')}>
+                2D 평면도로
+              </button>
+              <button
+                className="be-menu__item"
+                onClick={() => setLighting({ preset: toggleDayNight(viewer.lighting.preset) })}
+              >
+                {viewer.lighting.preset === 'night' ? '주간으로 전환' : '야간으로 전환'}
+              </button>
+            </div>
+            <div className="be-menu__keymap">
+              <div className="be-menu__keymap-title">조감도 조작법</div>
+              <div className="be-menu__keymap-row">
+                <span className="keycap">좌드래그</span> 회전 · <span className="keycap">휠</span> 줌 ·{' '}
+                <span className="keycap">우드래그</span> 팬
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

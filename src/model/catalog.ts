@@ -1,20 +1,27 @@
-import type { CatalogCategory, CatalogItem } from './types';
+import type { CatalogCategory, CatalogItem, ProductInfo } from './types';
+import productsJson from './products.json';
 
 export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
   sofa: '소파',
   table: '테이블',
+  bed: '침실',
   storage: '수납',
+  appliance: '가전',
   lighting: '조명',
   rug: '러그',
+  kids: '아이방',
   decor: '소품',
 };
 
 export const CATEGORY_ORDER: CatalogCategory[] = [
   'sofa',
   'table',
+  'bed',
   'storage',
+  'appliance',
   'lighting',
   'rug',
+  'kids',
   'decor',
 ];
 
@@ -64,6 +71,7 @@ const bathSwatches = [
 export const CATALOG: CatalogItem[] = [
   {
     id: 'sofa-linen-3',
+    keywords: ['쇼파'],
     name: '린넨 3인 소파',
     category: 'sofa',
     shape: 'sofa',
@@ -94,6 +102,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'table-coffee',
+    keywords: ['커피테이블', '소파테이블', '쇼파테이블'],
     name: '로우 커피 테이블',
     category: 'table',
     shape: 'rect-table',
@@ -135,7 +144,7 @@ export const CATALOG: CatalogItem[] = [
   {
     id: 'bed-queen',
     name: '퀸 패브릭 베드',
-    category: 'storage',
+    category: 'bed',
     shape: 'bed',
     size: { w: 1.6, d: 2.1, h: 0.95 },
     price: 1_180_000,
@@ -238,6 +247,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'tv-stand-1800',
+    keywords: ['거실장'],
     name: '로우 TV장 1800',
     category: 'storage',
     shape: 'console',
@@ -290,7 +300,7 @@ export const CATALOG: CatalogItem[] = [
   {
     id: 'bed-single',
     name: '싱글 베드',
-    category: 'storage',
+    category: 'bed',
     shape: 'bed',
     size: { w: 1.1, d: 2.0, h: 0.9 },
     price: 720_000,
@@ -300,7 +310,7 @@ export const CATALOG: CatalogItem[] = [
   {
     id: 'nightstand',
     name: '협탁',
-    category: 'storage',
+    category: 'bed',
     shape: 'console',
     size: { w: 0.45, d: 0.4, h: 0.5 },
     price: 110_000,
@@ -309,8 +319,8 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'dresser',
-    name: '화장대',
-    category: 'storage',
+    name: '서랍장',
+    category: 'bed',
     shape: 'desk',
     size: { w: 1.0, d: 0.45, h: 0.75 },
     price: 340_000,
@@ -330,6 +340,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'stool-bar',
+    keywords: ['바스툴'],
     name: '바 스툴',
     category: 'sofa',
     shape: 'round-table',
@@ -341,7 +352,7 @@ export const CATALOG: CatalogItem[] = [
   {
     id: 'fridge',
     name: '냉장고 2도어',
-    category: 'storage',
+    category: 'appliance',
     shape: 'wardrobe',
     size: { w: 0.9, d: 0.7, h: 1.8 },
     price: 1_450_000,
@@ -362,7 +373,7 @@ export const CATALOG: CatalogItem[] = [
   {
     id: 'washer',
     name: '드럼 세탁기',
-    category: 'storage',
+    category: 'appliance',
     shape: 'console',
     size: { w: 0.6, d: 0.6, h: 0.85 },
     price: 980_000,
@@ -393,6 +404,7 @@ export const CATALOG: CatalogItem[] = [
   /* ---- 조명·러그·소품 ---- */
   {
     id: 'lamp-table',
+    mountable: true,
     name: '테이블 램프',
     category: 'lighting',
     shape: 'floor-lamp',
@@ -423,6 +435,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'plant-cactus',
+    mountable: true,
     name: '선인장 화분',
     category: 'decor',
     shape: 'plant',
@@ -475,7 +488,7 @@ export const CATALOG: CatalogItem[] = [
   {
     id: 'air-purifier',
     name: '공기청정기',
-    category: 'decor',
+    category: 'appliance',
     shape: 'console',
     size: { w: 0.28, d: 0.28, h: 0.55 },
     price: 320_000,
@@ -485,7 +498,7 @@ export const CATALOG: CatalogItem[] = [
   {
     id: 'fan-stand',
     name: '스탠드 선풍기',
-    category: 'decor',
+    category: 'appliance',
     shape: 'fan',
     size: { w: 0.38, d: 0.38, h: 1.25 },
     price: 65_000,
@@ -505,7 +518,7 @@ export const CATALOG: CatalogItem[] = [
   {
     id: 'toy-basket',
     name: '장난감 바구니',
-    category: 'decor',
+    category: 'kids',
     shape: 'bin',
     size: { w: 0.45, d: 0.45, h: 0.35 },
     price: 32_000,
@@ -555,6 +568,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     id: 'mood-lamp',
+    mountable: true,
     name: '무드등',
     category: 'decor',
     shape: 'floor-lamp',
@@ -563,9 +577,431 @@ export const CATALOG: CatalogItem[] = [
     materialLabel: '마감',
     swatches: metalSwatches,
   },
+  /* ---- 실상품 기반 확충 (2026-08-25, 치수·가격은 products.json 실측으로 대체됨) ---- */
+  {
+    id: 'bed-bunk',
+    keywords: ['벙커침대', '이층침대'],
+    name: '2층 침대',
+    category: 'bed',
+    shape: 'bed',
+    size: { w: 0.97, d: 2.06, h: 1.57 },
+    price: 399_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'bed-day',
+    name: '수납 데이베드',
+    category: 'bed',
+    shape: 'bed',
+    size: { w: 0.87, d: 2.05, h: 0.58 },
+    price: 299_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'bed-queen-wood',
+    name: '원목 퀸 침대',
+    category: 'bed',
+    shape: 'bed',
+    size: { w: 1.63, d: 2.07, h: 0.95 },
+    price: 324_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'vanity-desk',
+    name: '화장대',
+    category: 'bed',
+    shape: 'desk',
+    size: { w: 1.2, d: 0.41, h: 0.78 },
+    price: 116_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'wardrobe-pax',
+    keywords: ['드레스룸', '팍스'],
+    name: '도어 옷장 1500',
+    category: 'storage',
+    shape: 'wardrobe',
+    size: { w: 1.5, d: 0.6, h: 2.01 },
+    price: 555_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'bed-toddler',
+    name: '유아용 침대',
+    category: 'kids',
+    shape: 'bed',
+    size: { w: 0.67, d: 1.25, h: 0.86 },
+    price: 249_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'kids-storage',
+    name: '아이방 수납 콤비',
+    category: 'kids',
+    shape: 'shelf',
+    size: { w: 0.94, d: 0.44, h: 0.91 },
+    price: 147_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'kids-table',
+    name: '어린이 테이블',
+    category: 'kids',
+    shape: 'rect-table',
+    size: { w: 0.83, d: 0.58, h: 0.48 },
+    price: 79_900,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'desk-compact',
+    name: '컴팩트 책상',
+    category: 'table',
+    shape: 'desk',
+    size: { w: 1.05, d: 0.5, h: 0.75 },
+    price: 99_900,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'desk-sit-stand',
+    keywords: ['스탠딩책상', '높이조절책상'],
+    name: '입식 겸용 책상',
+    category: 'table',
+    shape: 'desk',
+    size: { w: 1.2, d: 0.7, h: 0.75 },
+    price: 139_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'table-dining-140',
+    name: '4인 원목 식탁',
+    category: 'table',
+    shape: 'rect-table',
+    size: { w: 1.4, d: 0.78, h: 0.74 },
+    price: 249_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'table-dining-ext',
+    name: '확장형 식탁',
+    category: 'table',
+    shape: 'rect-table',
+    size: { w: 1.52, d: 0.95, h: 0.75 },
+    price: 599_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'table-tray',
+    name: '트레이 테이블',
+    category: 'table',
+    shape: 'round-table',
+    size: { w: 0.45, d: 0.45, h: 0.53 },
+    price: 17_900,
+    materialLabel: '금속',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'armchair',
+    keywords: ['안락의자', '1인 소파'],
+    name: '암체어',
+    category: 'sofa',
+    shape: 'chair',
+    size: { w: 0.68, d: 0.83, h: 1.0 },
+    price: 99_900,
+    materialLabel: '패브릭',
+    swatches: fabricSwatches,
+  },
+  {
+    id: 'armchair-wing',
+    name: '윙체어',
+    category: 'sofa',
+    shape: 'chair',
+    size: { w: 0.82, d: 0.96, h: 1.01 },
+    price: 279_000,
+    materialLabel: '패브릭',
+    swatches: fabricSwatches,
+  },
+  {
+    id: 'sofa-bed-corner',
+    keywords: ['쇼파', '소파베드', '카우치'],
+    name: '코너 소파베드',
+    category: 'sofa',
+    shape: 'sofa',
+    size: { w: 2.04, d: 1.51, h: 0.7 },
+    price: 649_000,
+    materialLabel: '패브릭',
+    swatches: fabricSwatches,
+  },
+  {
+    id: 'drawer-unit',
+    name: '이동식 서랍유닛',
+    category: 'storage',
+    shape: 'console',
+    size: { w: 0.36, d: 0.58, h: 0.7 },
+    price: 119_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'kitchen-cart',
+    keywords: ['왜건', '카트', '트롤리'],
+    name: '주방 트롤리',
+    category: 'storage',
+    shape: 'console',
+    size: { w: 0.45, d: 0.35, h: 0.77 },
+    price: 42_900,
+    materialLabel: '금속',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'shelf-kallax',
+    name: '큐브 선반장',
+    category: 'storage',
+    shape: 'shelf',
+    size: { w: 0.77, d: 0.39, h: 1.47 },
+    price: 189_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'shoe-cabinet',
+    name: '슬림 신발장',
+    category: 'storage',
+    shape: 'console',
+    size: { w: 0.96, d: 0.17, h: 0.9 },
+    price: 179_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'clothes-rack',
+    keywords: ['옷걸이', '드레스행거'],
+    name: '옷걸이 행거',
+    category: 'storage',
+    shape: 'rack',
+    size: { w: 1.11, d: 0.51, h: 1.26 },
+    price: 29_900,
+    materialLabel: '금속',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'sideboard',
+    name: '사이드보드 1900',
+    category: 'storage',
+    shape: 'console',
+    size: { w: 1.9, d: 0.47, h: 0.9 },
+    price: 238_900,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'cabinet-sliding',
+    name: '미닫이 수납장',
+    category: 'storage',
+    shape: 'console',
+    size: { w: 0.95, d: 0.47, h: 0.9 },
+    price: 139_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  /* ---- 가전·컴퓨터 확충 (2026-08-25, 다나와 실측 — products.json) ---- */
+  {
+    id: 'styler',
+    keywords: ['스타일러', '에어드레서'],
+    name: '의류관리기',
+    category: 'appliance',
+    shape: 'wardrobe',
+    size: { w: 0.6, d: 0.62, h: 1.97 },
+    price: 1_492_350,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'kimchi-fridge',
+    name: '김치냉장고',
+    category: 'appliance',
+    shape: 'wardrobe',
+    size: { w: 0.6, d: 0.67, h: 1.86 },
+    price: 998_240,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'ac-stand',
+    keywords: ['시스템에어컨'],
+    name: '스탠드 에어컨',
+    category: 'appliance',
+    shape: 'wardrobe',
+    size: { w: 0.36, d: 0.27, h: 1.85 },
+    price: 1_301_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'ac-wall',
+    name: '벽걸이 에어컨',
+    category: 'appliance',
+    shape: 'wall-ac',
+    size: { w: 0.82, d: 0.22, h: 0.35 },
+    price: 870_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'dishwasher',
+    name: '식기세척기',
+    category: 'appliance',
+    shape: 'console',
+    size: { w: 0.6, d: 0.57, h: 0.82 },
+    price: 720_090,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'microwave',
+    name: '전자레인지',
+    category: 'appliance',
+    shape: 'console',
+    mountable: true,
+    size: { w: 0.49, d: 0.37, h: 0.28 },
+    price: 132_330,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'monitor',
+    name: '모니터 27형',
+    category: 'appliance',
+    shape: 'tv',
+    mountable: true,
+    size: { w: 0.61, d: 0.23, h: 0.45 },
+    price: 299_000,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'laptop',
+    keywords: ['랩탑', '랩톱'],
+    name: '노트북 16형',
+    category: 'appliance',
+    shape: 'tv',
+    mountable: true,
+    size: { w: 0.36, d: 0.25, h: 0.02 },
+    price: 2_092_490,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'desktop-tower',
+    name: '데스크톱 본체',
+    category: 'appliance',
+    shape: 'console',
+    mountable: true,
+    size: { w: 0.15, d: 0.35, h: 0.35 },
+    price: 1_262_990,
+    materialLabel: '마감',
+    swatches: metalSwatches,
+  },
+  {
+    id: 'desk-standing',
+    keywords: ['스탠딩책상', '높이조절책상', '모션데스크'],
+    name: '모션 스탠딩 책상',
+    category: 'table',
+    shape: 'desk',
+    size: { w: 1.6, d: 0.75, h: 0.75 },
+    price: 321_620,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  /* ---- 구조물: 계단 (수동 배치 — 자동 인식은 오탐 과다로 불채택, STATUS 36차) ---- */
+  {
+    id: 'stairs-straight',
+    name: '직진 계단',
+    keywords: ['계단', '층계'],
+    category: 'decor',
+    shape: 'stairs',
+    size: { w: 0.9, d: 3.0, h: 2.4 },
+    price: 2_900_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'stairs-l',
+    name: 'L자 계단',
+    keywords: ['계단', '층계'],
+    category: 'decor',
+    shape: 'stairs',
+    size: { w: 1.8, d: 1.8, h: 2.4 },
+    price: 3_400_000,
+    materialLabel: '목재',
+    swatches: woodSwatches,
+  },
+  {
+    id: 'rug-flat',
+    name: '평직 러그',
+    category: 'rug',
+    shape: 'rug',
+    size: { w: 1.2, d: 1.8, h: 0.01 },
+    price: 15_000,
+    materialLabel: '컬러',
+    swatches: rugSwatches,
+  },
 ];
 
+/**
+ * 상품 연동 머지: products.json 에 확인된 상품이 있으면 실판매가·실제원을 적용한다.
+ * (배치 시 size/price 가 복사되므로 기존 도면 아이템은 불변 — 신규 배치부터 반영)
+ */
+export function applyProducts(
+  items: CatalogItem[],
+  products: Record<string, ProductInfo>,
+): CatalogItem[] {
+  return items.map((item) => {
+    const product = products[item.id];
+    if (!product) return item;
+    return {
+      ...item,
+      product,
+      price: product.priceKrw,
+      size: {
+        w: product.specW ?? item.size.w,
+        d: product.specD ?? item.size.d,
+        h: product.specH ?? item.size.h,
+      },
+    };
+  });
+}
+
+const PRODUCTS = productsJson as Record<string, ProductInfo>;
+for (let i = 0; i < CATALOG.length; i++) {
+  // in-place 머지 (CATALOG 참조를 유지 — 카테고리 필터 등 기존 사용처 호환)
+  CATALOG[i] = applyProducts([CATALOG[i]], PRODUCTS)[0];
+}
+
 export const catalogById = new Map(CATALOG.map((c) => [c.id, c]));
+
+/** 카탈로그 검색 — 이름·브랜드·검색 별칭(keywords) 매칭. 빈 질의는 전체 반환 */
+export function searchCatalog(query: string): CatalogItem[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return CATALOG;
+  return CATALOG.filter(
+    (c) =>
+      c.name.toLowerCase().includes(q) ||
+      (c.product?.brand ?? '').toLowerCase().includes(q) ||
+      (c.keywords ?? []).some((k) => k.toLowerCase().includes(q)),
+  );
+}
 
 export function formatSize(item: CatalogItem): string {
   const { w, d, h } = item.size;

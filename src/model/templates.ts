@@ -54,7 +54,7 @@ function buildStudio(): Plan {
     rooms,
     items: [
       item('st-bed', 'bed-single', { x: 0.7, y: 1.15 }, 0, 'r-main', 3),
-      item('st-desk', 'desk-oak', { x: 2.6, y: 0.5 }, 0, 'r-main'),
+      item('st-desk', 'desk-oak', { x: 2.4, y: 0.5 }, 0, 'r-main'),
       item('st-chair', 'office-chair', { x: 2.6, y: 1.3 }, 180, 'r-main', 2),
       item('st-shelf', 'storage-shelf-slim', { x: 0.28, y: 2.9 }, 90, 'r-main'),
       item('st-tv', 'tv-standby', { x: 0.5, y: 3.65 }, 180, 'r-main', 1),
@@ -165,8 +165,8 @@ function build59(): Plan {
       // 주방
       item('t59-island', 'kitchen-island', { x: 4.05, y: 1.0 }, 90, 'r-kitchen'),
       item('t59-table', 'table-oak-round', { x: 5.9, y: 1.2 }, 0, 'r-kitchen'),
-      item('t59-stool1', 'stool-bar', { x: 5.15, y: 1.2 }, 0, 'r-kitchen'),
-      item('t59-stool2', 'stool-bar', { x: 6.65, y: 1.2 }, 0, 'r-kitchen'),
+      item('t59-stool1', 'stool-bar', { x: 5.0, y: 1.2 }, 0, 'r-kitchen'),
+      item('t59-stool2', 'stool-bar', { x: 5.9, y: 0.38 }, 0, 'r-kitchen'),
       item('t59-fridge', 'fridge', { x: 7.25, y: 0.6 }, 90, 'r-kitchen', 2),
       // 안방 (침대는 부속욕실 반대편)
       item('t59-bed', 'bed-queen', { x: 1.15, y: 4.65 }, 90, 'r-master'),

@@ -25,7 +25,19 @@ import {
   moveWallVertex,
   translateWall,
 } from '../../model/wallEdit';
+import { splitRoomByPolyline, trimPolylineToRooms } from '../../model/roomSplit';
 import {
+  childFitsSurface,
+  deleteItemsWithChildren,
+  mountItem,
+  moveItemWithChildren,
+  rotateItemWithChildren,
+  siblingOverlapIds,
+  surfaceAt,
+  unmountItem,
+} from '../../model/surfaces';
+import {
+  alignmentTargets,
   collisionsFor,
   dimensionNear,
   findFreeSpot,
@@ -46,8 +58,21 @@ import {
   type WallDraft,
   type WallItemGhost,
 } from './PlanCanvas';
-import { CatalogPanel, Inspector, StatusBar, ToolDock } from './panels';
-import { wheelTargetsCanvas } from './inputRouting';
+import {
+  CatalogPanel,
+  FloorAlignPanel,
+  Inspector,
+  StatusBar,
+  ToolDock,
+  UnderlayPanel,
+} from './panels';
+import { floorsOfBuilding } from '../../model/floorStack';
+import { rescalePlanGeometry } from '../../model/underlay';
+import { detectRoomsFromWalls } from '../../model/roomDetect';
+import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
+import { sketchDraftPoints } from './sketchDraft';
+import { dragOriginPoses, type DragOriginPoses } from './dragPreview';
+import { alignmentSnap, axisLock, type AlignmentGuide } from './alignGuides';
 import { fitCamera, makeTransform, s2w, w2s } from './view';
 
 let idSeq = 0;
@@ -105,7 +130,18 @@ export function Editor2D() {
   const [gestureKind, setGestureKind] = useState<Gesture['type'] | null>(null);
   const [hoverItemId, setHoverItemId] = useState<string | null>(null);
   const [hoverDoor, setHoverDoor] = useState(false);
-  const [wallDraft, setWallDraft] = useState<WallDraft | null>(null);
+  /**
+   * 선 그리기(S) 드래프트 — 프로그레시브 커밋 방식.
+   * 각 세그먼트는 클릭 즉시 plan.walls 에 커밋되어 **선 단위 undo 스택**이 쌓인다.
+   * 드래프트는 앵커(첫 점)+커밋된 벽 id 목록만 들고, 미리보기 점열은 plan 에서 파생
+   * — undo/redo 로 세그먼트가 사라지고 돌아와도 이어그리기 상태가 일관된다.
+   * Esc 는 미커밋 앵커·커서만 취소(커밋된 선은 Cmd+Z 로 한 선씩).
+   */
+  const [wallDraft, setWallDraft] = useState<{
+    anchor: Vec2;
+    wallIds: string[];
+    cursor: Vec2 | null;
+  } | null>(null);
   const [openingHover, setOpeningHover] = useState<OpeningHover | null>(null);
   const [measure, setMeasure] = useState<Measure | null>(null);
   const measureRef = useRef<Measure | null>(null);
@@ -122,10 +158,32 @@ export function Editor2D() {
   const [placingPos, setPlacingPos] = useState<Vec2 | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
   const [postDrop, setPostDrop] = useState<{ itemId: string } | null>(null);
+  const [missHint, setMissHint] = useState<string | null>(null);
+  const missHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * 밑그림 스케일 보정 모드 — 언더레이 위에 기준선을 긋고 실측을 입력하면
+   * 언더레이만 리스케일한다 (그린 벽·가구는 불변).
+   */
+  const [scaleMode, setScaleMode] = useState<
+    | null
+    | { stage: 'draw'; line: { a: Vec2; b: Vec2 } | null }
+    | { stage: 'input'; line: { a: Vec2; b: Vec2 }; meters: string }
+  >(null);
+
+  // 층 정렬 — 위층 문서에서 아래층 고스트 겹쳐 보기 (세션 로컬 토글, 기본 on)
+  const [floorGhostOn, setFloorGhostOn] = useState(true);
+  const allPlans = useStore((s) => s.plans);
+  const belowFloor = useMemo(() => {
+    const floors = floorsOfBuilding(allPlans, plan);
+    const idx = floors.findIndex((f) => f.id === plan.id);
+    return idx >= 1 ? floors[idx - 1] : null;
+  }, [allPlans, plan]);
 
   // 최신 상태를 이벤트 핸들러에서 안전하게 읽기 위한 ref
   const planRef = useRef(plan);
   planRef.current = plan;
+  const scaleModeRef = useRef(scaleMode);
+  scaleModeRef.current = scaleMode;
 
   useEffect(() => {
     const el = hostRef.current;
@@ -149,9 +207,14 @@ export function Editor2D() {
     }
   }, [pendingFitView, measured, setCamera2d, clearFitView]);
 
+  // 선 그리기 프로그레시브 커밋 중에는 베이스 변환을 드래프트 시작 시점 plan 으로 고정
+  // — 세그먼트 커밋으로 도면 경계가 자라도 그리는 동안 화면이 밀리지 않는다.
+  const draftBasePlanRef = useRef<Plan | null>(null);
+  if (!wallDraft) draftBasePlanRef.current = null;
   const t = useMemo(
-    () => makeTransform(plan, viewport, camera2d),
-    [plan, viewport, camera2d],
+    () => makeTransform(draftBasePlanRef.current ?? plan, viewport, camera2d),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- wallDraft 는 고정 기준 전환 트리거
+    [plan, viewport, camera2d, wallDraft != null],
   );
   const tRef = useRef(t);
   tRef.current = t;
@@ -185,20 +248,28 @@ export function Editor2D() {
     (dx: number, dy: number) => {
       const sel = useStore.getState().selection;
       if (sel.length === 0) return;
-      updatePlan((pl) => ({
-        ...pl,
-        items: pl.items.map((i) =>
-          sel.includes(i.id)
-            ? {
-                ...i,
-                position: { x: i.position.x + dx, y: i.position.y + dy },
-                roomId:
-                  roomAt(pl.rooms, { x: i.position.x + dx, y: i.position.y + dy })?.id ??
-                  i.roomId,
-              }
-            : i,
-        ),
-      }));
+      updatePlan((pl) => {
+        // 표면 적층: 선택된 부모의 자식 동반 이동
+        const idSet = new Set(sel);
+        for (const i of pl.items) {
+          if (i.parentId && idSet.has(i.parentId)) idSet.add(i.id);
+        }
+        return {
+          ...pl,
+          items: pl.items.map((i) =>
+            idSet.has(i.id)
+              ? {
+                  ...i,
+                  position: { x: i.position.x + dx, y: i.position.y + dy },
+                  roomId: i.parentId
+                    ? i.roomId
+                    : roomAt(pl.rooms, { x: i.position.x + dx, y: i.position.y + dy })?.id ??
+                      i.roomId,
+                }
+              : i,
+          ),
+        };
+      });
     },
     [updatePlan],
   );
@@ -210,9 +281,10 @@ export function Editor2D() {
       // 벽 삭제는 개구부·벽 부착 아이템 연쇄 삭제 포함
       const wallIds = sel.filter((id) => pl.walls.some((w) => w.id === id));
       const base = wallIds.length > 0 ? deleteWalls(pl, wallIds) : pl;
+      // 표면 적층: 부모 삭제 시 상판 위 자식 동반 삭제 (undo 1회로 함께 복원)
+      const afterItems = deleteItemsWithChildren(base, sel);
       return {
-        ...base,
-        items: base.items.filter((i) => !sel.includes(i.id)),
+        ...afterItems,
         openings: base.openings.filter((o) => !sel.includes(o.id)),
         wallItems: (base.wallItems ?? []).filter((w) => !sel.includes(w.id)),
         dimensions: (base.dimensions ?? []).filter((d) => !sel.includes(d.id)),
@@ -228,11 +300,16 @@ export function Editor2D() {
     const pl = planRef.current;
     const copies = pl.items
       .filter((i) => sel.includes(i.id))
-      .map((i) => ({
-        ...i,
-        id: newId('item'),
-        position: { x: i.position.x + 0.3, y: i.position.y + 0.3 },
-      }));
+      .map((i) => {
+        const position = { x: i.position.x + 0.3, y: i.position.y + 0.3 };
+        const copy = { ...i, id: newId('item'), position };
+        // 표면 적층: 사본이 같은 상판에 더 못 들어가면 바닥 배치로 전환
+        if (copy.parentId) {
+          const parent = pl.items.find((p) => p.id === copy.parentId);
+          if (!parent || !childFitsSurface(copy, parent)) delete copy.parentId;
+        }
+        return copy;
+      });
     updatePlan((p) => ({ ...p, items: [...p.items, ...copies] }));
     setSelection(copies.map((c) => c.id));
   }, [updatePlan, setSelection]);
@@ -242,8 +319,36 @@ export function Editor2D() {
   const snapWallPoint = useCallback(
     (raw: Vec2, prev: Vec2 | null): Vec2 => {
       const snap = useStore.getState().snapping;
+      const pl = planRef.current;
+      const s = tRef.current.s;
+
+      // 기존 벽에 스냅: 끝점(12px) 우선, 그다음 벽 선상 최근접점(12px)
+      const snapToWalls = (p: Vec2): Vec2 => {
+        if (!snap.enabled) return p;
+        const threshold = 18 / s;
+        let bestEnd: { pt: Vec2; d: number } | null = null;
+        for (const w of pl.walls) {
+          for (const end of [w.a, w.b]) {
+            const d = Math.hypot(end.x - p.x, end.y - p.y);
+            if (d < threshold && (!bestEnd || d < bestEnd.d)) bestEnd = { pt: end, d };
+          }
+        }
+        if (bestEnd) return { ...bestEnd.pt };
+        const near = wallNear(pl, p, s, 18);
+        if (near) {
+          const w = near.wall;
+          return {
+            x: w.a.x + (w.b.x - w.a.x) * near.t,
+            y: w.a.y + (w.b.y - w.a.y) * near.t,
+          };
+        }
+        return p;
+      };
+
       if (!snap.enabled) return raw;
-      if (!prev) return { x: snapValue(raw.x, 0.1), y: snapValue(raw.y, 0.1) };
+      if (!prev) {
+        return snapToWalls({ x: snapValue(raw.x, 0.1), y: snapValue(raw.y, 0.1) });
+      }
       const dx = raw.x - prev.x;
       const dy = raw.y - prev.y;
       const dist = Math.hypot(dx, dy);
@@ -251,7 +356,12 @@ export function Editor2D() {
       const angle = Math.atan2(dy, dx);
       const stepped = Math.round(angle / deg2rad(snap.angleStepDeg)) * deg2rad(snap.angleStepDeg);
       const len = Math.max(0.1, snapValue(dist, 0.1));
-      return { x: prev.x + Math.cos(stepped) * len, y: prev.y + Math.sin(stepped) * len };
+      const stepPt = {
+        x: prev.x + Math.cos(stepped) * len,
+        y: prev.y + Math.sin(stepped) * len,
+      };
+      // 기존 벽 근처면 벽에 붙임 — 룸 분할·접합이 정확해진다
+      return snapToWalls(stepPt);
     },
     [],
   );
@@ -260,30 +370,57 @@ export function Editor2D() {
     (close: boolean) => {
       const draft = wallDraft;
       setWallDraft(null);
-      if (!draft || draft.points.length < 2) return;
-      const pts = draft.points;
-      updatePlan((pl) => {
-        const walls = [...pl.walls];
-        const segs = close ? pts.length : pts.length - 1;
-        for (let i = 0; i < segs; i++) {
-          const a = pts[i];
-          const b = pts[(i + 1) % pts.length];
-          walls.push({ id: newId('wall'), a, b, thickness: 0.15, height: 2.4 });
-        }
-        let rooms = pl.rooms;
-        if (close && pts.length >= 3) {
+      if (!draft) return;
+      const st = useStore.getState();
+      const pl = st.plans[st.currentPlanId];
+      if (!pl) return;
+      const pts = sketchDraftPoints(pl, draft);
+      if (pts.length < 2) return; // 앵커만 남음 — 취소와 동일
+      const surviving = draft.wallIds.filter((id) => pl.walls.some((w) => w.id === id));
+
+      if (close) {
+        if (pts.length < 3) return;
+        // 닫기: 마지막 세그먼트 + 룸 생성을 하나의 엔트리로 (선 커밋과 별도)
+        updatePlan((p) => {
+          const closing = {
+            id: newId('wall'),
+            a: pts[pts.length - 1],
+            b: pts[0],
+            thickness: 0.15,
+            height: p.defaultWallHeight ?? 2.4,
+          };
           const room: Room = {
             id: newId('room'),
-            name: `방 ${pl.rooms.length + 1}`,
-            wallIds: walls.slice(-segs).map((w) => w.id),
+            name: `방 ${p.rooms.length + 1}`,
+            wallIds: [...surviving, closing.id],
             polygon: pts,
             areaSqm: polygonArea(pts),
             floor: 'living',
           };
-          rooms = [...pl.rooms, room];
-        }
-        return { ...pl, walls, rooms };
-      });
+          return { ...p, walls: [...p.walls, closing], rooms: [...p.rooms, room] };
+        });
+        return;
+      }
+
+      // 열린 폴리라인 마감: 오버슛 트리밍(첫·끝 세그먼트 좌표 보정) + 룸 분할 — 1 엔트리.
+      // 변화가 없으면 엔트리를 만들지 않는다 (무의미한 undo 스텝 방지).
+      const trimmed = trimPolylineToRooms(pl, pts);
+      const coordsChanged =
+        trimmed.length === pts.length &&
+        trimmed.some((p, i) => p.x !== pts[i].x || p.y !== pts[i].y);
+      const wallsAfterTrim = coordsChanged
+        ? pl.walls.map((w) => {
+            let w2 = w;
+            if (w.id === surviving[0]) w2 = { ...w2, a: trimmed[0] };
+            if (w.id === surviving[surviving.length - 1])
+              w2 = { ...w2, b: trimmed[trimmed.length - 1] };
+            return w2;
+          })
+        : pl.walls;
+      const withTrim = coordsChanged ? { ...pl, walls: wallsAfterTrim } : pl;
+      const split = splitRoomByPolyline(withTrim, trimmed);
+      if (!coordsChanged && split === withTrim) return; // 변화 없음
+      updatePlan(() => split);
     },
     [wallDraft, updatePlan],
   );
@@ -292,7 +429,8 @@ export function Editor2D() {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
-      if (e.button === 1 || (e.button === 0 && spaceDown)) {
+      // Hand 도구(H)는 지속 팬 모드 — 어떤 대상 위에서든 드래그=팬, 선택/배치 없음
+      if (e.button === 1 || (e.button === 0 && (spaceDown || tool === 'hand'))) {
         gestureRef.current = {
           type: 'pan',
           startScreen: { x: e.clientX, y: e.clientY },
@@ -315,6 +453,14 @@ export function Editor2D() {
         // 합성 이벤트 등 capture 불가 — 무시
       }
 
+      // 밑그림 스케일 보정 모드: 기준선 드래그가 모든 도구보다 우선
+      if (scaleMode) {
+        if (scaleMode.stage === 'draw') {
+          setScaleMode({ stage: 'draw', line: { a: world, b: world } });
+        }
+        return;
+      }
+
       // 카탈로그 배치 모드
       if (placingCatalogId) {
         // 벽 부착 아이템: 유효한 벽 스냅 위치에서만 배치 (개구부 겹침 금지)
@@ -322,10 +468,8 @@ export function Editor2D() {
           const ghost = wallGhostRef.current;
           if (ghost?.valid) {
             const wi = createWallItem(ghost.catalogId, ghost.wallId, ghost.t, ghost.side);
+            // 연속 배치: placing 유지 — Esc 또는 카탈로그 재클릭으로 종료
             updatePlan((p) => ({ ...p, wallItems: [...(p.wallItems ?? []), wi] }));
-            setPlacing(null);
-            setWallGhost(null);
-            setSelection([wi.id]);
           }
           return;
         }
@@ -345,35 +489,76 @@ export function Editor2D() {
           roomId: roomAt(pl.rooms, pos)?.id ?? null,
           price: cat.price,
         };
+        // 표면 적층: mountable 아이템을 표면 가구 위에 클릭하면 자식으로 배치
+        if (cat.mountable) {
+          const surf = surfaceAt(pl, pos);
+          if (surf) {
+            const fits =
+              childFitsSurface(item, surf) &&
+              siblingOverlapIds(pl, item, surf.id).length === 0;
+            if (!fits) return; // 상판 이탈·형제 겹침 — 배치 거부 (고스트가 무효 표시)
+            item.parentId = surf.id;
+            item.roomId = surf.roomId;
+          }
+        }
+        // 연속 배치: placing 유지 — 같은 가구를 계속 찍을 수 있다 (Esc/재클릭 종료)
         updatePlan((p) => ({ ...p, items: [...p.items, item] }));
-        setPlacing(null);
-        setPlacingPos(null);
-        setSelection([item.id]);
-        const cols = collisionsFor({ ...pl, items: [...pl.items, item] }, item);
-        if (cols.length > 0) setPostDrop({ itemId: item.id });
         return;
       }
 
       if (tool === 'wall') {
-        const prev = wallDraft?.points[wallDraft.points.length - 1] ?? null;
+        const pts = wallDraft ? sketchDraftPoints(pl, wallDraft) : null;
+        const prev = pts ? pts[pts.length - 1] : null;
         const pt = snapWallPoint(world, prev);
-        if (wallDraft && wallDraft.points.length >= 3) {
-          const startScreen = w2s(tRef.current, wallDraft.points[0]);
+        if (wallDraft && pts && pts.length >= 3) {
+          const startScreen = w2s(tRef.current, pts[0]);
           const cursorScreen = toScreen(e);
           if (Math.hypot(startScreen.x - cursorScreen.x, startScreen.y - cursorScreen.y) < 12) {
             finishWallDraft(true);
             return;
           }
         }
-        setWallDraft((d) => ({ points: [...(d?.points ?? []), pt], cursor: pt }));
+        if (!wallDraft) {
+          draftBasePlanRef.current = pl; // 그리는 동안 뷰 기준 고정
+          setWallDraft({ anchor: pt, wallIds: [], cursor: pt });
+          return;
+        }
+        // 프로그레시브 커밋: 세그먼트 하나 = undo 엔트리 하나 (룸 판정은 finish 시점에만)
+        if (prev && Math.hypot(pt.x - prev.x, pt.y - prev.y) > 1e-9) {
+          const segId = newId('wall');
+          updatePlan((p) => ({
+            ...p,
+            walls: [
+              ...p.walls,
+              { id: segId, a: prev, b: pt, thickness: 0.15, height: p.defaultWallHeight ?? 2.4 },
+            ],
+          }));
+          const surviving = wallDraft.wallIds.filter((id) =>
+            pl.walls.some((w) => w.id === id),
+          );
+          setWallDraft({ ...wallDraft, wallIds: [...surviving, segId], cursor: pt });
+        }
         return;
       }
 
       if (tool === 'door' || tool === 'window') {
-        const near = wallNear(pl, world, tRef.current.s);
-        if (near) {
+        const near = wallNear(pl, world, tRef.current.s, 24);
+        if (!near) {
+          // 무반응 방지: 벽을 못 맞춘 클릭에 안내 표시
+          setMissHint(tool === 'door' ? '벽 위를 클릭해 문을 배치하세요' : '벽 위를 클릭해 창을 배치하세요');
+          if (missHintTimer.current) clearTimeout(missHintTimer.current);
+          missHintTimer.current = setTimeout(() => setMissHint(null), 1800);
+          return;
+        }
+        {
           const width = tool === 'door' ? 0.9 : 1.2;
           const len = Math.hypot(near.wall.b.x - near.wall.a.x, near.wall.b.y - near.wall.a.y);
+          if (len <= width + 0.1) {
+            setMissHint(`벽이 너무 짧습니다 (${tool === 'door' ? '문' : '창'} 폭 ${width}m 이상 필요)`);
+            if (missHintTimer.current) clearTimeout(missHintTimer.current);
+            missHintTimer.current = setTimeout(() => setMissHint(null), 1800);
+            return;
+          }
           const halfT = width / 2 / len;
           const tt = Math.min(1 - halfT, Math.max(halfT, near.t));
           updatePlan((p) => ({
@@ -514,6 +699,20 @@ export function Editor2D() {
           );
           setPostDrop(null);
         } else {
+          // Shift+벽 클릭: 벽 다중 선택 토글 (벽 속성 일괄 편집용)
+          const shiftWall = wallNear(pl, world, tRef.current.s, 10);
+          if (shiftWall) {
+            const curWalls = useStore
+              .getState()
+              .selection.filter((id) => pl.walls.some((w) => w.id === id));
+            setSelection(
+              curWalls.includes(shiftWall.wall.id)
+                ? curWalls.filter((id) => id !== shiftWall.wall.id)
+                : [...curWalls, shiftWall.wall.id],
+            );
+            setPostDrop(null);
+            return;
+          }
           gestureRef.current = { type: 'marquee', start: world };
           setGestureKind('marquee');
           setMarquee({ a: world, b: world });
@@ -523,7 +722,13 @@ export function Editor2D() {
 
       // 다중 선택 상태에서 선택된 아이템을 잡으면 그룹 이동
       if (hit && selection.length > 1 && selection.includes(hit.id)) {
-        const itemIds = selection.filter((id) => pl.items.some((i) => i.id === id));
+        const baseIds = selection.filter((id) => pl.items.some((i) => i.id === id));
+        // 표면 적층: 선택된 부모의 자식은 그룹에 자동 포함 (동반 이동)
+        const idSet = new Set(baseIds);
+        for (const i of pl.items) {
+          if (i.parentId && idSet.has(i.parentId)) idSet.add(i.id);
+        }
+        const itemIds = [...idSet];
         const starts: Record<string, Vec2> = {};
         for (const id of itemIds) {
           const it = pl.items.find((i) => i.id === id)!;
@@ -618,6 +823,7 @@ export function Editor2D() {
       updatePlan,
       setPlacing,
       setSelection,
+      scaleMode,
     ],
   );
 
@@ -626,6 +832,14 @@ export function Editor2D() {
       const g = gestureRef.current;
       const pl = planRef.current;
       const world = toWorld(e);
+
+      // 밑그림 스케일 보정: 기준선 드래그 중
+      if (scaleMode) {
+        if (scaleMode.stage === 'draw' && scaleMode.line && e.buttons === 1) {
+          setScaleMode({ stage: 'draw', line: { a: scaleMode.line.a, b: world } });
+        }
+        return;
+      }
 
       if (g?.type === 'pan') {
         setCamera2d({
@@ -651,10 +865,53 @@ export function Editor2D() {
       if (g?.type === 'groupMove') {
         g.moved = true;
         const snap = useStore.getState().snapping;
-        let delta = { x: world.x - g.grabWorld.x, y: world.y - g.grabWorld.y };
+        // Shift 축 잠금 — 그랩 지점 기준 직선 이동
+        const target = e.shiftKey ? axisLock(g.grabWorld, world) : world;
+        let delta = { x: target.x - g.grabWorld.x, y: target.y - g.grabWorld.y };
+        let groupGuides: AlignmentGuide[] = [];
         if (snap.enabled) {
+          // 그룹 바운즈 기준 정렬 스냅 (정렬 > 데드존 > 그리드 — 상대 배치 유지)
+          let minX = Infinity;
+          let minY = Infinity;
+          let maxX = -Infinity;
+          let maxY = -Infinity;
+          for (const id of g.itemIds) {
+            const bi = g.before.items.find((i) => i.id === id);
+            const start = g.starts[id];
+            if (!bi || !start) continue;
+            const ab = itemAabb({
+              position: { x: start.x + delta.x, y: start.y + delta.y },
+              rotationDeg: bi.rotationDeg,
+              size: bi.size,
+            });
+            minX = Math.min(minX, ab.min.x);
+            minY = Math.min(minY, ab.min.y);
+            maxX = Math.max(maxX, ab.max.x);
+            maxY = Math.max(maxY, ab.max.y);
+          }
           const grid = snap.gridCm / 100;
-          delta = { x: snapValue(delta.x, grid), y: snapValue(delta.y, grid) };
+          if (Number.isFinite(minX)) {
+            const s = tRef.current.s;
+            const targets = alignmentTargets(
+              pl,
+              { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
+              new Set(g.itemIds),
+              500 / s,
+            );
+            const align = alignmentSnap(
+              { min: { x: minX, y: minY }, max: { x: maxX, y: maxY } },
+              targets,
+              6 / s,
+              12 / s,
+            );
+            delta = {
+              x: align.dx != null ? delta.x + align.dx : align.freeX ? delta.x : snapValue(delta.x, grid),
+              y: align.dy != null ? delta.y + align.dy : align.freeY ? delta.y : snapValue(delta.y, grid),
+            };
+            groupGuides = align.guides;
+          } else {
+            delta = { x: snapValue(delta.x, grid), y: snapValue(delta.y, grid) };
+          }
         }
         updatePlan(
           (p) => {
@@ -680,6 +937,7 @@ export function Editor2D() {
           collisions,
           blockedDoors,
           isNew: false,
+          alignGuides: groupGuides,
         });
         return;
       }
@@ -688,19 +946,39 @@ export function Editor2D() {
         const item = pl.items.find((i) => i.id === g.itemId);
         if (!item) return;
         g.moved = true;
-        const candidate = { x: world.x - g.grabOffset.x, y: world.y - g.grabOffset.y };
+        let candidate = { x: world.x - g.grabOffset.x, y: world.y - g.grabOffset.y };
+        // Shift 축 잠금: 시작 위치 기준 수평/수직 직선 이동
+        if (e.shiftKey) {
+          const start = g.before.items.find((i) => i.id === g.itemId)?.position;
+          if (start) candidate = axisLock(start, candidate);
+        }
         const snap = useStore.getState().snapping;
-        const { position, snap: snapResult } = snapItemMove(
+        // 정렬 대상에서 자기 자신 + 함께 움직이는 적층 자식 제외
+        const childIds = pl.items.filter((i) => i.parentId === g.itemId).map((i) => i.id);
+        const { position, snap: snapResult, guides } = snapItemMove(
           pl,
           item,
           candidate,
           tRef.current.s,
           snap,
+          childIds,
         );
-        const probe = { ...item, position };
-        const collisions = collisionsFor(pl, probe);
-        const blockedDoors = blockedDoorIds(pl, probe);
-        patchItem(g.itemId, { position }, false);
+        // 표면 적층: mountable 아이템이 표면 가구 위에 있으면 표면 드롭 후보
+        const cat = catalogById.get(item.catalogId);
+        const surf = cat?.mountable ? surfaceAt(pl, position, item.id) : null;
+        const floorProbe = { ...item, position, parentId: undefined };
+        let collisions: string[] = [];
+        let blockedDoors: string[] = [];
+        let surfaceInvalid = false;
+        if (surf) {
+          surfaceInvalid =
+            !childFitsSurface({ ...floorProbe }, surf) ||
+            siblingOverlapIds(pl, { ...item, position }, surf.id).length > 0;
+        } else {
+          collisions = collisionsFor(pl, floorProbe);
+          blockedDoors = blockedDoorIds(pl, floorProbe);
+        }
+        updatePlan((p) => moveItemWithChildren(p, g.itemId, position), { commit: false });
         setDrag({
           itemId: g.itemId,
           ghost: position,
@@ -708,6 +986,9 @@ export function Editor2D() {
           collisions,
           blockedDoors,
           isNew: false,
+          surfaceTargetId: surf?.id ?? null,
+          surfaceInvalid,
+          alignGuides: guides,
         });
         return;
       }
@@ -720,7 +1001,8 @@ export function Editor2D() {
           (Math.atan2(world.y - item.position.y, world.x - item.position.x) * 180) / Math.PI + 90;
         const step = useStore.getState().snapping.angleStepDeg;
         const deg = e.shiftKey ? Math.round(angle) : Math.round(angle / step) * step;
-        patchItem(g.itemId, { rotationDeg: deg }, false);
+        // 표면 적층: 부모 회전 시 자식 동반 회전
+        updatePlan((p) => rotateItemWithChildren(p, g.itemId, deg), { commit: false });
         return;
       }
 
@@ -829,12 +1111,13 @@ export function Editor2D() {
         return;
       }
       if (tool === 'wall' && wallDraft) {
-        const prev = wallDraft.points[wallDraft.points.length - 1];
+        const pts = sketchDraftPoints(pl, wallDraft);
+        const prev = pts[pts.length - 1];
         setWallDraft({ ...wallDraft, cursor: snapWallPoint(world, prev) });
         return;
       }
       if (tool === 'door' || tool === 'window') {
-        const near = wallNear(pl, world, tRef.current.s);
+        const near = wallNear(pl, world, tRef.current.s, 24);
         setOpeningHover(near ? { wallId: near.wall.id, t: near.t, kind: tool } : null);
         return;
       }
@@ -844,7 +1127,7 @@ export function Editor2D() {
         setHoverDoor(!hover && openingNear(pl, world, tRef.current.s) != null);
       }
     },
-    [toWorld, tool, wallDraft, placingCatalogId, patchItem, setDrag, setCamera2d, snapWallPoint],
+    [toWorld, tool, wallDraft, placingCatalogId, patchItem, setDrag, setCamera2d, snapWallPoint, scaleMode],
   );
 
   const onPointerUp = useCallback(
@@ -856,6 +1139,14 @@ export function Editor2D() {
         svgRef.current.releasePointerCapture(e.pointerId);
       } catch {
         // capture 없음 — 무시
+      }
+
+      // 밑그림 스케일 보정: 드래그 종료 → 실측 입력 단계
+      if (scaleMode?.stage === 'draw' && scaleMode.line) {
+        const L = scaleMode.line;
+        const len = Math.hypot(L.b.x - L.a.x, L.b.y - L.a.y);
+        setScaleMode(len > 0.2 ? { stage: 'input', line: L, meters: '' } : { stage: 'draw', line: null });
+        return;
       }
 
       if (!g) return;
@@ -918,22 +1209,61 @@ export function Editor2D() {
       }
 
       if (g.type === 'move' || g.type === 'rotate' || g.type === 'resize') {
-        const pl = planRef.current;
+        // planRef 는 렌더 시점 갱신이라 같은 프레임의 drop 에서 스테일할 수 있다
+        // — 표면 마운트/언마운트 판정은 스토어 최신 상태로.
+        const st = useStore.getState();
+        const pl = st.plans[st.currentPlanId] ?? planRef.current;
         const item = pl.items.find((i) => i.id === g.itemId);
         if (g.moved && item) {
-          pushHistory(g.before);
-          // 룸 재배정
-          patchItem(g.itemId, { roomId: roomAt(pl.rooms, item.position)?.id ?? null }, false);
+          // 표면 적층: 드롭 지점이 표면 가구면 자식으로 올리고, 벗어나면 바닥으로 내린다
           if (g.type === 'move') {
+            const cat = catalogById.get(item.catalogId);
+            const surf = cat?.mountable ? surfaceAt(pl, item.position, item.id) : null;
+            if (surf) {
+              const invalid =
+                !childFitsSurface({ ...item }, surf) ||
+                siblingOverlapIds(pl, item, surf.id).length > 0;
+              if (invalid) {
+                // 상판 이탈·형제 겹침 — 원위치 복원 (벽 부착과 동일 정책)
+                updatePlan(() => g.before, { commit: false });
+                setDrag(null);
+                return;
+              }
+              pushHistory(g.before);
+              updatePlan((p) => mountItem(p, item.id, surf.id), { commit: false });
+              setPostDrop(null);
+              setDrag(null);
+              return;
+            }
+          }
+          pushHistory(g.before);
+          const unmounted = g.type === 'move' && item.parentId;
+          // 룸 재배정 (+ 표면에서 내려온 경우 parentId 해제)
+          updatePlan(
+            (p) => {
+              const base = unmounted ? unmountItem(p, item.id) : p;
+              return {
+                ...base,
+                items: base.items.map((i) =>
+                  i.id === g.itemId
+                    ? { ...i, roomId: roomAt(p.rooms, i.position)?.id ?? null }
+                    : i,
+                ),
+              };
+            },
+            { commit: false },
+          );
+          if (g.type === 'move') {
+            const probe = { ...item, parentId: undefined };
             const problematic =
-              collisionsFor(pl, item).length > 0 || blockedDoorIds(pl, item).length > 0;
+              collisionsFor(pl, probe).length > 0 || blockedDoorIds(pl, probe).length > 0;
             setPostDrop(problematic ? { itemId: g.itemId } : null);
           }
         }
         setDrag(null);
       }
     },
-    [pushHistory, patchItem, setDrag],
+    [pushHistory, patchItem, setDrag, scaleMode],
   );
 
   /* ===== 휠 줌 ===== */
@@ -988,12 +1318,30 @@ export function Editor2D() {
         return;
       }
       if (e.key === 'Escape') {
+        // 밑그림 스케일 보정 모드 취소
+        if (scaleModeRef.current) {
+          setScaleMode(null);
+          return;
+        }
+        // 진행 중 드래그 취소 — 시작 스냅샷으로 원위치 복원 (미리보기=커밋 계약의 취소 경로)
+        const g = gestureRef.current;
+        if (g && 'before' in g) {
+          gestureRef.current = null;
+          setGestureKind(null);
+          updatePlan(() => g.before, { commit: false });
+          setDrag(null);
+          setWallMoveInvalid(false);
+          setPostDrop(null);
+          return;
+        }
         if (useStore.getState().placingCatalogId) {
           setPlacing(null);
           setPlacingPos(null);
           setWallGhost(null);
         } else if (wallDraft) {
           setWallDraft(null);
+        } else if (useStore.getState().tool === 'hand') {
+          setTool('select'); // Hand 모드 복귀
         } else {
           setSelection([]);
           setPostDrop(null);
@@ -1010,12 +1358,11 @@ export function Editor2D() {
       if (e.key === 'ArrowUp') return moveSelection(0, -arrowStep);
       if (e.key === 'ArrowDown') return moveSelection(0, arrowStep);
 
-      const k = e.key.toLowerCase();
-      if (k === 'v') setTool('select');
-      else if (k === 'w') setTool('wall');
-      else if (k === 'd') setTool('door');
-      else if (k === 'n') setTool('window');
-      else if (k === 'm') setTool('dimension');
+      // 도구 단축키 — IME 조합 상태와 무관하도록 물리 키(e.code) 기준 매핑.
+      // 수정키 조합(Cmd+S 등)은 도구 전환으로 오인하지 않는다.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const nextTool = toolForKeyCode(e.code);
+      if (nextTool) setTool(nextTool);
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') setSpaceDown(false);
@@ -1037,6 +1384,8 @@ export function Editor2D() {
     setTool,
     setSelection,
     setPlacing,
+    updatePlan,
+    setDrag,
   ]);
 
   // 도구 변경 시 진행중 상태 정리
@@ -1052,14 +1401,24 @@ export function Editor2D() {
     if (!placingCatalogId || !placingPos) return null;
     if (isWallCatalogItem(placingCatalogId)) return null; // 벽 부착은 wallGhost 경로
     const cat = catalogById.get(placingCatalogId);
-    const blocked = cat
-      ? blockedDoorIds(plan, {
+    // 표면 적층: mountable 아이템이 표면 가구 위에 있으면 표면 기준으로 검증
+    const probe = cat
+      ? { catalogId: placingCatalogId, position: placingPos, rotationDeg: 0, size: cat.size }
+      : null;
+    if (cat?.mountable && probe) {
+      const surf = surfaceAt(plan, placingPos);
+      if (surf) {
+        return {
           catalogId: placingCatalogId,
-          position: placingPos,
-          rotationDeg: 0,
-          size: cat.size,
-        }).length > 0
-      : false;
+          pos: placingPos,
+          valid:
+            childFitsSurface(probe, surf) &&
+            siblingOverlapIds(plan, probe, surf.id).length === 0,
+          surfaceTargetId: surf.id,
+        };
+      }
+    }
+    const blocked = probe ? blockedDoorIds(plan, probe).length > 0 : false;
     return {
       catalogId: placingCatalogId,
       pos: placingPos,
@@ -1067,10 +1426,50 @@ export function Editor2D() {
     };
   })();
 
+  // 드래프트 미리보기(PlanCanvas 렌더용) — plan 파생이라 undo/redo 와 항상 일치
+  const wallDraftView: WallDraft | null = wallDraft
+    ? { points: sketchDraftPoints(plan, wallDraft), cursor: wallDraft.cursor }
+    : null;
+
+  /**
+   * 미리보기=커밋 계약: 드래그 중 plan 라이브 상태가 곧 프리뷰(스냅·클램프 반영 완료)라
+   * 프리뷰와 커밋이 어긋날 여지가 없다. 여기서는 원본 잔상(제스처 시작 스냅샷)만 파생한다.
+   * gestureKind 상태 변화로 시작·종료 시점에 정확히 갱신된다.
+   */
+  const dragOrigin: DragOriginPoses | null = useMemo(() => {
+    const g = gestureRef.current;
+    if (!g || gestureKind == null) return null;
+    if (
+      g.type === 'move' ||
+      g.type === 'rotate' ||
+      g.type === 'resize' ||
+      g.type === 'groupMove' ||
+      g.type === 'wallEndpointMove' ||
+      g.type === 'wallBodyMove'
+    ) {
+      return dragOriginPoses(g.before, g);
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gestureRef 는 gestureKind 와 함께 변한다
+  }, [gestureKind]);
+
+  // 회전 프리뷰 HUD — 라이브 각도(스냅 적용 값) 표시. plan 갱신마다 재계산된다.
+  const rotateHud =
+    gestureKind === 'rotate' && gestureRef.current?.type === 'rotate'
+      ? (() => {
+          const it = plan.items.find(
+            (i) => gestureRef.current?.type === 'rotate' && i.id === gestureRef.current.itemId,
+          );
+          return it
+            ? { itemId: it.id, deg: Math.round(((it.rotationDeg % 360) + 360) % 360) }
+            : null;
+        })()
+      : null;
+
   const cursor =
     gestureKind === 'pan'
       ? 'grabbing'
-      : spaceDown
+      : spaceDown || tool === 'hand'
         ? 'grab'
         : placingCatalogId
           ? 'copy'
@@ -1091,6 +1490,20 @@ export function Editor2D() {
       }),
     );
   }, [setCamera2d]);
+
+  // 방 인식 — 현재 벽으로 닫힌 공간을 찾아 방 생성 (기존 방과 중복 스킵, 1 undo)
+  const detectRooms = useCallback(() => {
+    const pl = planRef.current;
+    const rooms = detectRoomsFromWalls(pl, () => newId('room'));
+    if (missHintTimer.current) clearTimeout(missHintTimer.current);
+    if (rooms.length === 0) {
+      setMissHint('닫힌 공간을 찾지 못했습니다 — 벽이 완전히 둘러싼 영역이 필요합니다');
+    } else {
+      updatePlan((p) => ({ ...p, rooms: [...p.rooms, ...rooms] }));
+      setMissHint(`방 ${rooms.length}개 인식됨 — 필요 없으면 Cmd+Z`);
+    }
+    missHintTimer.current = setTimeout(() => setMissHint(null), 2400);
+  }, [updatePlan]);
 
   // 충돌 후 액션 칩 위치
   const postDropItem = postDrop ? plan.items.find((i) => i.id === postDrop.itemId) : null;
@@ -1119,7 +1532,10 @@ export function Editor2D() {
         selection={selection}
         hoverItemId={hoverItemId}
         drag={drag}
-        wallDraft={wallDraft}
+        wallDraft={wallDraftView}
+        dragOrigin={dragOrigin}
+        rotateHud={rotateHud}
+        ghostPlan={floorGhostOn ? belowFloor : null}
         openingHover={openingHover}
         measure={measure}
         placingGhost={placingGhost}
@@ -1133,10 +1549,74 @@ export function Editor2D() {
         onPointerUp={onPointerUp}
         cursor={cursor}
       />
-      <ToolDock onResetView={resetView} />
+      {missHint && <div className="miss-hint">{missHint}</div>}
+      <ToolDock onResetView={resetView} onDetectRooms={detectRooms} />
       <CatalogPanel />
       <Inspector />
       <StatusBar t={t} />
+      {plan.tracing && (
+        <UnderlayPanel onStartScale={() => setScaleMode({ stage: 'draw', line: null })} />
+      )}
+      <FloorAlignPanel ghostOn={floorGhostOn} setGhostOn={setFloorGhostOn} />
+
+      {/* 밑그림 스케일 보정 오버레이 */}
+      {scaleMode && (
+        <>
+          {scaleMode.stage === 'draw' && !scaleMode.line && (
+            <div className="miss-hint" style={{ bottom: 132 }}>
+              밑그림에서 길이를 아는 벽을 드래그해 기준선을 그으세요 (Esc 취소)
+            </div>
+          )}
+          {scaleMode.line &&
+            (() => {
+              const a = w2s(t, scaleMode.line.a);
+              const b = w2s(t, scaleMode.line.b);
+              return (
+                <svg className="scale-overlay" width={viewport.w} height={viewport.h}>
+                  <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#e8590c" strokeWidth={3} />
+                  <circle cx={a.x} cy={a.y} r={4} fill="#e8590c" />
+                  <circle cx={b.x} cy={b.y} r={4} fill="#e8590c" />
+                </svg>
+              );
+            })()}
+          {scaleMode.stage === 'input' &&
+            (() => {
+              const mid = w2s(t, {
+                x: (scaleMode.line.a.x + scaleMode.line.b.x) / 2,
+                y: (scaleMode.line.a.y + scaleMode.line.b.y) / 2,
+              });
+              const applyScale = () => {
+                const m = parseFloat(scaleMode.meters);
+                const L = scaleMode.line;
+                const len = Math.hypot(L.b.x - L.a.x, L.b.y - L.a.y);
+                if (!m || m <= 0 || len < 1e-6) return;
+                // 벽·방이 밑그림에서 파생되므로 문서 지오메트리 전체를 배율 (가구 크기는 불변)
+                updatePlan((pl) => rescalePlanGeometry(pl, m / len));
+                setScaleMode(null);
+              };
+              return (
+                <div className="scale-input-chip" style={{ left: mid.x, top: mid.y - 52 }}>
+                  이 선의 실제 길이
+                  <input
+                    autoFocus
+                    value={scaleMode.meters}
+                    onChange={(e) =>
+                      setScaleMode({ ...scaleMode, meters: e.target.value })
+                    }
+                    onKeyDown={(e) => e.key === 'Enter' && applyScale()}
+                  />
+                  m
+                  <button className="btn btn--primary" onClick={applyScale}>
+                    적용
+                  </button>
+                  <button className="btn btn--outline" onClick={() => setScaleMode(null)}>
+                    취소
+                  </button>
+                </div>
+              );
+            })()}
+        </>
+      )}
       {postDropItem && postDropHasCollision && postDropScreen && (
         <div
           className="collision-actions"

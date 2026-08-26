@@ -82,8 +82,12 @@ function isIgnoredForDoors(catalogId: string): boolean {
 /** 아이템(후보 위치)이 막는 문 id 목록 */
 export function blockedDoorIds(
   plan: Plan,
-  item: Pick<PlacedItem, 'catalogId' | 'position' | 'rotationDeg' | 'size'> & { id?: string },
+  item: Pick<PlacedItem, 'catalogId' | 'position' | 'rotationDeg' | 'size'> & {
+    id?: string;
+    parentId?: string;
+  },
 ): string[] {
+  if (item.parentId) return []; // 표면 위 자식은 바닥 클리어런스 무관
   if (isIgnoredForDoors(item.catalogId)) return [];
   const corners = itemCorners(item);
   const hit = new Set<string>();

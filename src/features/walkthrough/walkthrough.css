@@ -363,3 +363,85 @@
 .gaze-edit__close:hover {
   background: rgba(247, 244, 239, 0.24);
 }
+
+/* ---- 인게임 메뉴 (Tab = 메뉴+커서 모드) ---- */
+.wt-menu {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  padding: 18px;
+  background: var(--hud-panel);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(247, 244, 239, 0.14);
+  border-radius: 14px;
+  z-index: 20;
+}
+
+.wt-menu__title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #f7f4ef;
+  letter-spacing: -0.01em;
+}
+
+.wt-menu__hint {
+  margin: 6px 0 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hud-text-2);
+}
+
+.wt-menu__items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wt-menu__item {
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: rgba(247, 244, 239, 0.08);
+  color: #f7f4ef;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.wt-menu__item:hover {
+  background: rgba(247, 244, 239, 0.18);
+  transform: translateX(2px);
+}
+
+.wt-menu__item--primary {
+  background: rgba(14, 159, 110, 0.35);
+}
+
+.wt-menu__item--primary:hover {
+  background: rgba(14, 159, 110, 0.5);
+}
+
+.wt-menu__keymap {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(247, 244, 239, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wt-menu__keymap-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--hud-text-2);
+  margin-top: 4px;
+}
+
+.wt-menu__keymap-row {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hud-text-2);
+}

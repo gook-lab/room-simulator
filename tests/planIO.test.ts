@@ -67,7 +67,7 @@ describe('importPlan 스키마 검증 (명확한 에러)', () => {
   it('format 불일치', () => {
     const r = importPlan(JSON.stringify({ format: 'other', version: 1, plan: {} }));
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toContain('Roomcast');
+    if (!r.ok) expect(r.error).toContain('룸 시뮬레이터');
   });
 
   it('미래 버전 거부', () => {

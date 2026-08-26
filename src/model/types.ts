@@ -37,6 +37,8 @@ export type Room = {
   floorFinish?: string;
   /** 벽 마감(벽지 색) — 미지정 시 기본 벽색 */
   wallFinish?: string;
+  /** 오픈 천장(보이드) — 복층에서 이 방 위가 위층까지 뚫림. 천장 렌더 생략 */
+  openCeiling?: boolean;
 };
 
 export type ItemVariant = { material: string; color: string };
@@ -53,6 +55,11 @@ export type PlacedItem = {
   price: number;
   /** 조명 등 전원 상태 — undefined 는 켜짐(기본) */
   powered?: boolean;
+  /**
+   * 표면 적층: 이 아이템이 올라가 있는 부모(표면 가구) id — undefined 는 바닥 배치.
+   * position/rotationDeg 는 월드 좌표 그대로이며, 부모 변환 시 동반 갱신된다 (surfaces.ts).
+   */
+  parentId?: string;
 };
 
 /** 벽 부착 아이템 (액자·벽시계·벽거울) — 벽 세그먼트 좌표계 (wallId + t + 높이) */
@@ -85,11 +92,22 @@ export type Tracing = {
   /** 원본 이미지의 실세계 크기 (m) — unitScale 확정 시 계산 */
   widthM?: number;
   heightM?: number;
+  /** 밑그림 이미지 원점 오프셋 (m) — 층 정렬로 문서를 이동하면 함께 이동 */
+  offset?: Vec2;
 };
 
 export type Plan = {
   id: string;
   name: string;
+  /**
+   * 다층 건물 연결 — 같은 buildingId 를 가진 plan 들이 한 건물의 층 묶음.
+   * 층 = 독립 문서(엔진 무변경) 설계라 지오메트리·견적·3D는 층 단위로 동작한다.
+   */
+  buildingId?: string;
+  /** 층 이름 (예: '1층') — buildingId 있는 문서에서 사용 */
+  floorLabel?: string;
+  /** 문서 기본 층고(m) — 새 벽 높이·천장 폴백. 없으면 2.4 */
+  defaultWallHeight?: number;
   /** px per meter — 업로드 트레이싱에서 확정 */
   unitScale: number;
   walls: Wall[];
@@ -106,7 +124,16 @@ export type Plan = {
 
 /* ===== Catalog ===== */
 
-export type CatalogCategory = 'sofa' | 'table' | 'storage' | 'lighting' | 'rug' | 'decor';
+export type CatalogCategory =
+  | 'sofa'
+  | 'table'
+  | 'bed'
+  | 'storage'
+  | 'appliance'
+  | 'lighting'
+  | 'rug'
+  | 'kids'
+  | 'decor';
 
 /** 2D 심볼 / 3D 프리미티브 선택용 형태 힌트 */
 export type CatalogShape =
@@ -132,9 +159,32 @@ export type CatalogShape =
   | 'cat-tower'
   | 'frame'
   | 'wall-clock'
-  | 'wall-mirror';
+  | 'wall-mirror'
+  | 'wall-ac'
+  | 'stairs';
 
 export type Swatch = { id: string; label: string; color: string };
+
+/**
+ * 실제 판매 상품 연동 정보 — 카탈로그 레벨 (도면 저장에는 포함되지 않음).
+ * spec* 이 있으면 카탈로그 치수를 실제원으로 대체한다 (신규 배치부터 적용).
+ */
+export type ProductInfo = {
+  /** 상품 페이지 URL — 실제 확인된 출처만 입력 */
+  url: string;
+  /** 실판매가 (원) — 확인 시점 기준 */
+  priceKrw: number;
+  mall: string;
+  brand?: string;
+  /** 실측 제원 (m) */
+  specW?: number;
+  specD?: number;
+  specH?: number;
+  /** 데이터 출처 — 'browse'(상품 페이지 직접 확인) 또는 어댑터 이름 */
+  source?: string;
+  /** 가격·링크 확인 시점 (ISO) */
+  fetchedAt: string;
+};
 
 export type CatalogItem = {
   id: string;
@@ -146,11 +196,17 @@ export type CatalogItem = {
   /** 소재군 라벨 (인스펙터 스와치 섹션 제목) */
   materialLabel: string;
   swatches: Swatch[];
+  /** 실제 판매 상품 연동 (있으면 price=실판매가, size=실제원) */
+  product?: ProductInfo;
+  /** 표면 적층: 테이블·책상 등 상판 위에 올릴 수 있는 소형 아이템 */
+  mountable?: boolean;
+  /** 검색 별칭 — 이름과 다른 통칭 (예: 의류관리기 ← '스타일러') */
+  keywords?: string[];
 };
 
 /* ===== Editor / Viewer state ===== */
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'dimension';
+export type Tool = 'select' | 'hand' | 'wall' | 'door' | 'window' | 'dimension';
 
 export type SnapResult = {
   kind: 'wall' | 'item';
@@ -173,6 +229,18 @@ export type DragState = {
   groupIds?: string[];
   /** 카탈로그에서 새로 끌어온 아이템인지 */
   isNew: boolean;
+  /** 표면 적층: 드롭 대상 표면 가구 id (하이라이트용) */
+  surfaceTargetId?: string | null;
+  /** 표면 위지만 상판 이탈·형제 겹침으로 드롭 불가 */
+  surfaceInvalid?: boolean;
+  /** 정렬 가이드 라인 (다른 가구 엣지/센터와 수평·수직 정렬) */
+  alignGuides?: {
+    axis: 'x' | 'y';
+    line: number;
+    from: number;
+    to: number;
+    targetIds: string[];
+  }[];
 };
 
 export type LightPreset = 'afternoon' | 'sunset' | 'overcast' | 'night';
@@ -186,7 +254,13 @@ export type ViewerState = {
     /** 창 방향(태양 방위각, deg) — 180 = 남향 */
     azimuthDeg: number;
   };
-  display: { hideCeiling: boolean; shadows: boolean; dimensionLabels: boolean };
+  display: {
+    hideCeiling: boolean;
+    shadows: boolean;
+    dimensionLabels: boolean;
+    /** 조감도에서 같은 건물의 모든 층을 세로로 쌓아 렌더 */
+    stackFloors: boolean;
+  };
   /** 조감도 카메라 프리셋 */
   birdseyeMode: 'dollhouse' | 'section' | 'ortho';
 };
