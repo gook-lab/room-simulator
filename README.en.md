@@ -56,7 +56,11 @@ no backend — plans persist in browser localStorage. The 3D views require WebGL
 ## Documentation
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the SSOT plan model, how 2D
-  and 3D derive from it, state shape, input routing rules (Korean)
+  and 3D derive from it, state shape, multi-floor and persistence design,
+  input routing rules (Korean)
+- [docs/DECISIONS.md](docs/DECISIONS.md) — measurement-backed decision log:
+  why auto-detection features were rejected, with samples, numbers and dates
+  (Korean)
 - [docs/STATUS.md](docs/STATUS.md) — implementation ledger kept during
   multi-session development (Korean)
 

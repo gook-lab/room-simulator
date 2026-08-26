@@ -59,7 +59,9 @@ npm test         # vitest (순수 로직 테스트)
 ## 설계 문서
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 평면도 SSOT에서 2D/3D를
-  파생시키는 구조, 상태 모델, 입력 라우팅 규칙
+  파생시키는 구조, 상태 모델, 다층·저장 설계, 입력 라우팅 규칙
+- [docs/DECISIONS.md](docs/DECISIONS.md) — 측정 기반 결정 기록 (자동 인식
+  불채택 근거: 표본·수치·날짜)
 - [docs/STATUS.md](docs/STATUS.md) — 구현 진행 원장 (멀티 세션 협업 기록)
 
 ## 라이선스
