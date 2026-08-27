@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import './editor2d.css';
 import type { PlacedItem, Plan, Room, Vec2 } from '../../model/types';
 import { catalogById } from '../../model/catalog';
@@ -145,16 +152,26 @@ export function Editor2D() {
   const [openingHover, setOpeningHover] = useState<OpeningHover | null>(null);
   const [measure, setMeasure] = useState<Measure | null>(null);
   const measureRef = useRef<Measure | null>(null);
-  measureRef.current = measure;
   const [marquee, setMarquee] = useState<{ a: Vec2; b: Vec2 } | null>(null);
   const marqueeRef = useRef<{ a: Vec2; b: Vec2 } | null>(null);
-  marqueeRef.current = marquee;
   const [wallGhost, setWallGhost] = useState<WallItemGhost>(null);
   const wallGhostRef = useRef<WallItemGhost>(null);
-  wallGhostRef.current = wallGhost;
   const [wallMoveInvalid, setWallMoveInvalid] = useState(false);
   const wallMoveInvalidRef = useRef(false);
-  wallMoveInvalidRef.current = wallMoveInvalid;
+
+  // 이벤트 핸들러가 최신 값을 읽도록 state 를 ref 에 옮겨 둔다.
+  //
+  // ⚠️ 렌더 중에 쓰면 안 된다. React 는 렌더를 버리거나 다시 돌릴 수 있어서,
+  // 커밋되지 않은 렌더의 값이 ref 에 남을 수 있다. 커밋 뒤에 쓴다.
+  // useEffect 가 아니라 useLayoutEffect 인 이유: 이 ref 들은 pointerdown 직후의
+  // pointermove/up 에서 읽힌다. passive effect 는 비동기라 그 사이에 이벤트가
+  // 끼면 낡은 값을 읽는다.
+  useLayoutEffect(() => {
+    measureRef.current = measure;
+    marqueeRef.current = marquee;
+    wallGhostRef.current = wallGhost;
+    wallMoveInvalidRef.current = wallMoveInvalid;
+  }, [measure, marquee, wallGhost, wallMoveInvalid]);
   const [placingPos, setPlacingPos] = useState<Vec2 | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
   const [postDrop, setPostDrop] = useState<{ itemId: string } | null>(null);
@@ -181,9 +198,11 @@ export function Editor2D() {
 
   // 최신 상태를 이벤트 핸들러에서 안전하게 읽기 위한 ref
   const planRef = useRef(plan);
-  planRef.current = plan;
   const scaleModeRef = useRef(scaleMode);
-  scaleModeRef.current = scaleMode;
+  useLayoutEffect(() => {
+    planRef.current = plan;
+    scaleModeRef.current = scaleMode;
+  }, [plan, scaleMode]);
 
   useEffect(() => {
     const el = hostRef.current;
@@ -210,14 +229,23 @@ export function Editor2D() {
   // 선 그리기 프로그레시브 커밋 중에는 베이스 변환을 드래프트 시작 시점 plan 으로 고정
   // — 세그먼트 커밋으로 도면 경계가 자라도 그리는 동안 화면이 밀리지 않는다.
   const draftBasePlanRef = useRef<Plan | null>(null);
-  if (!wallDraft) draftBasePlanRef.current = null;
   const t = useMemo(
-    () => makeTransform(draftBasePlanRef.current ?? plan, viewport, camera2d),
+    // 드래프트가 없으면 고정 기준을 무시한다. 예전에는 렌더 중에 ref 를
+    // null 로 되돌렸는데, 렌더 중 쓰기는 버려지는 렌더에서도 실행된다 —
+    // 값을 쓰지 않고 읽는 쪽에서 걸러 같은 결과를 낸다.
+    () => makeTransform((wallDraft ? draftBasePlanRef.current : null) ?? plan, viewport, camera2d),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- wallDraft 는 고정 기준 전환 트리거
     [plan, viewport, camera2d, wallDraft != null],
   );
+  // 드래프트가 끝나면 붙잡고 있던 plan 참조를 놓아 준다 (커밋 뒤에)
+  useLayoutEffect(() => {
+    if (!wallDraft) draftBasePlanRef.current = null;
+  }, [wallDraft]);
+
   const tRef = useRef(t);
-  tRef.current = t;
+  useLayoutEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   const toWorld = useCallback((e: { clientX: number; clientY: number }): Vec2 => {
     const rect = svgRef.current.getBoundingClientRect();
