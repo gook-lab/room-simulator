@@ -8,6 +8,7 @@ import { renderPlanSvgString } from '../editor2d/ExportSvg';
 import { useStore } from '../../state/store';
 import { MiniPlan } from '../../components/MiniPlan';
 import { planCardMeta, workingPlan } from './planCardFormat';
+import { QuickStart } from './QuickStart';
 import { useCopyShareLink } from '../share/useCopyShareLink';
 
 type Section = 'plans' | 'shopping';
@@ -235,6 +236,8 @@ export function Dashboard() {
               새 도면 만들기
             </button>
           </div>
+
+          <QuickStart />
 
           <div className="plan-grid">
             {orderedPlans.map((p) => {

@@ -6,6 +6,65 @@ import { floorDeleteConfirmText, floorDeletedText } from '../model/floorDelete';
 import type { Plan } from '../model/types';
 import { useCopyShareLink } from '../features/share/useCopyShareLink';
 
+/**
+ * 층 추가 메뉴 (디자인 B-7) — 빈 층 · 이 층 복제. 기호 칩(+ · ⧉)은 뜻이 title 에만 있어 글로 쓴다.
+ * Esc · 바깥 누르기로 닫고 포커스를 "층 추가" 버튼으로 돌려준다.
+ */
+function FloorAddMenu({
+  anchorRef,
+  setOpen,
+  onPick,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  setOpen: (open: boolean) => void;
+  onPick: (source: 'empty' | 'duplicate') => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onClose = (restoreFocus: boolean) => {
+      setOpen(false);
+      if (restoreFocus) anchorRef.current?.focus();
+    };
+    const items = () => [...(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
+    items()[0]?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose(true);
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        // 뒤 캔버스의 방향키(선택 옮기기)로 새지 않게 막는다
+        e.preventDefault();
+        e.stopPropagation();
+        const list = items();
+        const i = list.indexOf(document.activeElement as HTMLButtonElement);
+        const next = (i + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length;
+        list[next]?.focus();
+      }
+    };
+    const onDown = (e: PointerEvent) => {
+      const host = ref.current?.parentElement;
+      if (host && !host.contains(e.target as Node)) onClose(false); // 누른 곳으로 포커스가 간다
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('pointerdown', onDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('pointerdown', onDown, true);
+    };
+  }, [anchorRef, setOpen]);
+  return (
+    <div ref={ref} className="floor-add__menu" role="menu" aria-label="층 추가">
+      <button type="button" role="menuitem" onClick={() => onPick('empty')}>
+        빈 층 추가
+      </button>
+      <button type="button" role="menuitem" onClick={() => onPick('duplicate')}>
+        이 층 복제
+      </button>
+    </div>
+  );
+}
+
 /** 층 탭 — 같은 buildingId 문서 묶음 전환 + 추가/이름변경/복제/삭제 */
 function FloorTabs() {
   const plan = useCurrentPlan();
@@ -26,6 +85,8 @@ function FloorTabs() {
   );
 
   const floors = floorsOfBuilding(plans, plan);
+  const [addOpen, setAddOpen] = useState(false);
+  const addBtnRef = useRef<HTMLButtonElement>(null);
 
   const removeFloor = (f: Plan) => {
     if (!window.confirm(floorDeleteConfirmText(f))) return;
@@ -49,7 +110,7 @@ function FloorTabs() {
         <button
           key={f.id}
           className={`floor-tab${f.id === plan.id ? ' is-active' : ''}`}
-          title={f.id === plan.id ? '더블클릭 — 층 이름 변경' : `${f.floorLabel ?? f.name} 열기`}
+          title={f.id === plan.id ? '두 번 눌러 층 이름을 바꿔요' : `${f.floorLabel ?? f.name} 열기`}
           onClick={() => f.id !== plan.id && openPlan(f.id)}
           onDoubleClick={() => {
             const label = window.prompt('층 이름', f.floorLabel ?? '1층');
@@ -60,7 +121,7 @@ function FloorTabs() {
           {f.id === plan.id && floors.length > 1 && (
             <span
               className="floor-tab__close"
-              title="이 층 삭제"
+              title="이 층 지우기"
               onClick={(e) => {
                 e.stopPropagation();
                 removeFloor(f);
@@ -71,16 +132,28 @@ function FloorTabs() {
           )}
         </button>
       ))}
-      <button className="floor-tab floor-tab--add" title="새 층 추가" onClick={() => addFloor('empty')}>
-        +
-      </button>
-      <button
-        className="floor-tab floor-tab--add"
-        title="현재 층 복제해 추가"
-        onClick={() => addFloor('duplicate')}
-      >
-        ⧉
-      </button>
+      <div className="floor-add">
+        <button
+          ref={addBtnRef}
+          type="button"
+          className="floor-tab floor-tab--add"
+          aria-haspopup="menu"
+          aria-expanded={addOpen}
+          onClick={() => setAddOpen((v) => !v)}
+        >
+          + 층 추가
+        </button>
+        {addOpen && (
+          <FloorAddMenu
+            anchorRef={addBtnRef}
+            setOpen={setAddOpen}
+            onPick={(source) => {
+              setAddOpen(false);
+              addFloor(source);
+            }}
+          />
+        )}
+      </div>
       {deleted && (
         <div className="snackbar" role="status">
           {floorDeletedText(deleted.plan)}
@@ -98,6 +171,8 @@ export function TopBar() {
   const navigate = useStore((s) => s.navigate);
   const openShoppingList = useStore((s) => s.openShoppingList);
   const shared = useStore((s) => s.sharedView != null);
+  // 빈 도면 초안은 첫 편집 전까지 저장하지 않는다 (state/draftPlan.ts)
+  const isDraft = useStore((s) => s.draftPlanId != null && s.draftPlanId === s.currentPlanId);
   const copyShareLink = useCopyShareLink();
   const [, forceTick] = useState(0);
 
@@ -123,7 +198,7 @@ export function TopBar() {
         <span className="topbar__divider" />
         <span className="topbar__project">{plan.name}</span>
         <span className="topbar__meta">
-          {Math.round(area)}㎡ · {shared ? '보기 전용' : timeAgoLabel(savedAt)}
+          {Math.round(area)}㎡ · {shared ? '보기 전용' : isDraft ? '그리기 시작하면 저장돼요' : timeAgoLabel(savedAt)}
         </span>
         {saveError && (
           <span

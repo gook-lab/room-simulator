@@ -410,3 +410,13 @@
 .upload__asfloor input {
   accent-color: var(--accent);
 }
+
+/* 새 도면 화면 — 템플릿이 먼저, 업로드 안내는 아래 (기획 D) */
+.upload__side-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-divider);
+}
