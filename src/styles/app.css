@@ -586,6 +586,41 @@ input {
   color: var(--text-muted);
 }
 
+/* 층 추가 메뉴 (디자인 B-7) */
+.floor-add {
+  position: relative;
+}
+
+.floor-add__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-float);
+}
+
+.floor-add__menu button {
+  padding: 8px 10px;
+  border-radius: var(--r-btn);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.floor-add__menu button:hover,
+.floor-add__menu button:focus-visible {
+  background: var(--inset-a);
+}
+
 .floor-tab__close {
   font-size: 10px;
   opacity: 0.7;

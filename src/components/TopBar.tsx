@@ -1,9 +1,62 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { timeAgoLabel, useCurrentPlan, useStore } from '../state/store';
 import { ViewTabs } from './ViewTabs';
 import { floorsOfBuilding } from '../model/floorStack';
 import { floorDeleteConfirmText, floorDeletedText } from '../model/floorDelete';
 import type { Plan } from '../model/types';
+
+/**
+ * 층 추가 메뉴 (디자인 B-7) — 빈 층 · 이 층 복제. 기호 칩(+ · ⧉)은 뜻이 title 에만 있어 글로 쓴다.
+ * Esc · 바깥 누르기로 닫고 포커스를 "층 추가" 버튼으로 돌려준다.
+ */
+function FloorAddMenu({
+  onPick,
+  onClose,
+}: {
+  onPick: (source: 'empty' | 'duplicate') => void;
+  onClose: (restoreFocus: boolean) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const items = () => [...(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
+    items()[0]?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose(true);
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        // 뒤 캔버스의 방향키(선택 옮기기)로 새지 않게 막는다
+        e.preventDefault();
+        e.stopPropagation();
+        const list = items();
+        const i = list.indexOf(document.activeElement as HTMLButtonElement);
+        const next = (i + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length;
+        list[next]?.focus();
+      }
+    };
+    const onDown = (e: PointerEvent) => {
+      const host = ref.current?.parentElement;
+      if (host && !host.contains(e.target as Node)) onClose(false); // 누른 곳으로 포커스가 간다
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('pointerdown', onDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('pointerdown', onDown, true);
+    };
+  }, [onClose]);
+  return (
+    <div ref={ref} className="floor-add__menu" role="menu" aria-label="층 추가">
+      <button type="button" role="menuitem" onClick={() => onPick('empty')}>
+        빈 층 추가
+      </button>
+      <button type="button" role="menuitem" onClick={() => onPick('duplicate')}>
+        이 층 복제
+      </button>
+    </div>
+  );
+}
 
 /** 층 탭 — 같은 buildingId 문서 묶음 전환 + 추가/이름변경/복제/삭제 */
 function FloorTabs() {
@@ -25,6 +78,12 @@ function FloorTabs() {
   );
 
   const floors = floorsOfBuilding(plans, plan);
+  const [addOpen, setAddOpen] = useState(false);
+  const addBtnRef = useRef<HTMLButtonElement>(null);
+  const closeAddMenu = useCallback((restoreFocus: boolean) => {
+    setAddOpen(false);
+    if (restoreFocus) addBtnRef.current?.focus();
+  }, []);
 
   const removeFloor = (f: Plan) => {
     if (!window.confirm(floorDeleteConfirmText(f))) return;
@@ -70,16 +129,27 @@ function FloorTabs() {
           )}
         </button>
       ))}
-      <button className="floor-tab floor-tab--add" title="새 층 추가" onClick={() => addFloor('empty')}>
-        +
-      </button>
-      <button
-        className="floor-tab floor-tab--add"
-        title="현재 층 복제해 추가"
-        onClick={() => addFloor('duplicate')}
-      >
-        ⧉
-      </button>
+      <div className="floor-add">
+        <button
+          ref={addBtnRef}
+          type="button"
+          className="floor-tab floor-tab--add"
+          aria-haspopup="menu"
+          aria-expanded={addOpen}
+          onClick={() => setAddOpen((v) => !v)}
+        >
+          + 층 추가
+        </button>
+        {addOpen && (
+          <FloorAddMenu
+            onPick={(source) => {
+              setAddOpen(false);
+              addFloor(source);
+            }}
+            onClose={closeAddMenu}
+          />
+        )}
+      </div>
       {deleted && (
         <div className="snackbar" role="status">
           {floorDeletedText(deleted.plan)}
