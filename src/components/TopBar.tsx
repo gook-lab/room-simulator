@@ -4,6 +4,7 @@ import { ViewTabs } from './ViewTabs';
 import { floorsOfBuilding } from '../model/floorStack';
 import { floorDeleteConfirmText, floorDeletedText } from '../model/floorDelete';
 import type { Plan } from '../model/types';
+import { useCopyShareLink } from '../features/share/useCopyShareLink';
 
 /** 층 탭 — 같은 buildingId 문서 묶음 전환 + 추가/이름변경/복제/삭제 */
 function FloorTabs() {
@@ -95,6 +96,9 @@ export function TopBar() {
   const savedAt = useStore((s) => s.savedAt);
   const saveError = useStore((s) => s.saveError);
   const navigate = useStore((s) => s.navigate);
+  const openShoppingList = useStore((s) => s.openShoppingList);
+  const shared = useStore((s) => s.sharedView != null);
+  const copyShareLink = useCopyShareLink();
   const [, forceTick] = useState(0);
 
   // "N분 전 저장" 갱신용 타이머
@@ -119,12 +123,12 @@ export function TopBar() {
         <span className="topbar__divider" />
         <span className="topbar__project">{plan.name}</span>
         <span className="topbar__meta">
-          {Math.round(area)}㎡ · {timeAgoLabel(savedAt)}
+          {Math.round(area)}㎡ · {shared ? '보기 전용' : timeAgoLabel(savedAt)}
         </span>
         {saveError && (
           <span
             className="topbar__save-error"
-            title="브라우저 저장 공간이 부족해 자동 저장이 실패했습니다. 대시보드에서 안 쓰는 도면을 지우거나 JSON 내보내기로 백업해 주세요."
+            title="저장 공간이 꽉 차서 저장하지 못했어요. 안 쓰는 도면을 지우거나 JSON으로 백업해 주세요."
           >
             ⚠ 저장 실패 — 공간 부족
           </span>
@@ -135,10 +139,22 @@ export function TopBar() {
       <ViewTabs />
 
       <div className="topbar__right">
-        <button className="btn btn--outline">공유</button>
-        <button className="btn btn--primary" onClick={() => navigate('dashboard')}>
-          견적 보기
+        <button
+          className="btn btn--outline"
+          title="이 도면을 볼 수 있는 링크를 복사해요"
+          onClick={() => void copyShareLink()}
+        >
+          공유
         </button>
+        {!shared && (
+          <button
+            className="btn btn--primary"
+            title="이 도면에 놓은 가구의 쇼핑 리스트를 열어요"
+            onClick={openShoppingList}
+          >
+            쇼핑 리스트
+          </button>
+        )}
       </div>
     </header>
   );

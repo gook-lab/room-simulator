@@ -130,6 +130,8 @@ export function Editor2D() {
     undo,
     redo,
   } = useStore();
+  // 공유 링크 보기 — 편집 패널을 숨기고 끌기는 화면 이동만
+  const readOnly = useStore((s) => s.sharedView != null);
 
   const hostRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null!);
@@ -460,7 +462,8 @@ export function Editor2D() {
   const onPointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       // Hand 도구(H)는 지속 팬 모드 — 어떤 대상 위에서든 드래그=팬, 선택/배치 없음
-      if (e.button === 1 || (e.button === 0 && (spaceDown || tool === 'hand'))) {
+      const panOnly = spaceDown || tool === 'hand' || useStore.getState().sharedView != null;
+      if (e.button === 1 || (e.button === 0 && panOnly)) {
         gestureRef.current = {
           type: 'pan',
           startScreen: { x: e.clientX, y: e.clientY },
@@ -1503,7 +1506,7 @@ export function Editor2D() {
   const cursor =
     gestureKind === 'pan'
       ? 'grabbing'
-      : spaceDown || tool === 'hand'
+      : spaceDown || tool === 'hand' || readOnly
         ? 'grab'
         : placingCatalogId
           ? 'copy'
@@ -1581,14 +1584,18 @@ export function Editor2D() {
         cursor={cursor}
       />
       {missHint && <div className="miss-hint">{missHint}</div>}
-      <ToolDock onResetView={resetView} onDetectRooms={detectRooms} />
-      <CatalogPanel />
-      <Inspector />
+      {!readOnly && (
+        <>
+          <ToolDock onResetView={resetView} onDetectRooms={detectRooms} />
+          <CatalogPanel />
+          <Inspector />
+        </>
+      )}
       <StatusBar t={t} />
-      {plan.tracing && (
+      {plan.tracing && !readOnly && (
         <UnderlayPanel onStartScale={() => setScaleMode({ stage: 'draw', line: null })} />
       )}
-      <FloorAlignPanel ghostOn={floorGhostOn} setGhostOn={setFloorGhostOn} />
+      {!readOnly && <FloorAlignPanel ghostOn={floorGhostOn} setGhostOn={setFloorGhostOn} />}
 
       {/* 밑그림 스케일 보정 오버레이 */}
       {scaleMode && (

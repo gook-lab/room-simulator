@@ -11,11 +11,14 @@ export function formatManwon(won: number): string {
   return rest === 0 ? `${eok}억 원` : `${eok}억 ${rest.toLocaleString('ko-KR')}만 원`;
 }
 
-/** 도면 카드 메타 줄 — 면적 · 가구 수 · 금액(가구가 없으면 "가구 없음") */
+/**
+ * 도면 카드 메타 줄 — 면적 · 가구 수 · 금액(가구가 없으면 "가구 없음").
+ * 금액은 쇼핑 리스트 패널의 "추정 포함 합계"와 같은 값이라 같은 말로 짚는다.
+ */
 export function planCardMeta(areaSqm: number, itemCount: number, totalWon: number): string {
   const area = `${Math.round(areaSqm)}㎡`;
   if (totalWon <= 0) return itemCount === 0 ? `${area} · 가구 없음` : `${area} · 가구 ${itemCount}개`;
-  return `${area} · 가구 ${itemCount}개 · 약 ${formatManwon(totalWon)}`;
+  return `${area} · 가구 ${itemCount}개 · 추정 포함 약 ${formatManwon(totalWon)}`;
 }
 
 /**

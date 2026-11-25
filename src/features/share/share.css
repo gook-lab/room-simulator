@@ -1,0 +1,154 @@
+/* ===== 공유 링크 보기 · 화면 알림 ===== */
+
+.shared-bar {
+  flex: none;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  background: var(--accent-tint);
+  border-bottom: 1px solid var(--info-border);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  position: relative;
+  z-index: 21;
+}
+
+.shared-bar__badge {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: var(--r-chip);
+  background: var(--accent-deep);
+  color: var(--panel);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shared-bar__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+
+.shared-bar__copy {
+  padding: 6px 12px;
+}
+
+.shared-bar__leave {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-2);
+  padding: 6px 8px;
+  border-radius: var(--r-btn);
+}
+
+.shared-bar__leave:hover {
+  background: var(--info-border);
+  color: var(--ink);
+}
+
+/* 워크스루 · 조감도는 화면 전체를 덮는 fixed 레이아웃 — 안내 막대 아래로 내린다 */
+.shared-frame .shared-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+}
+
+.shared-frame .walkthrough,
+.shared-frame .birdseye {
+  top: 44px;
+}
+
+.share-opening {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 받은 도면의 층은 둘러보기만 — 추가 · 복제 · 삭제 단추를 숨긴다 */
+.app.is-shared .floor-tab__close,
+.app.is-shared .floor-tab--add {
+  display: none;
+}
+
+.app-toast-region {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 60;
+  pointer-events: none;
+}
+
+.app-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 12px 14px 12px 18px;
+  background: var(--ink);
+  color: var(--app-bg);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-dock);
+  pointer-events: auto;
+  animation: app-toast-in var(--ease-move);
+}
+
+.app-toast__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-toast__text {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app-toast__detail {
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--hud-text-2);
+}
+
+.app-toast__close {
+  flex: none;
+  font-size: 12px;
+  color: var(--hud-text-2);
+  padding: 2px 4px;
+  border-radius: var(--r-chip);
+}
+
+.app-toast__close:hover {
+  color: var(--app-bg);
+}
+
+@keyframes app-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* 내비 · '쇼핑 리스트' 버튼으로 도착한 구역을 잠깐 짚어 준다 */
+.is-flash {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toast {
+    animation: none;
+  }
+}
