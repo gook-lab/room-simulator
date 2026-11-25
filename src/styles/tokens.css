@@ -19,12 +19,13 @@
   --ink: #17201c;
   --text-2: #4a544e;
   --text-3: #5b6560;
-  --text-muted: #8b948e;
+  --text-muted: #656e68;
   --text-disabled: #a6aea8;
 
   /* Accent */
   --accent: #0e9f6e;
   --accent-deep: #0b7c56;
+  --accent-deeper: #096646;
   --accent-tint: #e7f6ef;
 
   /* Warning / info */
@@ -72,11 +73,11 @@
   --light-preset-bg: #f5ebd4;
 
   /* Dark HUD */
-  --hud-panel: rgba(23, 32, 28, 0.66);
-  --hud-panel-strong: rgba(23, 32, 28, 0.7);
+  --hud-panel: rgba(23, 32, 28, 0.82);
+  --hud-panel-strong: rgba(23, 32, 28, 0.9);
   --hud-text: #f7f4ef;
   --hud-text-2: #c9d2cc;
-  --hud-mono: #93a09a;
+  --hud-mono: #adb9b3;
   --hud-keycap-bg: rgba(247, 244, 239, 0.16);
   --hud-keycap-border: rgba(247, 244, 239, 0.35);
   --hud-divider: rgba(247, 244, 239, 0.16);

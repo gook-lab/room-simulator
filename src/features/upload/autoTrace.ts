@@ -1,4 +1,5 @@
 import {
+  detectDiagonalLines,
   detectEnclosedRegions,
   detectSegments,
   estimateWallThickness,
@@ -8,6 +9,8 @@ import {
   silhouetteMask,
   type DetectedLine,
 } from './wallDetect';
+import { joinLineEnds, snapPolygonToCenterlines } from './orthoSnap';
+import type { Vec2 } from '../../model/types';
 
 /**
  * 업로드 이미지 → 벽 후보 자동 인식 (DOM 어댑터).
@@ -45,6 +48,9 @@ const MIN_LEN_PX = 32; // 최소 벽 길이 — 문자·가구 심볼 필터
 const GAP_PX = 24;
 const MERGE_TOL_PX = 8; // 벽 두께 병합 허용
 const MAX_LINES = 60;
+// 외곽 변을 벽 중심선으로 옮기는 허용 거리(셀) — 실루엣 래스터 반두께 2셀 +
+// 셀 가장자리 1셀 만큼 바깥에 있으므로 그 두 배
+const OUTLINE_SNAP_CELLS = 6;
 
 export function autoTraceImage(
   imageUrl: string,
@@ -53,14 +59,6 @@ export function autoTraceImage(
   opts?: { knownWidthM?: number },
 ): Promise<AutoTraceResult> {
   return new Promise((resolve) => {
-    const empty: AutoTraceResult = {
-      lines: [],
-      wallCount: 0,
-      outline: [],
-      suggestedWidthM: 0,
-      gapOpenings: [],
-      regions: [],
-    };
     const img = new Image();
     img.onload = () => {
       try {
@@ -68,7 +66,7 @@ export function autoTraceImage(
         canvas.width = paperW;
         canvas.height = paperH;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) return resolve(empty);
+        if (!ctx) return resolve(emptyTrace());
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, paperW, paperH);
         const scale = Math.min(paperW / img.naturalWidth, paperH / img.naturalHeight);
@@ -76,164 +74,207 @@ export function autoTraceImage(
         const dh = img.naturalHeight * scale;
         ctx.drawImage(img, (paperW - dw) / 2, (paperH - dh) / 2, dw, dh);
         const data = ctx.getImageData(0, 0, paperW, paperH).data;
-        const gw = Math.floor(paperW / STEP);
-        const gh = Math.floor(paperH / STEP);
-        const grid = new Uint8Array(gw * gh);
-        for (let gy = 0; gy < gh; gy++) {
-          for (let gx = 0; gx < gw; gx++) {
-            // 셀 블록 전체를 검사 — 1~2px 얇은 벽이 다운샘플에서 소실되지 않게
-            let dark = 0;
-            for (let dy = 0; dy < STEP && !dark; dy++) {
-              for (let dx = 0; dx < STEP; dx++) {
-                const px = gx * STEP + dx;
-                const py = gy * STEP + dy;
-                if (px >= paperW || py >= paperH) continue;
-                const i = (py * paperW + px) * 4;
-                const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-                if (data[i + 3] > 60 && lum < DARK_LUM) {
-                  dark = 1;
-                  break;
-                }
-              }
-            }
-            grid[gy * gw + gx] = dark;
-          }
-        }
-        // 캡션·로고 밴드 제외 — 도면 이미지 하단(fitted 영역 아래 8%)은 제목/워터마크가 흔함
-        const fittedBottom = (paperH - dh) / 2 + dh;
-        const captionTop = fittedBottom - dh * 0.08;
-        const gridLines = detectSegments(grid, gw, gh, {
-          minLen: MIN_LEN_PX / STEP,
-          gap: GAP_PX / STEP,
-          mergeTol: MERGE_TOL_PX / STEP,
-          maxLines: MAX_LINES,
-          // 외곽 폐합: 코너 스냅 10px, 외곽 판정 밴드 12px, 외곽 브리징 90px(≈1.2m)
-          close: {
-            cornerSnap: 10 / STEP,
-            boundaryMargin: 12 / STEP,
-            boundaryBridge: 90 / STEP,
-          },
-        }).filter((l) => ((l.points[0].y + l.points[1].y) / 2) * STEP < captionTop);
-        // ── 스케일 추정: 벽 픽셀 두께 → 실세계 폭 (실벽 ≈ REAL_WALL_M 가정).
-        // 격자(±1셀=±STEP px) 대신 **원본 해상도 픽셀**에서 측정해 양자화 오차 축소.
-        const isDarkPx = (x: number, y: number): boolean => {
-          if (x < 0 || x >= paperW || y < 0 || y >= paperH) return false;
-          const i = (y * paperW + x) * 4;
-          const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-          return data[i + 3] > 60 && lum < DARK_LUM;
-        };
-        const linesPx = gridLines.map((l) => ({
-          ...l,
-          points: l.points.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
-        }));
-        const thicknessPx = estimateWallThickness(isDarkPx, paperW, paperH, linesPx);
-        // Matterport BW/FCL 4종 실측(1,214/829 sq ft) 대비 보정한 도면 벽 두께 가정
-        const REAL_WALL_M = 0.18;
-        const suggestedWidthM =
-          thicknessPx > 0
-            ? Math.min(40, Math.max(6, (REAL_WALL_M * paperW) / thicknessPx))
-            : 0;
-        const widthM = opts?.knownWidthM ?? (suggestedWidthM || 10);
-        const cellM = widthM / gw; // 격자 셀 하나의 실세계 크기
-
-        // ── 건물 외곽 윤곽 (실루엣 풋프린트) — 외곽 벽 생성용
-        const silhouette = silhouetteMask(rasterizeSegments(gridLines, gw, gh, 2), gw, gh);
-        const outlineGrid = footprintOutline(silhouette, gw, gh, Math.round(0.3 / cellM));
-
-        // ── 외곽 라인 위에 놓인 검출 선분은 외곽 벽으로 대체 (이중 벽 방지)
-        const distToOutline = (p: { x: number; y: number }): number => {
-          let best = Infinity;
-          for (let i = 0; i < outlineGrid.length; i++) {
-            const a = outlineGrid[i];
-            const b = outlineGrid[(i + 1) % outlineGrid.length];
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            const len2 = dx * dx + dy * dy;
-            const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
-            best = Math.min(best, Math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y));
-          }
-          return best;
-        };
-        const onOutlineTol = Math.max(3, Math.round(0.25 / cellM));
-        const interiorLines =
-          outlineGrid.length >= 3
-            ? gridLines.filter((l) => {
-                const mid = {
-                  x: (l.points[0].x + l.points[1].x) / 2,
-                  y: (l.points[0].y + l.points[1].y) / 2,
-                };
-                return !(
-                  distToOutline(l.points[0]) < onOutlineTol &&
-                  distToOutline(l.points[1]) < onOutlineTol &&
-                  distToOutline(mid) < onOutlineTol
-                );
-              })
-            : gridLines;
-
-        // ── 닫힌 공간(방) 검출 — 내부 벽 + 외곽 윤곽 마스크 기준
-        const outlineEdges: DetectedLine[] =
-          outlineGrid.length >= 3
-            ? outlineGrid.map((p, i) => ({
-                points: [p, outlineGrid[(i + 1) % outlineGrid.length]],
-                closed: false,
-              }))
-            : [];
-        const mask = rasterizeSegments([...interiorLines, ...outlineEdges], gw, gh, 2);
-        // 최소 방 면적: 절대 3㎡(추정 스케일 기준) + 도면 상대 0.4% 병행, 상위 12개
-        const minRoomCells = Math.max(
-          Math.round(3 / (cellM * cellM)),
-          Math.round(gw * gh * 0.004),
-        );
-        const regions = detectEnclosedRegions(mask, gw, gh, minRoomCells, {
-          polygonTol: Math.round(0.3 / cellM),
-        })
-          .slice(0, 12)
-          .map((r) => ({
-            min: { x: r.min.x * STEP, y: r.min.y * STEP },
-            max: { x: r.max.x * STEP, y: r.max.y * STEP },
-            areaCells: r.areaCells,
-            cellPx: STEP,
-            polygon: r.polygon?.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
-          }));
-        const lines = interiorLines.map((l) => ({
-          ...l,
-          points: l.points.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
-        }));
-        const outlinePx = outlineGrid.map((p) => ({ x: p.x * STEP, y: p.y * STEP }));
-        // ── 개구부(문·창): 벽 선 위 밝은 갭 스캔 (원본 해상도, 문 0.5~1.4m 상당)
-        const mPerPx = widthM / paperW;
-        const gapBand = Math.max(2, Math.round(thicknessPx / 2) + 1);
-        const gapOpts = {
-          band: gapBand,
-          minGap: Math.max(6, Math.round(0.5 / mPerPx)),
-          maxGap: Math.round(1.4 / mPerPx),
-        };
-        const gapOpenings: { center: { x: number; y: number }; width: number; exterior: boolean }[] = [];
-        for (const l of lines) {
-          for (const g of findGapsAlongLine(isDarkPx, l.points[0], l.points[1], gapOpts)) {
-            gapOpenings.push({ ...g, exterior: false });
-          }
-        }
-        for (let i = 0; i < outlinePx.length; i++) {
-          const a = outlinePx[i];
-          const b = outlinePx[(i + 1) % outlinePx.length];
-          for (const g of findGapsAlongLine(isDarkPx, a, b, gapOpts)) {
-            gapOpenings.push({ ...g, exterior: true });
-          }
-        }
-        resolve({
-          lines,
-          wallCount: lines.length,
-          outline: outlinePx,
-          suggestedWidthM,
-          gapOpenings,
-          regions,
-        });
+        resolve(traceRaster(data, paperW, paperH, { top: (paperH - dh) / 2, height: dh }, opts));
       } catch {
-        resolve(empty);
+        resolve(emptyTrace());
       }
     };
-    img.onerror = () => resolve(empty);
+    img.onerror = () => resolve(emptyTrace());
     img.src = imageUrl;
   });
+}
+
+function emptyTrace(): AutoTraceResult {
+  return { lines: [], wallCount: 0, outline: [], suggestedWidthM: 0, gapOpenings: [], regions: [] };
+}
+
+/**
+ * 인식 본체 — 캔버스에 그린 RGBA 픽셀(paperW×paperH)에서 벽 · 외곽 · 방 · 개구부를
+ * 찾는다. fitted = 이미지가 실제로 그려진 세로 구간(캡션 밴드 계산용).
+ * DOM 이 없으므로 테스트가 픽셀 배열을 직접 만들어 넣을 수 있다.
+ */
+export function traceRaster(
+  data: ArrayLike<number>,
+  paperW: number,
+  paperH: number,
+  fitted: { top: number; height: number },
+  opts?: { knownWidthM?: number },
+): AutoTraceResult {
+  const gw = Math.floor(paperW / STEP);
+  const gh = Math.floor(paperH / STEP);
+  const grid = new Uint8Array(gw * gh);
+  for (let gy = 0; gy < gh; gy++) {
+    for (let gx = 0; gx < gw; gx++) {
+      // 셀 블록 전체를 검사 — 1~2px 얇은 벽이 다운샘플에서 소실되지 않게
+      let dark = 0;
+      for (let dy = 0; dy < STEP && !dark; dy++) {
+        for (let dx = 0; dx < STEP; dx++) {
+          const px = gx * STEP + dx;
+          const py = gy * STEP + dy;
+          if (px >= paperW || py >= paperH) continue;
+          const i = (py * paperW + px) * 4;
+          const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          if (data[i + 3] > 60 && lum < DARK_LUM) {
+            dark = 1;
+            break;
+          }
+        }
+      }
+      grid[gy * gw + gx] = dark;
+    }
+  }
+  // 캡션·로고 밴드 제외 — 도면 이미지 하단(fitted 영역 아래 8%)은 제목/워터마크가 흔함
+  const captionTop = fitted.top + fitted.height * 0.92;
+  const gridLines = detectSegments(grid, gw, gh, {
+    minLen: MIN_LEN_PX / STEP,
+    gap: GAP_PX / STEP,
+    mergeTol: MERGE_TOL_PX / STEP,
+    maxLines: MAX_LINES,
+    // 외곽 폐합: 코너 스냅 10px, 외곽 판정 밴드 12px, 외곽 브리징 90px(≈1.2m)
+    close: {
+      cornerSnap: 10 / STEP,
+      boundaryMargin: 12 / STEP,
+      boundaryBridge: 90 / STEP,
+    },
+  }).filter((l) => ((l.points[0].y + l.points[1].y) / 2) * STEP < captionTop);
+  // ── 스케일 추정: 벽 픽셀 두께 → 실세계 폭 (실벽 ≈ REAL_WALL_M 가정).
+  // 격자(±1셀=±STEP px) 대신 **원본 해상도 픽셀**에서 측정해 양자화 오차 축소.
+  const isDarkPx = (x: number, y: number): boolean => {
+    if (x < 0 || x >= paperW || y < 0 || y >= paperH) return false;
+    const i = (y * paperW + x) * 4;
+    const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    return data[i + 3] > 60 && lum < DARK_LUM;
+  };
+  const linesPx = gridLines.map((l) => ({
+    ...l,
+    points: l.points.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
+  }));
+  const thicknessPx = estimateWallThickness(isDarkPx, paperW, paperH, linesPx);
+  // Matterport BW/FCL 4종 실측(1,214/829 sq ft) 대비 보정한 도면 벽 두께 가정
+  const REAL_WALL_M = 0.18;
+  const suggestedWidthM =
+    thicknessPx > 0
+      ? Math.min(40, Math.max(6, (REAL_WALL_M * paperW) / thicknessPx))
+      : 0;
+  const widthM = opts?.knownWidthM ?? (suggestedWidthM || 10);
+  const cellM = widthM / gw; // 격자 셀 하나의 실세계 크기
+
+  // ── 건물 외곽 윤곽 (실루엣 풋프린트) — 외곽 벽 생성용.
+  // 실루엣은 벽 바깥 면을 따라가므로 변을 같은 벽의 중심선으로 옮긴다.
+  // 45° 사선 벽은 외곽 실루엣에만 보탠다 — 없으면 사선 모서리가 직각 계단으로
+  // 채워진다. 내벽 후보로는 쓰지 않는다(바닥 빗금 같은 사선 무늬가 벽이 되지 않게).
+  // 수평·수직 벽 띠의 픽셀은 빼고 찾고, 끝은 만나는 수평·수직 벽 중심선에 맞춘다.
+  const hvBand = rasterizeSegments(gridLines, gw, gh, Math.ceil(thicknessPx / STEP / 2) + 1);
+  const diagGrid = grid.map((v, i) => (v === 1 && hvBand[i] === 0 ? 1 : 0));
+  const diagLines = joinLineEnds(
+    detectDiagonalLines(diagGrid, gw, gh, {
+      minLen: MIN_LEN_PX / STEP,
+      mergeTol: MERGE_TOL_PX / STEP,
+    }).filter((l) => ((l.points[0].y + l.points[1].y) / 2) * STEP < captionTop),
+    gridLines.map((l) => [l.points[0], l.points[1]] as [Vec2, Vec2]),
+    2 * (10 / STEP),
+  );
+  const centerlines = [...gridLines, ...diagLines];
+  const silhouette = silhouetteMask(rasterizeSegments(centerlines, gw, gh, 2), gw, gh);
+  const outlineGrid = snapPolygonToCenterlines(
+    footprintOutline(silhouette, gw, gh, Math.round(0.3 / cellM)),
+    centerlines,
+    OUTLINE_SNAP_CELLS,
+  );
+
+  // ── 외곽 라인 위에 놓인 검출 선분은 외곽 벽으로 대체 (이중 벽 방지)
+  const distToOutline = (p: { x: number; y: number }): number => {
+    let best = Infinity;
+    for (let i = 0; i < outlineGrid.length; i++) {
+      const a = outlineGrid[i];
+      const b = outlineGrid[(i + 1) % outlineGrid.length];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len2 = dx * dx + dy * dy;
+      const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+      best = Math.min(best, Math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y));
+    }
+    return best;
+  };
+  const onOutlineTol = Math.max(3, Math.round(0.25 / cellM));
+  const outlineEdges: DetectedLine[] =
+    outlineGrid.length >= 3
+      ? outlineGrid.map((p, i) => ({
+          points: [p, outlineGrid[(i + 1) % outlineGrid.length]],
+          closed: false,
+        }))
+      : [];
+  const offOutline =
+    outlineGrid.length >= 3
+      ? gridLines.filter((l) => {
+          const mid = {
+            x: (l.points[0].x + l.points[1].x) / 2,
+            y: (l.points[0].y + l.points[1].y) / 2,
+          };
+          return !(
+            distToOutline(l.points[0]) < onOutlineTol &&
+            distToOutline(l.points[1]) < onOutlineTol &&
+            distToOutline(mid) < onOutlineTol
+          );
+        })
+      : gridLines;
+  // 내벽 끝을 외곽 변 · 다른 내벽과 정확히 만나게 (T자 · 모서리 틈 제거)
+  const interiorLines = joinLineEnds(
+    offOutline,
+    outlineEdges.map((e) => [e.points[0], e.points[1]] as [Vec2, Vec2]),
+    Math.max(10 / STEP, Math.round(0.3 / cellM)),
+  );
+
+  // ── 닫힌 공간(방) 검출 — 내부 벽 + 외곽 윤곽 마스크 기준
+  const mask = rasterizeSegments([...interiorLines, ...outlineEdges], gw, gh, 2);
+  // 최소 방 면적: 절대 3㎡(추정 스케일 기준) + 도면 상대 0.4% 병행, 상위 12개
+  const minRoomCells = Math.max(
+    Math.round(3 / (cellM * cellM)),
+    Math.round(gw * gh * 0.004),
+  );
+  const regions = detectEnclosedRegions(mask, gw, gh, minRoomCells, {
+    polygonTol: Math.round(0.3 / cellM),
+  })
+    .slice(0, 12)
+    .map((r) => ({
+      min: { x: r.min.x * STEP, y: r.min.y * STEP },
+      max: { x: r.max.x * STEP, y: r.max.y * STEP },
+      areaCells: r.areaCells,
+      cellPx: STEP,
+      polygon: r.polygon?.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
+    }));
+  const lines = interiorLines.map((l) => ({
+    ...l,
+    points: l.points.map((p) => ({ x: p.x * STEP, y: p.y * STEP })),
+  }));
+  const outlinePx = outlineGrid.map((p) => ({ x: p.x * STEP, y: p.y * STEP }));
+  // ── 개구부(문·창): 벽 선 위 밝은 갭 스캔 (원본 해상도, 문 0.5~1.4m 상당)
+  const mPerPx = widthM / paperW;
+  const gapBand = Math.max(2, Math.round(thicknessPx / 2) + 1);
+  const gapOpts = {
+    band: gapBand,
+    minGap: Math.max(6, Math.round(0.5 / mPerPx)),
+    maxGap: Math.round(1.4 / mPerPx),
+  };
+  const gapOpenings: { center: { x: number; y: number }; width: number; exterior: boolean }[] = [];
+  for (const l of lines) {
+    for (const g of findGapsAlongLine(isDarkPx, l.points[0], l.points[1], gapOpts)) {
+      gapOpenings.push({ ...g, exterior: false });
+    }
+  }
+  for (let i = 0; i < outlinePx.length; i++) {
+    const a = outlinePx[i];
+    const b = outlinePx[(i + 1) % outlinePx.length];
+    for (const g of findGapsAlongLine(isDarkPx, a, b, gapOpts)) {
+      gapOpenings.push({ ...g, exterior: true });
+    }
+  }
+  return {
+    lines,
+    wallCount: lines.length,
+    outline: outlinePx,
+    suggestedWidthM,
+    gapOpenings,
+    regions,
+  };
 }

@@ -1,4 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import tokensCss from '../../styles/tokens.css?raw';
+import { resolveCssVars } from './cssVars';
 import type { Plan } from '../../model/types';
 import { floorColor2d } from '../../model/finishes';
 import { planBounds } from '../../model/geometry';
@@ -87,9 +89,10 @@ export function PlanExportSvg({ plan, pxPerM = 90 }: { plan: Plan; pxPerM?: numb
   );
 }
 
-/** 독립 SVG 문자열 (CSS 변수 폰트를 실제 스택으로 치환) */
+/** 독립 SVG 문자열 (CSS 변수 폰트 · 색을 실제 값으로 치환) */
 export function renderPlanSvgString(plan: Plan, pxPerM = 90): string {
-  return renderToStaticMarkup(<PlanExportSvg plan={plan} pxPerM={pxPerM} />)
+  const markup = renderToStaticMarkup(<PlanExportSvg plan={plan} pxPerM={pxPerM} />)
     .replaceAll('var(--font-mono)', 'ui-monospace, Menlo, monospace')
     .replaceAll('var(--font-ui)', "'Plus Jakarta Sans', sans-serif");
+  return resolveCssVars(markup, tokensCss);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Html, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
@@ -6,9 +6,10 @@ import './birdseye.css';
 import type { LightPreset } from '../../model/types';
 import { useCurrentPlan, useStore } from '../../state/store';
 import { ViewTabs } from '../../components/ViewTabs';
-import { CanvasBoundary } from '../three/CanvasBoundary';
+import { CanvasBoundary, GlFallback } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
 import { PRESET_LABELS, toggleDayNight } from '../three/lighting';
+import { azimuthLabel, daylightLabel } from './daylight';
 import { planCenter } from '../three/wallGeometry';
 import { floorBaseY, floorsOfBuilding } from '../../model/floorStack';
 
@@ -75,6 +76,8 @@ export function Birdseye() {
   const mode = viewer.birdseyeMode;
   // 워크스루와 대칭인 Tab 미니 메뉴 (Esc 로도 닫힘)
   const [menuOpen, setMenuOpen] = useState(false);
+  // WebGL 실패 — 조명 · 카메라 패널은 동작할 수 없으니 걷어 내고 안내만 남긴다
+  const [glFailed, setGlFailed] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -89,26 +92,28 @@ export function Birdseye() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // 방위각 기반의 가벼운 일조 시간 데코 수치
-  const daylight = useMemo(() => {
-    const southness = Math.cos(((viewer.lighting.azimuthDeg - 180) * Math.PI) / 180);
-    const totalMin = Math.round(200 + southness * 140); // 3h20m ~ 5h40m
-    return `${Math.floor(totalMin / 60)}시간 ${totalMin % 60}분`;
-  }, [viewer.lighting.azimuthDeg]);
-
-  const azimuthLabel = useMemo(() => {
-    const a = ((viewer.lighting.azimuthDeg % 360) + 360) % 360;
-    if (a >= 135 && a < 225) return '남향';
-    if (a >= 225 && a < 315) return '서향';
-    if (a >= 45 && a < 135) return '동향';
-    return '북향';
-  }, [viewer.lighting.azimuthDeg]);
+  const daylight = daylightLabel(viewer.lighting.azimuthDeg, plan.rooms.length);
+  const azimuth = azimuthLabel(viewer.lighting.azimuthDeg);
+  const toggleId = useId();
 
   const startWalkthrough = () => {
     const captured = captureRef.current?.();
     if (captured) setWalkthroughSpawn(captured);
     setView('walkthrough');
   };
+
+  if (glFailed) {
+    return (
+      <div className="birdseye">
+        <div className="birdseye__topbar">
+          <ViewTabs />
+        </div>
+        <div className="birdseye__viewport">
+          <GlFallback tone="light" onBack={() => setView('2d')} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="birdseye">
@@ -117,7 +122,7 @@ export function Birdseye() {
       </div>
       <div className="birdseye__viewport">
         <div className="birdseye__canvas">
-          <CanvasBoundary>
+          <CanvasBoundary tone="light" onFail={() => setGlFailed(true)}>
             <Canvas shadows={viewer.display.shadows} gl={{ antialias: true, alpha: true }}>
               {mode === 'ortho' ? (
                 <OrthographicCamera
@@ -171,7 +176,7 @@ export function Birdseye() {
                     <Html key={r.id} position={[c.x, currentBaseY + 0.3, c.y]} center>
                       <div
                         style={{
-                          fontFamily: 'var(--font-mono)',
+                          fontVariantNumeric: 'tabular-nums',
                           fontSize: 11,
                           fontWeight: 700,
                           color: '#4a544e',
@@ -207,11 +212,13 @@ export function Birdseye() {
           <div className="be-slider">
             <div className="be-slider__label">
               <span>창 방향</span>
-              <span className="be-slider__value">{azimuthLabel}</span>
+              <span className="be-slider__value">{azimuth}</span>
             </div>
             <input
               type="range"
               className="slider slider--gold"
+              aria-label="창 방향"
+              aria-valuetext={azimuth}
               min={90}
               max={270}
               value={viewer.lighting.azimuthDeg}
@@ -220,8 +227,14 @@ export function Birdseye() {
           </div>
           <div className="be-sun-card">
             <div className="be-sun-card__label">일조 시간</div>
-            <div className="be-sun-card__value">{daylight}</div>
-            <div className="be-sun-card__meta">거실 기준 · 6월</div>
+            {daylight ? (
+              <>
+                <div className="be-sun-card__value">{daylight}</div>
+                <div className="be-sun-card__meta">거실 기준 · 6월</div>
+              </>
+            ) : (
+              <div className="be-sun-card__meta">방을 그리면 일조 시간을 볼 수 있어요</div>
+            )}
           </div>
         </aside>
 
@@ -230,21 +243,28 @@ export function Birdseye() {
           <div className="be-panel__title">표시</div>
           {(
             [
-              ['천장 숨기기', 'hideCeiling'],
-              ['그림자', 'shadows'],
-              ['치수 라벨', 'dimensionLabels'],
-              ...(floors.length > 1 ? ([['모든 층 표시', 'stackFloors']] as const) : []),
+              // 저장 키는 hideCeiling 그대로 두고, 화면에선 켜짐 = 천장 보임으로 뒤집는다
+              ['천장', 'hideCeiling', true],
+              ['그림자', 'shadows', false],
+              ['치수 라벨', 'dimensionLabels', false],
+              ...(floors.length > 1 ? ([['모든 층 표시', 'stackFloors', false]] as const) : []),
             ] as const
-          ).map(([label, key]) => (
-            <div className="be-toggle-row" key={key}>
-              <span>{label}</span>
-              <button
-                className={`toggle${viewer.display[key] ? ' is-on' : ''}`}
-                aria-pressed={viewer.display[key]}
-                onClick={() => setDisplay({ [key]: !viewer.display[key] })}
-              />
-            </div>
-          ))}
+          ).map(([label, key, inverted]) => {
+            const on = inverted ? !viewer.display[key] : viewer.display[key];
+            return (
+              <div className="be-toggle-row" key={key}>
+                <span id={`${toggleId}-${key}`}>{label}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  aria-labelledby={`${toggleId}-${key}`}
+                  className={`toggle${on ? ' is-on' : ''}`}
+                  onClick={() => setDisplay({ [key]: !viewer.display[key] })}
+                />
+              </div>
+            );
+          })}
         </aside>
 
         {/* 카메라 바 */}
@@ -266,20 +286,11 @@ export function Birdseye() {
             </button>
           ))}
           <span className="be-camera-bar__divider" />
-          <button
-            className="chip-toggle"
-            onClick={() => setLighting({ preset: toggleDayNight(viewer.lighting.preset) })}
-            title="주간/야간 전환"
-          >
-            {viewer.lighting.preset === 'night' ? '주간' : '야간'}
-          </button>
-          <span className="be-camera-bar__divider" />
-          <button className="btn--text-accent" onClick={startWalkthrough}>
-            이 시점에서 워크스루 시작
-          </button>
-          <span className="be-camera-bar__divider" />
           <button className="chip-toggle" onClick={() => setMenuOpen((v) => !v)}>
-            TAB 메뉴
+            <span className="keycap keycap--light">Tab</span> 메뉴
+          </button>
+          <button className="btn btn--primary" onClick={startWalkthrough}>
+            이 시점에서 워크스루 시작
           </button>
         </div>
 

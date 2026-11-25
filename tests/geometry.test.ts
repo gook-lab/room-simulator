@@ -192,7 +192,7 @@ describe('fitCamera (문서 오픈 fit-to-view)', () => {
     const pad = 80;
     for (const factory of [createSamplePlan]) {
       const plan = factory();
-      const cam = fitCamera(plan, viewport, pad);
+      const cam = fitCamera(plan, viewport, { paddingPx: pad });
       const t = makeTransform(plan, viewport, cam);
       const b = planBounds(plan);
       const tl = w2s(t, b.min);

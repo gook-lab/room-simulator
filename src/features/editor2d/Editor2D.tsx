@@ -50,9 +50,11 @@ import {
   findFreeSpot,
   openingNear,
   groupProblems,
+  hasPlacementProblem,
   itemAtPoint,
   itemsInRect,
   snapItemMove,
+  wallHitsFor,
   wallItemAt,
   wallNear,
 } from './interactions';
@@ -77,10 +79,32 @@ import { floorsOfBuilding } from '../../model/floorStack';
 import { rescalePlanGeometry } from '../../model/underlay';
 import { detectRoomsFromWalls } from '../../model/roomDetect';
 import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
+import { isShortcutSheetKey } from './shortcuts';
+import { ShortcutSheet } from './ShortcutSheet';
+import { EmptyState } from './EmptyState';
+import { isolatedRoomIds } from './editorState';
 import { sketchDraftPoints } from './sketchDraft';
 import { dragOriginPoses, type DragOriginPoses } from './dragPreview';
 import { alignmentSnap, axisLock, type AlignmentGuide } from './alignGuides';
-import { fitCamera, makeTransform, s2w, w2s } from './view';
+import { fitCamera, makeTransform, s2w, w2s, type ScreenRect } from './view';
+
+/** 화면 맞춤이 피할 떠 있는 패널. 빈 상태 카드 · 안내 칩은 도면 위에 떠도 되므로 뺀다 */
+const FIT_OBSTACLE_SELECTOR = '.tooldock, .float-panel, .statusbar, .room-link-chip';
+
+function overlayRects(host: HTMLElement): ScreenRect[] {
+  const h = host.getBoundingClientRect();
+  return [...host.querySelectorAll<HTMLElement>(FIT_OBSTACLE_SELECTOR)]
+    .map((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left - h.left, top: r.top - h.top, right: r.right - h.left, bottom: r.bottom - h.top };
+    })
+    .filter((r) => r.right > r.left && r.bottom > r.top);
+}
+
+function fitToHost(plan: Plan, host: HTMLElement | null) {
+  const viewport = { w: host?.clientWidth ?? 1440, h: host?.clientHeight ?? 844 };
+  return fitCamera(plan, viewport, { obstacles: host ? overlayRects(host) : [] });
+}
 
 let idSeq = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${idSeq++}`;
@@ -128,6 +152,8 @@ export function Editor2D() {
     undo,
     redo,
   } = useStore();
+  // 공유 링크 보기 — 편집 패널을 숨기고 끌기는 화면 이동만
+  const readOnly = useStore((s) => s.sharedView != null);
 
   const hostRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null!);
@@ -175,8 +201,17 @@ export function Editor2D() {
   const [placingPos, setPlacingPos] = useState<Vec2 | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
   const [postDrop, setPostDrop] = useState<{ itemId: string } | null>(null);
-  const [missHint, setMissHint] = useState<string | null>(null);
+  /** 캔버스 아래 짧은 안내. withUndo 면 [되돌리기] 버튼을 붙인다 */
+  const [missHint, setMissHint] = useState<{ text: string; withUndo?: boolean } | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const openShortcuts = useCallback(() => setShortcutsOpen(true), []);
+  const closeShortcuts = useCallback(() => setShortcutsOpen(false), []);
   const missHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showHint = useCallback((text: string, ms: number, withUndo = false) => {
+    setMissHint({ text, withUndo });
+    if (missHintTimer.current) clearTimeout(missHintTimer.current);
+    missHintTimer.current = setTimeout(() => setMissHint(null), ms);
+  }, []);
   /**
    * 밑그림 스케일 보정 모드 — 언더레이 위에 기준선을 긋고 실측을 입력하면
    * 언더레이만 리스케일한다 (그린 벽·가구는 불변).
@@ -221,7 +256,7 @@ export function Editor2D() {
   const clearFitView = useStore((s) => s.clearFitView);
   useEffect(() => {
     if (pendingFitView && measured) {
-      setCamera2d(fitCamera(planRef.current, { w: hostRef.current!.clientWidth, h: hostRef.current!.clientHeight }));
+      setCamera2d(fitToHost(planRef.current, hostRef.current));
       clearFitView();
     }
   }, [pendingFitView, measured, setCamera2d, clearFitView]);
@@ -458,7 +493,8 @@ export function Editor2D() {
   const onPointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       // Hand 도구(H)는 지속 팬 모드 — 어떤 대상 위에서든 드래그=팬, 선택/배치 없음
-      if (e.button === 1 || (e.button === 0 && (spaceDown || tool === 'hand'))) {
+      const panOnly = spaceDown || tool === 'hand' || useStore.getState().sharedView != null;
+      if (e.button === 1 || (e.button === 0 && panOnly)) {
         gestureRef.current = {
           type: 'pan',
           startScreen: { x: e.clientX, y: e.clientY },
@@ -573,18 +609,17 @@ export function Editor2D() {
         const near = wallNear(pl, world, tRef.current.s, 24);
         if (!near) {
           // 무반응 방지: 벽을 못 맞춘 클릭에 안내 표시
-          setMissHint(tool === 'door' ? '벽 위를 클릭해 문을 배치하세요' : '벽 위를 클릭해 창을 배치하세요');
-          if (missHintTimer.current) clearTimeout(missHintTimer.current);
-          missHintTimer.current = setTimeout(() => setMissHint(null), 1800);
+          showHint(tool === 'door' ? '벽 위를 눌러 문을 달아 보세요' : '벽 위를 눌러 창을 달아 보세요', 1800);
           return;
         }
         {
           const width = tool === 'door' ? 0.9 : 1.2;
           const len = Math.hypot(near.wall.b.x - near.wall.a.x, near.wall.b.y - near.wall.a.y);
           if (len <= width + 0.1) {
-            setMissHint(`벽이 너무 짧습니다 (${tool === 'door' ? '문' : '창'} 폭 ${width}m 이상 필요)`);
-            if (missHintTimer.current) clearTimeout(missHintTimer.current);
-            missHintTimer.current = setTimeout(() => setMissHint(null), 1800);
+            showHint(
+              `이 벽엔 ${tool === 'door' ? '문이' : '창이'} 안 들어가요. ${width}m보다 긴 벽을 골라 주세요`,
+              2200,
+            );
             return;
           }
           const halfT = width / 2 / len;
@@ -852,6 +887,7 @@ export function Editor2D() {
       setPlacing,
       setSelection,
       scaleMode,
+      showHint,
     ],
   );
 
@@ -955,7 +991,7 @@ export function Editor2D() {
           { commit: false },
         );
         const after = useStore.getState().plans[useStore.getState().currentPlanId];
-        const { collisions, blockedDoors } = groupProblems(after, g.itemIds);
+        const { collisions, blockedDoors, wallHits } = groupProblems(after, g.itemIds);
         const leader = after.items.find((i) => i.id === g.itemIds[0]);
         setDrag({
           itemId: g.itemIds[0],
@@ -964,6 +1000,7 @@ export function Editor2D() {
           snap: null,
           collisions,
           blockedDoors,
+          wallHits,
           isNew: false,
           alignGuides: groupGuides,
         });
@@ -997,6 +1034,7 @@ export function Editor2D() {
         const floorProbe = { ...item, position, parentId: undefined };
         let collisions: string[] = [];
         let blockedDoors: string[] = [];
+        let wallHits: string[] = [];
         let surfaceInvalid = false;
         if (surf) {
           surfaceInvalid =
@@ -1005,6 +1043,7 @@ export function Editor2D() {
         } else {
           collisions = collisionsFor(pl, floorProbe);
           blockedDoors = blockedDoorIds(pl, floorProbe);
+          wallHits = wallHitsFor(pl, floorProbe);
         }
         updatePlan((p) => moveItemWithChildren(p, g.itemId, position), { commit: false });
         setDrag({
@@ -1013,6 +1052,7 @@ export function Editor2D() {
           snap: snapResult,
           collisions,
           blockedDoors,
+          wallHits,
           isNew: false,
           surfaceTargetId: surf?.id ?? null,
           surfaceInvalid,
@@ -1283,9 +1323,7 @@ export function Editor2D() {
           );
           if (g.type === 'move') {
             const probe = { ...item, parentId: undefined };
-            const problematic =
-              collisionsFor(pl, probe).length > 0 || blockedDoorIds(pl, probe).length > 0;
-            setPostDrop(problematic ? { itemId: g.itemId } : null);
+            setPostDrop(hasPlacementProblem(pl, probe) ? { itemId: g.itemId } : null);
           }
         }
         setDrag(null);
@@ -1333,6 +1371,11 @@ export function Editor2D() {
       if (e.code === 'Space') {
         e.preventDefault();
         setSpaceDown(true);
+        return;
+      }
+      if (!meta && !e.altKey && isShortcutSheetKey(e) && !useStore.getState().sharedView) {
+        e.preventDefault();
+        setShortcutsOpen(true);
         return;
       }
       // Cmd+Z / Cmd+Shift+Z 는 전역 useUndoShortcut 이 처리 (중복 등록 금지)
@@ -1446,7 +1489,9 @@ export function Editor2D() {
         };
       }
     }
-    const blocked = probe ? blockedDoorIds(plan, probe).length > 0 : false;
+    const blocked = probe
+      ? blockedDoorIds(plan, probe).length > 0 || wallHitsFor(plan, probe).length > 0
+      : false;
     return {
       catalogId: placingCatalogId,
       pos: placingPos,
@@ -1497,7 +1542,7 @@ export function Editor2D() {
   const cursor =
     gestureKind === 'pan'
       ? 'grabbing'
-      : spaceDown || tool === 'hand'
+      : spaceDown || tool === 'hand' || readOnly
         ? 'grab'
         : placingCatalogId
           ? 'copy'
@@ -1510,38 +1555,34 @@ export function Editor2D() {
                 : 'default';
 
   const resetView = useCallback(() => {
-    const el = hostRef.current;
-    setCamera2d(
-      fitCamera(planRef.current, {
-        w: el?.clientWidth ?? 1440,
-        h: el?.clientHeight ?? 844,
-      }),
-    );
+    setCamera2d(fitToHost(planRef.current, hostRef.current));
   }, [setCamera2d]);
 
   // 방 인식 — 현재 벽으로 닫힌 공간을 찾아 방 생성 (기존 방과 중복 스킵, 1 undo)
   const detectRooms = useCallback(() => {
     const pl = planRef.current;
     const rooms = detectRoomsFromWalls(pl, () => newId('room'));
-    if (missHintTimer.current) clearTimeout(missHintTimer.current);
     if (rooms.length === 0) {
-      setMissHint('닫힌 공간을 찾지 못했습니다 — 벽이 완전히 둘러싼 영역이 필요합니다');
+      showHint('닫힌 방을 못 찾았어요. 벽이 빈틈없이 이어졌는지 봐 주세요', 2600);
     } else {
       updatePlan((p) => ({ ...p, rooms: [...p.rooms, ...rooms] }));
-      setMissHint(`방 ${rooms.length}개 인식됨 — 필요 없으면 Cmd+Z`);
+      showHint(`방 ${rooms.length}개를 찾았어요`, 4000, true);
     }
-    missHintTimer.current = setTimeout(() => setMissHint(null), 2400);
-  }, [updatePlan]);
+  }, [updatePlan, showHint]);
+
+  // 문이 없는 방 — 벽 · 방 · 문이 바뀔 때만 다시 센다
+  const isolated = useMemo(
+    () => isolatedRoomIds(plan),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 가구 이동마다 다시 세지 않는다
+    [plan.walls, plan.rooms, plan.openings],
+  );
 
   // 충돌 후 액션 칩 위치
   const postDropItem = postDrop ? plan.items.find((i) => i.id === postDrop.itemId) : null;
   const postDropScreen = postDropItem
     ? w2s(t, { x: postDropItem.position.x, y: itemAabb(postDropItem).max.y })
     : null;
-  const postDropHasCollision =
-    postDropItem != null &&
-    (collisionsFor(plan, postDropItem).length > 0 ||
-      blockedDoorIds(plan, postDropItem).length > 0);
+  const postDropHasCollision = postDropItem != null && hasPlacementProblem(plan, postDropItem);
 
   return (
     <div className="editor2d" ref={hostRef} onWheel={onWheel}>
@@ -1564,6 +1605,7 @@ export function Editor2D() {
         dragOrigin={dragOrigin}
         rotateHud={rotateHud}
         ghostPlan={floorGhostOn ? belowFloor : null}
+        highlightRoomIds={tool === 'door' ? isolated : undefined}
         openingHover={openingHover}
         measure={measure}
         placingGhost={placingGhost}
@@ -1577,22 +1619,64 @@ export function Editor2D() {
         onPointerUp={onPointerUp}
         cursor={cursor}
       />
-      {missHint && <div className="miss-hint">{missHint}</div>}
-      <ToolDock onResetView={resetView} onDetectRooms={detectRooms} />
-      <CatalogPanel />
-      <Inspector />
-      <StatusBar t={t} />
-      {plan.tracing && (
+      {missHint && (
+        <div className={`miss-hint${missHint.withUndo ? ' miss-hint--action' : ''}`} role="status">
+          {missHint.text}
+          {missHint.withUndo && (
+            <button
+              type="button"
+              className="miss-hint__action"
+              onClick={() => {
+                undo();
+                setMissHint(null);
+              }}
+            >
+              되돌리기
+            </button>
+          )}
+        </div>
+      )}
+      {!readOnly && (
+        <>
+          <ToolDock onResetView={resetView} onDetectRooms={detectRooms} />
+          <CatalogPanel />
+          <Inspector onDeleteSelection={deleteSelection} onDuplicateSelection={duplicateSelection} />
+        </>
+      )}
+      <StatusBar t={t} readOnly={readOnly} onOpenShortcuts={readOnly ? undefined : openShortcuts} />
+      {plan.tracing && !readOnly && (
         <UnderlayPanel onStartScale={() => setScaleMode({ stage: 'draw', line: null })} />
       )}
-      <FloorAlignPanel ghostOn={floorGhostOn} setGhostOn={setFloorGhostOn} />
+      {!readOnly && <FloorAlignPanel ghostOn={floorGhostOn} setGhostOn={setFloorGhostOn} />}
+      {!readOnly && isolated.length > 0 && (
+        <button
+          type="button"
+          className={`room-link-chip${tool === 'door' ? ' is-active' : ''}`}
+          onClick={() => {
+            setTool('door');
+            showHint('문이 없는 방의 벽을 눌러 문을 달아 보세요', 2600);
+          }}
+        >
+          문이 없는 방 {isolated.length}개
+          <span className="room-link-chip__action">문 달기</span>
+        </button>
+      )}
+      {!readOnly && (
+        <EmptyState
+          plan={plan}
+          tool={tool}
+          onDraw={() => setTool('wall')}
+          onPickTemplate={() => useStore.getState().navigate('upload')}
+        />
+      )}
+      {shortcutsOpen && <ShortcutSheet onClose={closeShortcuts} />}
 
       {/* 밑그림 스케일 보정 오버레이 */}
       {scaleMode && (
         <>
           {scaleMode.stage === 'draw' && !scaleMode.line && (
             <div className="miss-hint" style={{ bottom: 132 }}>
-              밑그림에서 길이를 아는 벽을 드래그해 기준선을 그으세요 (Esc 취소)
+              길이를 아는 벽을 따라 끌어서 기준선을 그어 주세요 (Esc로 취소)
             </div>
           )}
           {scaleMode.line &&

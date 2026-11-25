@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type {
   DragState,
   Opening,
@@ -13,6 +14,8 @@ import { itemAabb, planBounds, wallPointAt } from '../../model/geometry';
 import { FurnitureSymbol, shapeOf } from './symbols';
 import type { DragOriginPoses } from './dragPreview';
 import { w2s, type ViewTransform } from './view';
+import { layoutRoomLabels } from './roomLabels';
+import { withAnd } from './josa';
 
 export type WallDraft = { points: Vec2[]; cursor: Vec2 | null };
 export type WallItemGhost = {
@@ -139,6 +142,8 @@ function SurfaceTargetOutline({
 
 export type PlanCanvasProps = {
   plan: Plan;
+  /** 문이 없는 방 강조 (문 도구 중) */
+  highlightRoomIds?: string[];
   t: ViewTransform;
   viewport: { w: number; h: number };
   tool: Tool;
@@ -284,38 +289,41 @@ export function OpeningGlyph({ plan, opening }: { plan: Plan; opening: Opening }
   );
 }
 
-function centroid(poly: Vec2[]): Vec2 {
-  let x = 0;
-  let y = 0;
-  for (const p of poly) {
-    x += p.x;
-    y += p.y;
-  }
-  return { x: x / poly.length, y: y / poly.length };
-}
-
+/**
+ * 방 이름표 — 가구 레이어 위(screen 레이어)에 반투명 받침을 깔고, 가구를 피한 자리에 둔다
+ * (layoutRoomLabels). 내보내기 SVG 도 같은 컴포넌트를 쓴다.
+ */
 export function RoomLabels({ plan, t }: { plan: Plan; t: ViewTransform }) {
+  const spots = useMemo(() => layoutRoomLabels(plan, t.s), [plan, t.s]);
   return (
-    <g>
+    <g pointerEvents="none">
       {plan.rooms.map((r) => {
-        const c = w2s(t, centroid(r.polygon));
-        const big = r.areaSqm > 14;
-        if (big) {
-          return (
-            <g key={r.id}>
-              <text x={c.x} y={c.y - 4} textAnchor="middle" fontSize={17} fontWeight={700} fill="#17201c" fontFamily="var(--font-ui)">
-                {r.name}
-              </text>
-              <text x={c.x} y={c.y + 14} textAnchor="middle" fontSize={12} fontWeight={500} fill="#8b948e" fontFamily="var(--font-ui)">
-                {r.areaSqm.toFixed(1)}㎡
-              </text>
-            </g>
-          );
-        }
-        return (
-          <text key={r.id} x={c.x} y={c.y + 4} textAnchor="middle" fontSize={12} fontWeight={700} fill="#8b948e" fontFamily="var(--font-ui)">
-            {r.name} · {r.areaSqm.toFixed(1)}㎡
+        const spot = spots.get(r.id);
+        if (!spot) return null;
+        const c = w2s(t, spot.at);
+        const { kind, lines, wPx, hPx } = spot.spec;
+        const text = (y: number, size: number, weight: number, fill: string, body: string) => (
+          <text x={c.x} y={y} textAnchor="middle" fontSize={size} fontWeight={weight} fill={fill} fontFamily="var(--font-ui)">
+            {body}
           </text>
+        );
+        return (
+          <g key={r.id}>
+            <rect x={c.x - wPx / 2} y={c.y - hPx / 2} width={wPx} height={hPx} rx={6} fill="var(--panel)" opacity={0.85} />
+            {kind === 'big' && (
+              <>
+                {text(c.y - 3, 17, 700, 'var(--ink)', lines[0])}
+                {text(c.y + 14, 12, 600, 'var(--text-muted)', lines[1])}
+              </>
+            )}
+            {kind === 'stack' && (
+              <>
+                {text(c.y - 2, 12, 700, 'var(--ink)', lines[0])}
+                {text(c.y + 12, 11, 600, 'var(--text-muted)', lines[1])}
+              </>
+            )}
+            {kind === 'line' && text(c.y + 4, 12, 700, 'var(--text-muted)', lines[0])}
+          </g>
         );
       })}
     </g>
@@ -523,8 +531,9 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
   const cm = (v: number) => Math.round(v * 100);
   const colliding = drag.collisions.length > 0;
   const doorBlocked = drag.blockedDoors.length > 0;
+  const wallHit = (drag.wallHits?.length ?? 0) > 0;
   const onSurface = drag.surfaceTargetId != null;
-  const warn = colliding || doorBlocked || drag.surfaceInvalid === true;
+  const warn = colliding || doorBlocked || wallHit || drag.surfaceInvalid === true;
 
   return (
     <g>
@@ -611,17 +620,19 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
           y={topCenter.y - 20}
           text={
             drag.surfaceInvalid
-              ? '상판 밖이거나 다른 물건과 겹칩니다'
-              : `${catalogById.get(plan.items.find((i) => i.id === drag.surfaceTargetId)?.catalogId ?? '')?.name ?? '가구'} 위에 올려놓기`
+              ? '상판 밖이거나 다른 물건과 겹쳐요'
+              : `${catalogById.get(plan.items.find((i) => i.id === drag.surfaceTargetId)?.catalogId ?? '')?.name ?? '가구'} 위에 올려요`
           }
           bg={drag.surfaceInvalid ? '#e8590c' : '#0e9f6e'}
           mono={false}
         />
+      ) : wallHit ? (
+        <ScreenChip x={topCenter.x} y={topCenter.y - 20} text="벽과 겹쳐요" bg="var(--warn)" mono={false} />
       ) : colliding ? (
         <ScreenChip
           x={topCenter.x}
           y={topCenter.y - 20}
-          text={`겹침 · ${plan.items.filter((i) => drag.collisions.includes(i.id)).map((i) => catalogById.get(i.catalogId)?.name ?? '가구')[0]}`}
+          text={`${withAnd(catalogById.get(plan.items.find((i) => drag.collisions.includes(i.id))?.catalogId ?? '')?.name ?? '가구')} 겹쳐요`}
           bg="#e8590c"
           mono={false}
         />
@@ -629,7 +640,7 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
         <ScreenChip
           x={topCenter.x}
           y={topCenter.y - 20}
-          text="문 앞 공간을 막음"
+          text="문 앞 공간을 막아요"
           bg="#e8590c"
           mono={false}
         />
@@ -951,7 +962,7 @@ function PlacingGhostPreview({
 }
 
 export function PlanCanvas(props: PlanCanvasProps) {
-  const { plan, t, viewport, selection, hoverItemId, drag, ghostPlan } = props;
+  const { plan, t, viewport, selection, hoverItemId, drag, ghostPlan, highlightRoomIds } = props;
   const items = sortedItems(plan);
   const selectedItems = plan.items.filter((i) => selection.includes(i.id));
 
@@ -991,6 +1002,23 @@ export function PlanCanvas(props: PlanCanvasProps) {
               {...NSS}
             />
           ))}
+        {/* 문 도구 중에는 문이 없는 방을 표시해 어디에 문을 달지 보이게 한다 */}
+        {highlightRoomIds &&
+          plan.rooms
+            .filter((r) => highlightRoomIds.includes(r.id))
+            .map((r) => (
+              <polygon
+                key={`iso-${r.id}`}
+                points={r.polygon.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill="var(--warn)"
+                fillOpacity={0.06}
+                stroke="var(--warn)"
+                strokeWidth={1.5}
+                strokeDasharray="6 5"
+                pointerEvents="none"
+                {...NSS}
+              />
+            ))}
         {/* 층 정렬 — 아래층 고스트 (최하단, 비인터랙티브) */}
         {ghostPlan && (
           <g opacity={0.35} pointerEvents="none">

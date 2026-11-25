@@ -17,7 +17,7 @@ import {
 } from '../../model/catalog';
 import { useCurrentPlan, useStore } from '../../state/store';
 import { FurnitureSymbol } from './symbols';
-import { collisionsFor, findFreeSpot, occupancyPct } from './interactions';
+import { collisionsFor, findFreeSpot, occupancyPct, wallHitsFor } from './interactions';
 import { blockedDoorIds } from '../../model/doorZones';
 import {
   childFitsSurface,
@@ -28,6 +28,8 @@ import {
   unmountItem,
 } from '../../model/surfaces';
 import { scaleRatioLabel, type ViewTransform } from './view';
+import { KEYS } from './shortcuts';
+import { inspectorKind, selectionSummary } from './editorState';
 
 /* ===== 툴 독 ===== */
 
@@ -92,13 +94,48 @@ const ICONS: Record<string, React.ReactNode> = {
 };
 
 const TOOLS: { tool: Tool; icon: string; label: string; key: string }[] = [
-  { tool: 'select', icon: 'select', label: '선택 (V)', key: 'V' },
-  { tool: 'hand', icon: 'hand', label: '이동 (H)', key: 'H' },
-  { tool: 'wall', icon: 'wall', label: '선 그리기 (S)', key: 'S' },
-  { tool: 'door', icon: 'door', label: '문 (D)', key: 'D' },
-  { tool: 'window', icon: 'window', label: '창 (N)', key: 'N' },
-  { tool: 'dimension', icon: 'dimension', label: '치수 (M)', key: 'M' },
+  { tool: 'select', icon: 'select', label: '선택', key: 'V' },
+  { tool: 'hand', icon: 'hand', label: '화면 옮기기', key: 'H' },
+  { tool: 'wall', icon: 'wall', label: '선 그리기', key: 'S' },
+  { tool: 'door', icon: 'door', label: '문 달기', key: 'D' },
+  { tool: 'window', icon: 'window', label: '창 달기', key: 'N' },
+  { tool: 'dimension', icon: 'dimension', label: '치수 재기', key: 'M' },
 ];
+
+/**
+ * 툴독 버튼. 이름 · 단축키는 마우스를 올리거나 포커스하면 바로 뜨는 툴팁으로 보인다
+ * (title 툴팁은 1초쯤 늦게 떠서 아이콘만 보고 고르게 된다).
+ */
+function DockButton({
+  label,
+  shortcut,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  shortcut?: string;
+  active?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`tooldock__btn${active ? ' is-active' : ''}`}
+      aria-label={label}
+      aria-pressed={active}
+      aria-keyshortcuts={shortcut}
+      onClick={onClick}
+    >
+      {children}
+      <span className="tooldock__tip" aria-hidden="true">
+        {label}
+        {shortcut && <kbd>{shortcut}</kbd>}
+      </span>
+    </button>
+  );
+}
 
 export function ToolDock({
   onResetView,
@@ -110,30 +147,27 @@ export function ToolDock({
   const tool = useStore((s) => s.tool);
   const setTool = useStore((s) => s.setTool);
   return (
-    <div className="tooldock">
+    <div className="tooldock" role="toolbar" aria-label="도구" aria-orientation="vertical">
       {TOOLS.map((t) => (
-        <button
+        <DockButton
           key={t.tool}
-          className={`tooldock__btn${tool === t.tool ? ' is-active' : ''}`}
-          title={t.label}
+          label={t.label}
+          shortcut={t.key}
+          active={tool === t.tool}
           onClick={() => setTool(t.tool)}
         >
           {ICONS[t.icon]}
-        </button>
+        </DockButton>
       ))}
       <div className="tooldock__divider" />
       {onDetectRooms && (
-        <button
-          className="tooldock__btn"
-          title="방 인식 — 벽으로 닫힌 공간을 방으로"
-          onClick={onDetectRooms}
-        >
+        <DockButton label="방 찾기" onClick={onDetectRooms}>
           {ICONS.roomDetect}
-        </button>
+        </DockButton>
       )}
-      <button className="tooldock__btn" title="뷰 리셋" onClick={onResetView}>
+      <DockButton label="화면에 맞추기" onClick={onResetView}>
         {ICONS.zoom}
-      </button>
+      </DockButton>
     </div>
   );
 }
@@ -172,12 +206,21 @@ export function CatalogPanel() {
   const [query, setQuery] = useState('');
   const placing = useStore((s) => s.placingCatalogId);
   const setPlacing = useStore((s) => s.setPlacing);
+  const plan = useCurrentPlan();
+  const selection = useStore((s) => s.selection);
+  const setSelection = useStore((s) => s.setSelection);
+  // 무언가 고른 동안은 목록을 접어 아래 인스펙터 자리를 비운다 (디자인 B-6).
+  // 검색 · 카테고리를 다시 만지면 가구를 고르려는 것으로 보고 선택을 풀어 목록을 편다.
+  const collapsed = !placing && inspectorKind(plan, selection) != null;
+  const expand = () => {
+    if (collapsed) setSelection([]);
+  };
   const q = query.trim().toLowerCase();
   // 검색 중에는 카테고리 무시하고 전체에서 이름·브랜드·별칭 매칭
   const items = q ? searchCatalog(q) : CATALOG.filter((c) => c.category === category);
 
   return (
-    <aside className="float-panel catalog-panel">
+    <aside className={`float-panel catalog-panel${collapsed ? ' is-collapsed' : ''}`}>
       <div className="panel-header">
         <span className="panel-header__title">가구 카탈로그</span>
         <span className="panel-header__meta">{CATALOG.length.toLocaleString()}</span>
@@ -188,7 +231,10 @@ export function CatalogPanel() {
           type="search"
           placeholder="가구 이름 검색"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            expand();
+          }}
         />
       </div>
       {!q && (
@@ -197,16 +243,24 @@ export function CatalogPanel() {
             <button
               key={c}
               className={`pill${category === c ? ' is-active' : ''}`}
-              onClick={() => setCategory(c)}
+              onClick={() => {
+                setCategory(c);
+                expand();
+              }}
             >
               {CATEGORY_LABELS[c]}
             </button>
           ))}
         </div>
       )}
-      <div className="catalog-grid scroll-y">
+      {collapsed && (
+        <button type="button" className="catalog-expand btn--text-accent" onClick={expand}>
+          선택을 풀고 가구 목록 보기
+        </button>
+      )}
+      <div className="catalog-grid scroll-y" hidden={collapsed}>
         {items.length === 0 && q && (
-          <div className="catalog-empty">'{query.trim()}' 검색 결과가 없습니다</div>
+          <div className="catalog-empty">'{query.trim()}'에 맞는 가구가 없어요</div>
         )}
         {items.map((c) => {
           const isPlacing = placing === c.id;
@@ -215,10 +269,10 @@ export function CatalogPanel() {
               key={c.id}
               className="catalog-item"
               onClick={() => setPlacing(isPlacing ? null : c.id)}
-              title={`${c.name} 배치`}
+              title={`${c.name} 놓기`}
             >
               <span className={`catalog-thumb${isPlacing ? ' is-placing' : ''}`}>
-                {isPlacing && <span className="catalog-thumb__badge">배치중</span>}
+                {isPlacing && <span className="catalog-thumb__badge">놓는 중</span>}
                 <Thumb catalogId={c.id} />
               </span>
               <span className="catalog-item__name">{c.name}</span>
@@ -268,7 +322,7 @@ function NumField({
   };
   return (
     <label className="inspector__cell">
-      <span className="inspector__cell-label mono">{label}</span>
+      <span className="inspector__cell-label">{label}</span>
       <span className="inspector__cell-value">
         <input
           className="inspector__input mono"
@@ -324,7 +378,7 @@ export function FloorAlignPanel({
         아래층 겹쳐 보기
       </label>
       <div className="underlay-panel__actions">
-        <button className="btn" onClick={autoAlign} title="두 층 벽 범위의 중심을 맞춥니다">
+        <button className="btn" onClick={autoAlign} title="두 층 벽 범위의 가운데를 맞춰요">
           아래층에 자동 정렬
         </button>
       </div>
@@ -340,7 +394,7 @@ export function FloorAlignPanel({
           <button
             key={label}
             className="btn"
-            title="0.1m 이동 · Shift+클릭 0.5m"
+            title="0.1m씩 옮겨요 · Shift+클릭은 0.5m"
             onClick={(e) => nudge(dx * (e.shiftKey ? 5 : 1), dy * (e.shiftKey ? 5 : 1))}
           >
             {label}
@@ -348,8 +402,8 @@ export function FloorAlignPanel({
         ))}
       </div>
       <span className="inspector__swatch-label">
-        이동은 문서 전체(벽·가구·밑그림)에 적용되고 undo 대상입니다. 계단(카탈로그 '구조'
-        탭)을 배치하면 워크스루에서 층을 오갈 수 있습니다.
+        벽 · 가구 · 밑그림이 함께 움직여요. 되돌리기도 돼요. 카탈로그 '구조'에서 계단을
+        놓으면 3D에서 층을 오갈 수 있어요.
       </span>
     </aside>
   );
@@ -400,11 +454,10 @@ function WallInspector({ wallIds }: { wallIds: string[] }) {
         <span className="panel-header__title">
           벽{walls.length > 1 ? ` ${walls.length}개` : ''} · {totalLen.toFixed(1)}m
         </span>
-        <span className="badge-accent">선택됨</span>
       </div>
       <div className="inspector__swatches">
         <span className="inspector__swatch-label">
-          두께{sameT ? '' : ' — 값 다름, 선택 시 일괄 적용'}
+          두께{sameT ? '' : ' — 벽마다 달라요. 고르면 모두 바뀌어요'}
         </span>
         <div className="seg-row">
           {WALL_THICKNESS_PRESETS.map((p) => (
@@ -438,9 +491,9 @@ function WallInspector({ wallIds }: { wallIds: string[] }) {
           높이 {first.height.toFixed(2)}m 층 전체 적용
         </button>
       </div>
-      <div className="inspector__swatch-label">
-        Shift+클릭으로 벽 추가 선택 = 일괄 편집 · 층 전체 적용은 기본 층고로 저장되어 새 벽·천장에
-        쓰입니다
+      <div className="inspector__swatch-label inspector__hint">
+        Shift+클릭으로 벽을 더 고르면 한꺼번에 바꿀 수 있어요. 층 전체에 적용한 높이는 새 벽과
+        천장에도 쓰여요.
       </div>
     </aside>
   );
@@ -477,7 +530,7 @@ function RoomInspector({ roomId }: { roomId: string }) {
         <span className="badge-accent">{room.areaSqm.toFixed(1)}㎡</span>
       </div>
       <div className="inspector__swatches">
-        <span className="inspector__swatch-label">용도 — 기본 바닥색·견적 분류가 따라옵니다</span>
+        <span className="inspector__swatch-label">용도 — 바닥색과 견적 분류가 함께 바뀌어요</span>
         <div className="seg-row">
           {(
             [
@@ -503,7 +556,7 @@ function RoomInspector({ roomId }: { roomId: string }) {
             checked={room.openCeiling === true}
             onChange={(e) => patchMeta({ openCeiling: e.target.checked || undefined })}
           />
-          오픈 천장 (보이드) — 복층에서 위층까지 뚫린 공간
+          천장 열기 — 복층에서 위층까지 뚫린 공간이에요
         </label>
       </div>
       <div className="inspector__swatches">
@@ -538,7 +591,7 @@ function RoomInspector({ roomId }: { roomId: string }) {
       </div>
       <div className="inspector__footer">
         <span className="inspector__price" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-          다시 클릭하면 기본 마감으로
+          한 번 더 누르면 기본 마감으로 돌아가요
         </span>
       </div>
     </aside>
@@ -566,7 +619,7 @@ function OpeningInspector({ openingId }: { openingId: string }) {
         <span className="panel-header__title">
           {isDoor ? (sliding ? '미닫이문' : '여닫이문') : '창'}
         </span>
-        <span className="badge-accent">개구부</span>
+        <span className="badge-accent">{isDoor ? '문' : '창'}</span>
       </div>
 
       {isDoor && (
@@ -633,7 +686,7 @@ function OpeningInspector({ openingId }: { openingId: string }) {
 
       <div className="inspector__footer">
         <span className="inspector__price" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-          {isDoor ? '재클릭 시 여닫기' : '벽 위 개구부'}
+          {isDoor ? '도면에서 문을 한 번 더 누르면 여닫혀요' : '벽에 달린 창이에요'}
         </span>
         <button
           className="btn btn--outline detail-danger"
@@ -715,7 +768,53 @@ function WallItemInspector({ wallItemId }: { wallItemId: string }) {
   );
 }
 
-export function Inspector() {
+/** 다중 선택 (QA B-14) — 개수와 일괄 복제 · 삭제 */
+function MultiInspector({
+  onDelete,
+  onDuplicate,
+}: {
+  onDelete: () => void;
+  onDuplicate: () => void;
+}) {
+  const plan = useCurrentPlan();
+  const selection = useStore((s) => s.selection);
+  const itemCount = plan.items.filter((i) => selection.includes(i.id)).length;
+  return (
+    <aside className="float-panel inspector" aria-label="선택한 것">
+      <div className="panel-header">
+        <span className="panel-header__title">{selection.length}개 선택됨</span>
+      </div>
+      <div className="inspector__swatches">
+        <span className="inspector__summary">{selectionSummary(plan, selection)}</span>
+      </div>
+      <div className="inspector__detail-actions inspector__multi-actions">
+        <button
+          type="button"
+          className="btn btn--outline"
+          disabled={itemCount === 0}
+          title={`가구만 복제해요 (${KEYS.duplicate})`}
+          onClick={onDuplicate}
+        >
+          {itemCount > 0 ? `가구 ${itemCount}개 복제` : '복제할 가구 없음'}
+        </button>
+        <button type="button" className="btn btn--outline detail-danger" title="Delete" onClick={onDelete}>
+          모두 삭제
+        </button>
+      </div>
+      <div className="inspector__swatch-label inspector__hint">
+        Shift를 누른 채 누르거나 끌어서 더 고를 수 있어요. 고른 것 하나를 끌면 함께 옮겨져요.
+      </div>
+    </aside>
+  );
+}
+
+export function Inspector({
+  onDeleteSelection,
+  onDuplicateSelection,
+}: {
+  onDeleteSelection: () => void;
+  onDuplicateSelection: () => void;
+}) {
   const plan = useCurrentPlan();
   const selection = useStore((s) => s.selection);
   const updatePlan = useStore((s) => s.updatePlan);
@@ -724,10 +823,11 @@ export function Inspector() {
   const selectedId = selection.length === 1 ? selection[0] : undefined;
   // 선택이 바뀌면 상세 옵션 접기
   useEffect(() => setDetailOpen(false), [selectedId]);
+  const kind = inspectorKind(plan, selection);
   // 벽 선택(단일·다중 모두) → 벽 속성 패널
-  const selectedWallIds = selection.filter((id) => plan.walls.some((w) => w.id === id));
-  if (selectedWallIds.length > 0 && selectedWallIds.length === selection.length) {
-    return <WallInspector wallIds={selectedWallIds} />;
+  if (kind === 'walls') return <WallInspector wallIds={selection} />;
+  if (kind === 'multi') {
+    return <MultiInspector onDelete={onDeleteSelection} onDuplicate={onDuplicateSelection} />;
   }
   const item = selectedId ? plan.items.find((i) => i.id === selectedId) : undefined;
   if (!item) {
@@ -770,12 +870,16 @@ export function Inspector() {
   // (입력값은 정밀하게 유지하고 문제만 경고. 그리드 스냅은 정밀 입력을 위해 미적용)
   const numCollisions = collisionsFor(plan, item).length;
   const numBlockedDoors = blockedDoorIds(plan, item).length;
+  const warnings = [
+    wallHitsFor(plan, item).length > 0 ? '벽과 겹쳐요' : null,
+    numCollisions > 0 ? `가구 ${numCollisions}개와 겹쳐요` : null,
+    numBlockedDoors > 0 ? `문 앞 공간 ${numBlockedDoors}곳을 막아요` : null,
+  ].filter(Boolean);
 
   return (
     <aside className="float-panel inspector">
       <div className="panel-header">
         <span className="panel-header__title">{cat.name}</span>
-        <span className="badge-accent">선택됨</span>
       </div>
       <div className="inspector__grid">
         <NumField
@@ -803,16 +907,8 @@ export function Inspector() {
           onCommit={(v) => patch({ size: { ...item.size, h: Math.max(0.02, v) } })}
         />
       </div>
-      {(numCollisions > 0 || numBlockedDoors > 0) && (
-        <div className="inspector__warn">
-          {[
-            numCollisions > 0 ? `가구 겹침 ${numCollisions}건` : null,
-            numBlockedDoors > 0 ? `문 앞 공간 침범 ${numBlockedDoors}곳` : null,
-          ]
-            .filter(Boolean)
-            .join(' · ')}{' '}
-          — 배치는 유지됩니다
-        </div>
+      {warnings.length > 0 && (
+        <div className="inspector__warn">{`${warnings.join(' · ')}. 놓은 자리는 그대로 둘게요`}</div>
       )}
       {item.parentId && (
         <div className="inspector__mount-row">
@@ -820,7 +916,7 @@ export function Inspector() {
             {catalogById.get(
               plan.items.find((i) => i.id === item.parentId)?.catalogId ?? '',
             )?.name ?? '가구'}{' '}
-            위에 올려짐
+            위에 올려져 있어요
           </span>
           <button
             className="btn btn--outline"
@@ -977,7 +1073,7 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
       knownWidthM: tracing.widthM,
     });
     if (r.lines.length === 0 && r.outline.length < 3) {
-      setStatus('벽을 인식하지 못했습니다 — 선 그리기(S)로 직접 그리세요');
+      setStatus('벽을 못 찾았어요. 선 그리기(S)로 직접 그려 주세요');
       setDetecting(false);
       return;
     }
@@ -1005,7 +1101,7 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
       openings: [...pl.openings.filter((o) => !/-ad\d+$/.test(o.id)), ...openings],
     }));
     setStatus(
-      `벽 ${walls.length} · 공간 ${rooms.length} · 문/창 ${openings.length} 인식 — 필요 없으면 Cmd+Z`,
+      `벽 ${walls.length}개 · 공간 ${rooms.length}개 · 문과 창 ${openings.length}개를 찾았어요. 필요 없으면 ${KEYS.undo}로 되돌려요`,
     );
     setDetecting(false);
   };
@@ -1017,7 +1113,8 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
         <button
           className={`toggle${tracing.visible ? ' is-on' : ''}`}
           aria-pressed={tracing.visible}
-          title="표시/숨김"
+          aria-label="밑그림 보이기"
+          title="밑그림 보이기 · 숨기기"
           onClick={() => patch({ visible: !tracing.visible })}
         />
       </div>
@@ -1037,39 +1134,108 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
           스케일 맞추기
         </button>
         <button className="btn btn--outline" disabled={detecting} onClick={() => void autoDetect()}>
-          {detecting ? '인식 중…' : '벽 자동 인식'}
+          {detecting ? '찾는 중…' : '벽 자동 인식'}
         </button>
       </div>
       {status ? (
         <div className="underlay-panel__status">{status}</div>
       ) : (
         <div className="underlay-panel__status underlay-panel__status--muted">
-          면적이 실제와 다르면 '스케일 맞추기'로 1회 보정하세요
+          면적이 실제와 다르면 '스케일 맞추기'로 한 번 맞춰 주세요
         </div>
       )}
     </aside>
   );
 }
 
-export function StatusBar({ t }: { t: ViewTransform }) {
+const UNDO_ICON = (
+  <svg width="16" height="16" viewBox="0 0 16 16" {...STROKE} aria-hidden="true">
+    <path d="M5.5 3L2.5 6l3 3" />
+    <path d="M2.5 6H9.5a3.75 3.75 0 0 1 0 7.5H7" />
+  </svg>
+);
+
+const REDO_ICON = (
+  <svg width="16" height="16" viewBox="0 0 16 16" {...STROKE} aria-hidden="true">
+    <path d="M10.5 3l3 3-3 3" />
+    <path d="M13.5 6H6.5a3.75 3.75 0 0 0 0 7.5H9" />
+  </svg>
+);
+
+export function StatusBar({
+  t,
+  readOnly = false,
+  onOpenShortcuts,
+}: {
+  t: ViewTransform;
+  /** 공유 링크 보기 — 편집이 없어 실행 취소 버튼을 감춘다 */
+  readOnly?: boolean;
+  onOpenShortcuts?: () => void;
+}) {
   const plan = useCurrentPlan();
   const snapping = useStore((s) => s.snapping);
   const toggleSnapping = useStore((s) => s.toggleSnapping);
+  const canUndo = useStore((s) => s.history.past.length > 0);
+  const canRedo = useStore((s) => s.history.future.length > 0);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
   return (
     <div className="statusbar mono">
+      {!readOnly && (
+        <>
+      <span className="statusbar__history" role="group" aria-label="실행 취소 · 다시 실행">
+        <button
+          type="button"
+          className="statusbar__icon"
+          aria-label="실행 취소"
+          title={`실행 취소 (${KEYS.undo})`}
+          disabled={!canUndo}
+          onClick={undo}
+        >
+          {UNDO_ICON}
+        </button>
+        <button
+          type="button"
+          className="statusbar__icon"
+          aria-label="다시 실행"
+          title={`다시 실행 (${KEYS.redo})`}
+          disabled={!canRedo}
+          onClick={redo}
+        >
+          {REDO_ICON}
+        </button>
+      </span>
+      <span className="statusbar__divider" />
+        </>
+      )}
       <span>{scaleRatioLabel(t)}</span>
       <span className="statusbar__divider" />
       <button
         className={`statusbar__snap${snapping.enabled ? ' is-on' : ''}`}
         onClick={toggleSnapping}
-        title="스냅 토글"
+        title="스냅 켜고 끄기"
       >
         {snapping.enabled ? `스냅 켜짐 · ${snapping.gridCm} cm` : '스냅 꺼짐'}
       </button>
       <span className="statusbar__divider" />
-      <span>
+      <span title="방 넓이에서 가구가 차지하는 비율이에요">
         가구 {plan.items.length}개 · 배치율 {occupancyPct(plan)}%
       </span>
+      {onOpenShortcuts && (
+        <>
+          <span className="statusbar__divider" />
+          <button
+            type="button"
+            className="statusbar__icon statusbar__help"
+            aria-label="단축키 보기"
+            aria-keyshortcuts="Shift+/"
+            title="단축키 보기 (?)"
+            onClick={onOpenShortcuts}
+          >
+            ?
+          </button>
+        </>
+      )}
     </div>
   );
 }
