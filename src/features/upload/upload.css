@@ -332,8 +332,8 @@
 .tpl-card__meta {
   font-size: 10px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--accent-deep);
-  letter-spacing: 0.06em;
 }
 
 .tpl-card__desc {
