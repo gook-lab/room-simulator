@@ -952,3 +952,36 @@
 .catalog-grid[hidden] {
   display: none;
 }
+
+/* ---- 문이 없는 방 안내 칩 (기획 후보 7) ---- */
+.room-link-chip {
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--warn-border);
+  background: var(--warn-tint);
+  color: var(--warn-deep);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: var(--shadow-dock);
+  z-index: 11;
+}
+
+.room-link-chip__action {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--warn-deep);
+  color: var(--panel);
+  font-size: 12px;
+}
+
+.room-link-chip:hover .room-link-chip__action,
+.room-link-chip.is-active .room-link-chip__action {
+  background: var(--ink);
+}

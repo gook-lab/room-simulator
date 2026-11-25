@@ -142,6 +142,8 @@ function SurfaceTargetOutline({
 
 export type PlanCanvasProps = {
   plan: Plan;
+  /** 문이 없는 방 강조 (문 도구 중) */
+  highlightRoomIds?: string[];
   t: ViewTransform;
   viewport: { w: number; h: number };
   tool: Tool;
@@ -1000,6 +1002,23 @@ export function PlanCanvas(props: PlanCanvasProps) {
               {...NSS}
             />
           ))}
+        {/* 문 도구 중에는 문이 없는 방을 표시해 어디에 문을 달지 보이게 한다 */}
+        {props.highlightRoomIds &&
+          plan.rooms
+            .filter((r) => props.highlightRoomIds!.includes(r.id))
+            .map((r) => (
+              <polygon
+                key={`iso-${r.id}`}
+                points={r.polygon.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill="var(--warn)"
+                fillOpacity={0.06}
+                stroke="var(--warn)"
+                strokeWidth={1.5}
+                strokeDasharray="6 5"
+                pointerEvents="none"
+                {...NSS}
+              />
+            ))}
         {/* 층 정렬 — 아래층 고스트 (최하단, 비인터랙티브) */}
         {ghostPlan && (
           <g opacity={0.35} pointerEvents="none">

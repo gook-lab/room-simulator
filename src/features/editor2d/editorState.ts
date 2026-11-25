@@ -1,4 +1,5 @@
 import type { Plan } from '../../model/types';
+import { roomConnectivity } from '../../model/roomConnectivity';
 
 /** 손댈 것이 없는 도면 — 벽 · 가구 · 밑그림이 하나도 없다. 빈 도면 안내 카드 조건 */
 export function isEmptyPlan(plan: Plan): boolean {
@@ -39,3 +40,11 @@ export function selectionSummary(plan: Plan, selection: string[]): string {
     .join(' · ');
 }
 
+
+/**
+ * 문 · 통로로 어느 방과도 이어지지 않은 방 (기획 후보 7). 업로드 인식은 문을 못 찾는 일이 많아
+ * 워크스루에서 방에 못 들어가므로 "문이 없는 방 N개" 칩으로 알린다.
+ */
+export function isolatedRoomIds(plan: Plan): string[] {
+  return roomConnectivity(plan).isolatedRoomIds;
+}

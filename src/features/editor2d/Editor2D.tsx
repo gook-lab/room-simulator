@@ -82,13 +82,14 @@ import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
 import { isShortcutSheetKey } from './shortcuts';
 import { ShortcutSheet } from './ShortcutSheet';
 import { EmptyState } from './EmptyState';
+import { isolatedRoomIds } from './editorState';
 import { sketchDraftPoints } from './sketchDraft';
 import { dragOriginPoses, type DragOriginPoses } from './dragPreview';
 import { alignmentSnap, axisLock, type AlignmentGuide } from './alignGuides';
 import { fitCamera, makeTransform, s2w, w2s, type ScreenRect } from './view';
 
 /** 화면 맞춤이 피할 떠 있는 패널. 빈 상태 카드 · 안내 칩은 도면 위에 떠도 되므로 뺀다 */
-const FIT_OBSTACLE_SELECTOR = '.tooldock, .float-panel, .statusbar';
+const FIT_OBSTACLE_SELECTOR = '.tooldock, .float-panel, .statusbar, .room-link-chip';
 
 function overlayRects(host: HTMLElement): ScreenRect[] {
   const h = host.getBoundingClientRect();
@@ -1569,6 +1570,13 @@ export function Editor2D() {
     }
   }, [updatePlan, showHint]);
 
+  // 문이 없는 방 — 벽 · 방 · 문이 바뀔 때만 다시 센다
+  const isolated = useMemo(
+    () => isolatedRoomIds(plan),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 가구 이동마다 다시 세지 않는다
+    [plan.walls, plan.rooms, plan.openings],
+  );
+
   // 충돌 후 액션 칩 위치
   const postDropItem = postDrop ? plan.items.find((i) => i.id === postDrop.itemId) : null;
   const postDropScreen = postDropItem
@@ -1597,6 +1605,7 @@ export function Editor2D() {
         dragOrigin={dragOrigin}
         rotateHud={rotateHud}
         ghostPlan={floorGhostOn ? belowFloor : null}
+        highlightRoomIds={tool === 'door' ? isolated : undefined}
         openingHover={openingHover}
         measure={measure}
         placingGhost={placingGhost}
@@ -1639,6 +1648,19 @@ export function Editor2D() {
         <UnderlayPanel onStartScale={() => setScaleMode({ stage: 'draw', line: null })} />
       )}
       {!readOnly && <FloorAlignPanel ghostOn={floorGhostOn} setGhostOn={setFloorGhostOn} />}
+      {!readOnly && isolated.length > 0 && (
+        <button
+          type="button"
+          className={`room-link-chip${tool === 'door' ? ' is-active' : ''}`}
+          onClick={() => {
+            setTool('door');
+            showHint('문이 없는 방의 벽을 눌러 문을 달아 보세요', 2600);
+          }}
+        >
+          문이 없는 방 {isolated.length}개
+          <span className="room-link-chip__action">문 달기</span>
+        </button>
+      )}
       {!readOnly && (
         <EmptyState
           plan={plan}
