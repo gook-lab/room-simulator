@@ -83,7 +83,7 @@ input {
 .brand__mark {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
+  border-radius: var(--r-chip);
   background: var(--accent);
 }
 
@@ -121,10 +121,10 @@ input {
 .topbar__save-error {
   font-size: 11px;
   font-weight: 700;
-  color: var(--warn-deep, #b3411f);
-  background: var(--warn-tint, #fbeae2);
+  color: var(--warn-deep);
+  background: var(--warn-tint);
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-chip);
   white-space: nowrap;
 }
 
@@ -249,7 +249,7 @@ input {
   display: flex;
   background: var(--neutral-fill);
   padding: 4px;
-  border-radius: 10px;
+  border-radius: var(--r-card);
   gap: 2px;
 }
 
@@ -274,7 +274,7 @@ input {
 }
 
 .viewtabs__tab.is-active {
-  background: #ffffff;
+  background: var(--panel);
   color: var(--ink);
   font-weight: 700;
   box-shadow: var(--shadow-tab);
@@ -309,7 +309,7 @@ input {
 
 .btn--primary {
   background: var(--accent-deep);
-  color: #ffffff;
+  color: var(--panel);
 }
 
 .btn--primary:hover {
@@ -326,7 +326,7 @@ input {
 }
 
 .btn--outline {
-  background: #ffffff;
+  background: var(--panel);
   border: 1px solid var(--border-strong);
   color: var(--ink);
 }
@@ -405,7 +405,7 @@ input {
 
 .pill.is-active {
   background: var(--ink);
-  color: #ffffff;
+  color: var(--panel);
   font-weight: 700;
 }
 
@@ -422,7 +422,7 @@ input {
 
 .chip-dark {
   background: var(--ink);
-  color: #ffffff;
+  color: var(--panel);
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
@@ -433,7 +433,7 @@ input {
 
 .chip-accent {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--panel);
   font-size: 11px;
   font-weight: 700;
   padding: 4px 9px;
@@ -443,7 +443,7 @@ input {
 
 .chip-warn {
   background: var(--warn);
-  color: #ffffff;
+  color: var(--panel);
   font-size: 12px;
   font-weight: 700;
   padding: 4px 9px;
@@ -478,7 +478,7 @@ input {
 .toggle {
   width: 34px;
   height: 19px;
-  border-radius: 10px;
+  border-radius: var(--r-card);
   background: var(--mat-counter);
   position: relative;
   flex: none;
@@ -493,7 +493,7 @@ input {
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--panel);
   transition: left var(--ease-move);
   box-shadow: 0 1px 2px rgba(23, 32, 28, 0.25);
 }
@@ -523,7 +523,7 @@ input {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--panel);
   border: 2px solid var(--accent);
   cursor: pointer;
 }

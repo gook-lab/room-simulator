@@ -63,7 +63,7 @@
 
 .be-presets button {
   padding: 9px 6px;
-  border-radius: 9px;
+  border-radius: var(--r-field);
   font-size: 12px;
   font-weight: 600;
   background: var(--inset-a);
@@ -176,7 +176,7 @@
   align-items: center;
   gap: 6px;
   padding: 7px 12px;
-  border-radius: 8px;
+  border-radius: var(--r-btn);
   font-size: 12px;
   font-weight: 600;
   background: var(--inset-b);
@@ -189,7 +189,7 @@
 
 .be-camera-bar .chip-toggle.is-active {
   background: var(--ink);
-  color: #ffffff;
+  color: var(--panel);
   font-weight: 700;
 }
 
@@ -217,9 +217,9 @@
   transform: translate(-50%, -50%);
   width: 280px;
   padding: 18px;
-  background: #ffffff;
+  background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--r-frame);
   box-shadow: var(--shadow-dock);
   z-index: 20;
 }
@@ -245,7 +245,7 @@
 
 .be-menu__item {
   padding: 10px 12px;
-  border-radius: 9px;
+  border-radius: var(--r-field);
   background: var(--inset-a);
   color: var(--ink);
   font-size: 13px;
