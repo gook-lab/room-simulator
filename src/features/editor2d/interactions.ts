@@ -9,8 +9,11 @@ import {
   pointInPolygon,
   roomAt,
   snapValue,
+  wallLength,
+  wallOverlapIds,
 } from '../../model/geometry';
 import { catalogById } from '../../model/catalog';
+import { WALL_SHAPES } from '../../model/wallItems';
 import { NON_COLLIDING_SHAPES, shapeOf } from './symbols';
 import { itemLayer, sortedItems, wallItemPose } from './PlanCanvas';
 import { alignmentSnap, type AlignmentGuide } from './alignGuides';
@@ -183,6 +186,39 @@ export function collisionsFor(
   return collidingItemIds(plan, moving, NON_COLLIDING_SHAPES, shapeOf);
 }
 
+/**
+ * 벽 면에 붙인 가구를 관통으로 치지 않는 여유(m). 벽 스냅은 면에 딱 붙이지만,
+ * 인스펙터 · 템플릿 좌표가 cm 단위로 반올림돼 붙인 가구가 수 mm 파고들 수 있다.
+ */
+export const WALL_FLUSH_TOLERANCE_M = 0.02;
+
+/** 벽에 걸쳐도 되는 종류 — 바닥에 까는 러그, 층을 잇는 계단, 벽 좌표계로 붙는 소품 */
+const WALL_EXEMPT_SHAPES = new Set<string>(['rug', 'stairs', ...WALL_SHAPES]);
+
+export function wallHitsFor(
+  plan: Plan,
+  moving: {
+    catalogId: string;
+    position: Vec2;
+    rotationDeg: number;
+    size: { w: number; d: number };
+    parentId?: string;
+  },
+): string[] {
+  if (moving.parentId) return []; // 표면 위 자식은 부모 가구 안에 있다
+  if (WALL_EXEMPT_SHAPES.has(shapeOf(moving.catalogId))) return [];
+  return wallOverlapIds(plan, moving, WALL_FLUSH_TOLERANCE_M);
+}
+
+/** 드롭 뒤 "빈 자리로 이동 / 그대로 두기"를 띄울 문제 — 가구 겹침 · 문 앞 공간 · 벽 관통 */
+export function hasPlacementProblem(plan: Plan, item: PlacedItem): boolean {
+  return (
+    collisionsFor(plan, item).length > 0 ||
+    blockedDoorIds(plan, item).length > 0 ||
+    wallHitsFor(plan, item).length > 0
+  );
+}
+
 /** 화면 point → 최상위 아이템 (z 역순) */
 export function itemAtPoint(plan: Plan, world: Vec2): PlacedItem | null {
   const items = sortedItems(plan);
@@ -244,17 +280,23 @@ export function translateItems(plan: Plan, ids: string[], delta: Vec2): Plan {
 export function groupProblems(
   plan: Plan,
   ids: string[],
-): { collisions: string[]; blockedDoors: string[] } {
+): { collisions: string[]; blockedDoors: string[]; wallHits: string[] } {
   const staticPlan = { ...plan, items: plan.items.filter((i) => !ids.includes(i.id)) };
   const collisions = new Set<string>();
   const blockedDoors = new Set<string>();
+  const wallHits = new Set<string>();
   for (const id of ids) {
     const item = plan.items.find((i) => i.id === id);
     if (!item) continue;
     for (const c of collisionsFor(staticPlan, item)) collisions.add(c);
     for (const d of blockedDoorIds(staticPlan, item)) blockedDoors.add(d);
+    for (const w of wallHitsFor(staticPlan, item)) wallHits.add(w);
   }
-  return { collisions: [...collisions], blockedDoors: [...blockedDoors] };
+  return {
+    collisions: [...collisions],
+    blockedDoors: [...blockedDoors],
+    wallHits: [...wallHits],
+  };
 }
 
 /** 점→선분 거리 */
@@ -334,8 +376,45 @@ export function doorNear(
   return openingNear(plan, world, pxPerM, thresholdPx, 'door');
 }
 
-/** 충돌·문 클리어런스 침범 시 "빈 자리로 이동": 나선형 오프셋 탐색 */
+/**
+ * 벽에 걸친 가구를 중심이 있는 쪽 벽 면 밖으로 민 위치. 벽 여러 개에 걸치면
+ * 차례로 민다(모서리). 벽에 붙여 두려던 자리에 가장 가깝다.
+ */
+function pushOutOfWalls(plan: Plan, item: PlacedItem): Vec2 | null {
+  // 면에서 5mm 더 띄운다 — 면 위 꼭짓점은 안목치수 방 경계와 겹쳐 방 안 판정이 흔들린다
+  const clearance = 0.005;
+  let position = item.position;
+  for (let round = 0; round < 4; round++) {
+    const hitId = wallHitsFor(plan, { ...item, position })[0];
+    if (!hitId) return position;
+    const wall = plan.walls.find((w) => w.id === hitId)!;
+    const len = wallLength(wall);
+    const n = { x: -(wall.b.y - wall.a.y) / len, y: (wall.b.x - wall.a.x) / len };
+    const along = (p: Vec2) => (p.x - wall.a.x) * n.x + (p.y - wall.a.y) * n.y;
+    const side = along(position) >= 0 ? 1 : -1;
+    const half = wall.thickness / 2 + clearance;
+    const nearest = Math.min(...itemCorners({ ...item, position }).map((c) => side * along(c)));
+    const push = side * (half - nearest);
+    position = { x: position.x + n.x * push, y: position.y + n.y * push };
+  }
+  return wallHitsFor(plan, { ...item, position }).length === 0 ? position : null;
+}
+
+/**
+ * 충돌 · 문 클리어런스 침범 · 벽 관통 시 "빈 자리로 이동". 벽에 걸쳤으면 벽 면에
+ * 붙인 자리부터 보고, 안 되면 나선형 오프셋을 탐색한다.
+ */
 export function findFreeSpot(plan: Plan, item: PlacedItem): Vec2 | null {
+  const fits = (pos: Vec2) => {
+    if (!roomAt(plan.rooms, pos)) return false;
+    const probe = { ...item, position: pos };
+    if (hasPlacementProblem(plan, probe)) return false;
+    return itemCorners(probe).every((c) => roomAt(plan.rooms, c));
+  };
+  if (wallHitsFor(plan, item).length > 0) {
+    const pushed = pushOutOfWalls(plan, item);
+    if (pushed && fits(pushed)) return pushed;
+  }
   const step = 0.2;
   for (let radius = step; radius <= 3; radius += step) {
     for (let angle = 0; angle < 360; angle += 30) {
@@ -344,13 +423,7 @@ export function findFreeSpot(plan: Plan, item: PlacedItem): Vec2 | null {
         x: item.position.x + Math.cos(rad) * radius,
         y: item.position.y + Math.sin(rad) * radius,
       };
-      const room = roomAt(plan.rooms, pos);
-      if (!room) continue;
-      const probe = { ...item, position: pos };
-      if (collisionsFor(plan, probe).length === 0 && blockedDoorIds(plan, probe).length === 0) {
-        const corners = itemCorners(probe);
-        if (corners.every((c) => roomAt(plan.rooms, c))) return pos;
-      }
+      if (fits(pos)) return pos;
     }
   }
   return null;

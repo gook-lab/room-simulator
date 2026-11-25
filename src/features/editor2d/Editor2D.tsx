@@ -50,9 +50,11 @@ import {
   findFreeSpot,
   openingNear,
   groupProblems,
+  hasPlacementProblem,
   itemAtPoint,
   itemsInRect,
   snapItemMove,
+  wallHitsFor,
   wallItemAt,
   wallNear,
 } from './interactions';
@@ -958,7 +960,7 @@ export function Editor2D() {
           { commit: false },
         );
         const after = useStore.getState().plans[useStore.getState().currentPlanId];
-        const { collisions, blockedDoors } = groupProblems(after, g.itemIds);
+        const { collisions, blockedDoors, wallHits } = groupProblems(after, g.itemIds);
         const leader = after.items.find((i) => i.id === g.itemIds[0]);
         setDrag({
           itemId: g.itemIds[0],
@@ -967,6 +969,7 @@ export function Editor2D() {
           snap: null,
           collisions,
           blockedDoors,
+          wallHits,
           isNew: false,
           alignGuides: groupGuides,
         });
@@ -1000,6 +1003,7 @@ export function Editor2D() {
         const floorProbe = { ...item, position, parentId: undefined };
         let collisions: string[] = [];
         let blockedDoors: string[] = [];
+        let wallHits: string[] = [];
         let surfaceInvalid = false;
         if (surf) {
           surfaceInvalid =
@@ -1008,6 +1012,7 @@ export function Editor2D() {
         } else {
           collisions = collisionsFor(pl, floorProbe);
           blockedDoors = blockedDoorIds(pl, floorProbe);
+          wallHits = wallHitsFor(pl, floorProbe);
         }
         updatePlan((p) => moveItemWithChildren(p, g.itemId, position), { commit: false });
         setDrag({
@@ -1016,6 +1021,7 @@ export function Editor2D() {
           snap: snapResult,
           collisions,
           blockedDoors,
+          wallHits,
           isNew: false,
           surfaceTargetId: surf?.id ?? null,
           surfaceInvalid,
@@ -1286,9 +1292,7 @@ export function Editor2D() {
           );
           if (g.type === 'move') {
             const probe = { ...item, parentId: undefined };
-            const problematic =
-              collisionsFor(pl, probe).length > 0 || blockedDoorIds(pl, probe).length > 0;
-            setPostDrop(problematic ? { itemId: g.itemId } : null);
+            setPostDrop(hasPlacementProblem(pl, probe) ? { itemId: g.itemId } : null);
           }
         }
         setDrag(null);
@@ -1449,7 +1453,9 @@ export function Editor2D() {
         };
       }
     }
-    const blocked = probe ? blockedDoorIds(plan, probe).length > 0 : false;
+    const blocked = probe
+      ? blockedDoorIds(plan, probe).length > 0 || wallHitsFor(plan, probe).length > 0
+      : false;
     return {
       catalogId: placingCatalogId,
       pos: placingPos,
@@ -1541,10 +1547,7 @@ export function Editor2D() {
   const postDropScreen = postDropItem
     ? w2s(t, { x: postDropItem.position.x, y: itemAabb(postDropItem).max.y })
     : null;
-  const postDropHasCollision =
-    postDropItem != null &&
-    (collisionsFor(plan, postDropItem).length > 0 ||
-      blockedDoorIds(plan, postDropItem).length > 0);
+  const postDropHasCollision = postDropItem != null && hasPlacementProblem(plan, postDropItem);
 
   return (
     <div className="editor2d" ref={hostRef} onWheel={onWheel}>

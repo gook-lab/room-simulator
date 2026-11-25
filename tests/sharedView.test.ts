@@ -5,6 +5,7 @@ import { toggleDoor } from '../src/model/interactions3d';
 import { encodeShareHash, readShareHash, type SharedBundle } from '../src/model/shareLink';
 import { BACKUP_KEY, STORAGE_KEY, type PersistShape } from '../src/state/persistence';
 import type { useStore as UseStore } from '../src/state/store';
+import type { handleUndoKey as HandleUndoKey } from '../src/state/useUndoShortcut';
 
 /**
  * 받은 사람의 브라우저에 이미 저장본이 있는 상태에서 공유 링크를 연다.
@@ -22,6 +23,7 @@ const existing: PersistShape = {
 };
 
 let useStore: typeof UseStore;
+let handleUndoKey: typeof HandleUndoKey;
 
 function storageSnapshot(): Record<string, string | null> {
   return {
@@ -50,6 +52,7 @@ async function buildingBundle(): Promise<SharedBundle> {
 beforeAll(async () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
   ({ useStore } = await import('../src/state/store'));
+  ({ handleUndoKey } = await import('../src/state/useUndoShortcut'));
 });
 
 beforeEach(() => {
@@ -91,6 +94,19 @@ describe('공유 링크 보기 — 받은 사람 저장소 불변', () => {
     st().duplicatePlan(sharedId);
     st().addPlan(mine('intruder', '끼어든 문서'));
     st().addPlanAsFloor(mine('intruder2', '끼어든 층'));
+    st().restoreFloor(mine('intruder3', '되살린 층'), 0);
+    // 전역 Cmd+Z · Cmd+Shift+Z 도 에디터 화면에서 동작하므로 함께 두드린다
+    const key = (shiftKey: boolean) =>
+      handleUndoKey({
+        metaKey: true,
+        ctrlKey: false,
+        shiftKey,
+        key: 'z',
+        target: null,
+        preventDefault: () => {},
+      });
+    key(false);
+    key(true);
     // 둘러보기 조작(문 여닫기)은 화면에만 반영된다
     st().updatePlan((p) => toggleDoor(p, door.id), { viewOnly: true });
     vi.advanceTimersByTime(10_000);

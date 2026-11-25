@@ -46,7 +46,7 @@ input {
   height: 100%;
   display: flex;
   flex-direction: column;
-  min-width: 1200px;
+  min-width: 900px;
 }
 
 /* ===== Top bar ===== */
@@ -55,6 +55,7 @@ input {
   flex: none;
   display: flex;
   align-items: center;
+  gap: 16px;
   padding: 0 20px;
   border-bottom: 1px solid var(--border);
   background: var(--app-bg);
@@ -83,7 +84,7 @@ input {
 .brand__mark {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
+  border-radius: var(--r-chip);
   background: var(--accent);
 }
 
@@ -91,6 +92,7 @@ input {
   font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .topbar__divider {
@@ -100,27 +102,147 @@ input {
 }
 
 .topbar__project {
+  min-width: 0;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 14px;
   font-weight: 700;
 }
 
 .topbar__meta {
-  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--text-muted);
-  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
 .topbar__save-error {
   font-size: 11px;
   font-weight: 700;
-  color: var(--warn-deep, #b3411f);
-  background: var(--warn-tint, #fbeae2);
+  color: var(--warn-deep);
+  background: var(--warn-tint);
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-chip);
   white-space: nowrap;
+}
+
+/* 1024~1279px 노트북: 상단바 가운데 뷰 탭이 밀리지 않게 로고 글자를 숨기고 패널을 줄인다 */
+@media (max-width: 1279px) {
+  :root {
+    --panel-w: 280px;
+  }
+
+  .topbar__project {
+    max-width: 160px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .topbar .brand__word {
+    display: none;
+  }
+}
+
+/* 900px 미만: 모바일은 범위 밖이라 앱 대신 안내만 보인다 (NarrowScreenNotice) */
+.narrow-notice {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  #root > :not(.narrow-notice) {
+    visibility: hidden;
+  }
+
+  .app {
+    min-width: 0;
+  }
+
+  .narrow-notice {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+    text-align: center;
+    background: var(--app-bg);
+  }
+}
+
+.narrow-notice__title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.narrow-notice__desc {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* ===== WebGL 폴백 (CanvasBoundary) ===== */
+.gl-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.gl-fallback__card {
+  width: min(360px, 100%);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  border-radius: var(--r-frame);
+}
+
+.gl-fallback__title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.gl-fallback__desc {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.gl-fallback__card .btn {
+  margin-top: 10px;
+}
+
+.gl-fallback--light .gl-fallback__card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+}
+
+.gl-fallback--light .gl-fallback__desc {
+  color: var(--text-2);
+}
+
+.gl-fallback--dark .gl-fallback__card {
+  background: var(--hud-panel);
+  border: 1px solid var(--hud-divider);
+  color: var(--hud-text);
+}
+
+.gl-fallback--dark .gl-fallback__desc {
+  color: var(--hud-text-2);
 }
 
 /* ===== View tabs ===== */
@@ -128,12 +250,12 @@ input {
   display: flex;
   background: var(--neutral-fill);
   padding: 4px;
-  border-radius: 10px;
+  border-radius: var(--r-card);
   gap: 2px;
 }
 
 .viewtabs--dark {
-  background: rgba(23, 32, 28, 0.62);
+  background: var(--hud-panel);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -143,7 +265,7 @@ input {
   border-radius: 7px;
   font-size: 13px;
   font-weight: 600;
-  color: #77807a;
+  color: var(--text-3);
   white-space: nowrap;
   transition: color var(--ease-color), background var(--ease-color);
 }
@@ -153,7 +275,7 @@ input {
 }
 
 .viewtabs__tab.is-active {
-  background: #ffffff;
+  background: var(--panel);
   color: var(--ink);
   font-weight: 700;
   box-shadow: var(--shadow-tab);
@@ -187,12 +309,12 @@ input {
 }
 
 .btn--primary {
-  background: var(--accent);
-  color: #ffffff;
+  background: var(--accent-deep);
+  color: var(--panel);
 }
 
 .btn--primary:hover {
-  background: var(--accent-deep);
+  background: var(--accent-deeper);
 }
 
 .btn--dark {
@@ -205,7 +327,7 @@ input {
 }
 
 .btn--outline {
-  background: #ffffff;
+  background: var(--panel);
   border: 1px solid var(--border-strong);
   color: var(--ink);
 }
@@ -220,13 +342,13 @@ input {
 }
 
 .btn--text-accent {
-  color: var(--accent);
+  color: var(--accent-deep);
   font-size: 12px;
   font-weight: 700;
 }
 
 .btn--text-accent:hover {
-  color: var(--accent-deep);
+  color: var(--accent-deeper);
 }
 
 /* ===== Panels ===== */
@@ -284,7 +406,7 @@ input {
 
 .pill.is-active {
   background: var(--ink);
-  color: #ffffff;
+  color: var(--panel);
   font-weight: 700;
 }
 
@@ -292,7 +414,7 @@ input {
 .badge-accent {
   font-size: 10px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-deep);
   background: var(--accent-tint);
   padding: 3px 7px;
   border-radius: 5px;
@@ -301,7 +423,7 @@ input {
 
 .chip-dark {
   background: var(--ink);
-  color: #ffffff;
+  color: var(--panel);
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
@@ -312,7 +434,7 @@ input {
 
 .chip-accent {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--panel);
   font-size: 11px;
   font-weight: 700;
   padding: 4px 9px;
@@ -322,7 +444,7 @@ input {
 
 .chip-warn {
   background: var(--warn);
-  color: #ffffff;
+  color: var(--panel);
   font-size: 12px;
   font-weight: 700;
   padding: 4px 9px;
@@ -357,7 +479,7 @@ input {
 .toggle {
   width: 34px;
   height: 19px;
-  border-radius: 10px;
+  border-radius: var(--r-card);
   background: var(--mat-counter);
   position: relative;
   flex: none;
@@ -372,7 +494,7 @@ input {
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--panel);
   transition: left var(--ease-move);
   box-shadow: 0 1px 2px rgba(23, 32, 28, 0.25);
 }
@@ -402,7 +524,7 @@ input {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--panel);
   border: 2px solid var(--accent);
   cursor: pointer;
 }
@@ -440,6 +562,7 @@ input {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
   padding: 4px 10px;
   border-radius: 7px;
   font-size: 12px;

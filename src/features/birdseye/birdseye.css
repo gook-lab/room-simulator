@@ -63,7 +63,7 @@
 
 .be-presets button {
   padding: 9px 6px;
-  border-radius: 9px;
+  border-radius: var(--r-field);
   font-size: 12px;
   font-weight: 600;
   background: var(--inset-a);
@@ -112,11 +112,9 @@
 }
 
 .be-sun-card__label {
-  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
-  letter-spacing: 0.08em;
   margin-bottom: 4px;
 }
 
@@ -174,8 +172,11 @@
 }
 
 .be-camera-bar .chip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 12px;
-  border-radius: 8px;
+  border-radius: var(--r-btn);
   font-size: 12px;
   font-weight: 600;
   background: var(--inset-b);
@@ -188,8 +189,18 @@
 
 .be-camera-bar .chip-toggle.is-active {
   background: var(--ink);
-  color: #ffffff;
+  color: var(--panel);
   font-weight: 700;
+}
+
+.be-camera-bar .keycap {
+  height: 18px;
+  font-size: 10px;
+}
+
+.be-camera-bar .btn {
+  padding: 7px 12px;
+  font-size: 12px;
 }
 
 .be-camera-bar__divider {
@@ -206,9 +217,9 @@
   transform: translate(-50%, -50%);
   width: 280px;
   padding: 18px;
-  background: #ffffff;
+  background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--r-frame);
   box-shadow: var(--shadow-dock);
   z-index: 20;
 }
@@ -234,7 +245,7 @@
 
 .be-menu__item {
   padding: 10px 12px;
-  border-radius: 9px;
+  border-radius: var(--r-field);
   background: var(--inset-a);
   color: var(--ink);
   font-size: 13px;
