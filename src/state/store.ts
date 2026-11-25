@@ -80,6 +80,8 @@ export interface AppStore {
   renameFloor: (planId: string, label: string) => void;
   /** 층(문서) 삭제 — 마지막 남은 문서는 삭제하지 않음 */
   deleteFloor: (planId: string) => void;
+  /** 지운 층을 planOrder 의 원래 자리로 되살리고 그 층을 연다 — 층 탭 [되돌리기] */
+  restoreFloor: (plan: Plan, index: number) => void;
   /**
    * 현재 도면을 변경. commit=true(기본)면 undo 히스토리에 스냅샷 push.
    * coalesceKey: 같은 키의 커밋이 400ms 내 연속되면 히스토리를 1개로 묶는다
@@ -342,6 +344,24 @@ export const useStore = create<AppStore>((set, get) => {
         currentPlanId: nextCurrent,
         selection: [],
         history: s.currentPlanId === planId ? { past: [], future: [] } : s.history,
+      });
+      scheduleSave();
+    },
+
+    restoreFloor: (plan, index) => {
+      const s = get();
+      if (s.plans[plan.id]) return;
+      const planOrder = [...s.planOrder];
+      planOrder.splice(Math.max(0, Math.min(index, planOrder.length)), 0, plan.id);
+      set({
+        plans: { ...s.plans, [plan.id]: plan },
+        planOrder,
+        currentPlanId: plan.id,
+        selection: [],
+        placingCatalogId: null,
+        drag: null,
+        history: { past: [], future: [] },
+        pendingFitView: true,
       });
       scheduleSave();
     },
