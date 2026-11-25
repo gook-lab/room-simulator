@@ -53,8 +53,49 @@
   transition: background var(--ease-color), color var(--ease-color);
 }
 
+.tooldock__btn {
+  position: relative;
+}
+
 .tooldock__btn:hover {
   background: var(--neutral-fill);
+}
+
+/* 이름 · 단축키 툴팁 — hover/focus 즉시 (디자인 B-5) */
+.tooldock__tip {
+  position: absolute;
+  left: calc(100% + 16px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 10px;
+  border-radius: var(--r-chip);
+  background: var(--ink);
+  color: var(--app-bg);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: var(--shadow-dock);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.tooldock__tip kbd {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--hud-keycap-border);
+  background: var(--hud-keycap-bg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: center;
+}
+
+.tooldock__btn:hover .tooldock__tip,
+.tooldock__btn:focus-visible .tooldock__tip {
+  display: inline-flex;
 }
 
 .tooldock__btn.is-active {
@@ -434,6 +475,40 @@
   background: var(--border-divider);
 }
 
+.statusbar__history {
+  display: flex;
+  gap: 2px;
+  margin: -4px -6px;
+}
+
+.statusbar__icon {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-btn);
+  color: var(--text-2);
+  transition: background var(--ease-color), color var(--ease-color);
+}
+
+.statusbar__icon:hover:not(:disabled) {
+  background: var(--neutral-fill);
+  color: var(--ink);
+}
+
+.statusbar__icon:disabled {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.statusbar__help {
+  margin: -4px -6px -4px -4px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .statusbar__snap {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -479,6 +554,9 @@
   left: 50%;
   bottom: 84px;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
   background: var(--ink);
   color: #f7f4ef;
   font-size: 12px;
@@ -488,6 +566,24 @@
   box-shadow: var(--shadow-dock);
   z-index: 12;
   pointer-events: none;
+}
+
+.miss-hint--action {
+  pointer-events: auto;
+  padding-right: 8px;
+}
+
+.miss-hint__action {
+  padding: 3px 8px;
+  border-radius: var(--r-chip);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-tint);
+  background: var(--hud-keycap-bg);
+}
+
+.miss-hint__action:hover {
+  background: var(--hud-keycap-border);
 }
 
 /* ---- 표면 적층 ---- */
@@ -676,4 +772,149 @@
 .floor-align-panel__nudge .btn {
   flex: 1;
   padding: 6px 0;
+}
+
+/* ---- 단축키 시트 ---- */
+.shortcut-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+.shortcut-sheet__card {
+  width: min(560px, 100%);
+  max-height: 100%;
+  padding: 20px 24px 24px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-float);
+}
+
+.shortcut-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.shortcut-sheet__head h2 {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.shortcut-sheet__head .btn {
+  font-size: 12px;
+  padding: 6px 8px 6px 12px;
+}
+
+.shortcut-sheet__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px 28px;
+}
+
+.shortcut-sheet__group h3 {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-3);
+}
+
+.shortcut-sheet__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-divider);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.shortcut-sheet__row dt {
+  display: flex;
+  gap: 3px;
+  min-width: 96px;
+}
+
+.shortcut-sheet kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--inset-a);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: center;
+}
+
+/* ---- 빈 도면 안내 (디자인 B-4) ---- */
+.empty-state {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(360px, calc(100% - 48px));
+  padding: 22px 22px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-float);
+  z-index: 11;
+}
+
+.empty-state__title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.empty-state__desc {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.empty-state__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.empty-state__actions .btn {
+  flex: 1;
+}
+
+.empty-state__actions kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* 선 그리기를 고른 뒤에는 캔버스를 막지 않게 위쪽 칩으로 줄인다 */
+.empty-state--hint {
+  top: 24px;
+  transform: translateX(-50%);
+  width: auto;
+  max-width: calc(100% - 48px);
+  padding: 8px 14px;
+  border-radius: 9px;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--app-bg);
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
 }

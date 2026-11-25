@@ -28,6 +28,7 @@ import {
   unmountItem,
 } from '../../model/surfaces';
 import { scaleRatioLabel, type ViewTransform } from './view';
+import { currentPlatform, isApplePlatform, keyLabels } from './shortcuts';
 
 /* ===== 툴 독 ===== */
 
@@ -92,13 +93,48 @@ const ICONS: Record<string, React.ReactNode> = {
 };
 
 const TOOLS: { tool: Tool; icon: string; label: string; key: string }[] = [
-  { tool: 'select', icon: 'select', label: '선택 (V)', key: 'V' },
-  { tool: 'hand', icon: 'hand', label: '이동 (H)', key: 'H' },
-  { tool: 'wall', icon: 'wall', label: '선 그리기 (S)', key: 'S' },
-  { tool: 'door', icon: 'door', label: '문 (D)', key: 'D' },
-  { tool: 'window', icon: 'window', label: '창 (N)', key: 'N' },
-  { tool: 'dimension', icon: 'dimension', label: '치수 (M)', key: 'M' },
+  { tool: 'select', icon: 'select', label: '선택', key: 'V' },
+  { tool: 'hand', icon: 'hand', label: '화면 옮기기', key: 'H' },
+  { tool: 'wall', icon: 'wall', label: '선 그리기', key: 'S' },
+  { tool: 'door', icon: 'door', label: '문 달기', key: 'D' },
+  { tool: 'window', icon: 'window', label: '창 달기', key: 'N' },
+  { tool: 'dimension', icon: 'dimension', label: '치수 재기', key: 'M' },
 ];
+
+/**
+ * 툴독 버튼. 이름 · 단축키는 마우스를 올리거나 포커스하면 바로 뜨는 툴팁으로 보인다
+ * (title 툴팁은 1초쯤 늦게 떠서 아이콘만 보고 고르게 된다).
+ */
+function DockButton({
+  label,
+  shortcut,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  shortcut?: string;
+  active?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`tooldock__btn${active ? ' is-active' : ''}`}
+      aria-label={label}
+      aria-pressed={active}
+      aria-keyshortcuts={shortcut}
+      onClick={onClick}
+    >
+      {children}
+      <span className="tooldock__tip" aria-hidden="true">
+        {label}
+        {shortcut && <kbd>{shortcut}</kbd>}
+      </span>
+    </button>
+  );
+}
 
 export function ToolDock({
   onResetView,
@@ -110,30 +146,27 @@ export function ToolDock({
   const tool = useStore((s) => s.tool);
   const setTool = useStore((s) => s.setTool);
   return (
-    <div className="tooldock">
+    <div className="tooldock" role="toolbar" aria-label="도구" aria-orientation="vertical">
       {TOOLS.map((t) => (
-        <button
+        <DockButton
           key={t.tool}
-          className={`tooldock__btn${tool === t.tool ? ' is-active' : ''}`}
-          title={t.label}
+          label={t.label}
+          shortcut={t.key}
+          active={tool === t.tool}
           onClick={() => setTool(t.tool)}
         >
           {ICONS[t.icon]}
-        </button>
+        </DockButton>
       ))}
       <div className="tooldock__divider" />
       {onDetectRooms && (
-        <button
-          className="tooldock__btn"
-          title="방 인식 — 벽으로 닫힌 공간을 방으로"
-          onClick={onDetectRooms}
-        >
+        <DockButton label="방 찾기" onClick={onDetectRooms}>
           {ICONS.roomDetect}
-        </button>
+        </DockButton>
       )}
-      <button className="tooldock__btn" title="뷰 리셋" onClick={onResetView}>
+      <DockButton label="화면에 맞추기" onClick={onResetView}>
         {ICONS.zoom}
-      </button>
+      </DockButton>
     </div>
   );
 }
@@ -1048,25 +1081,84 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
   );
 }
 
-export function StatusBar({ t }: { t: ViewTransform }) {
+const UNDO_ICON = (
+  <svg width="16" height="16" viewBox="0 0 16 16" {...STROKE} aria-hidden="true">
+    <path d="M5.5 3L2.5 6l3 3" />
+    <path d="M2.5 6H9.5a3.75 3.75 0 0 1 0 7.5H7" />
+  </svg>
+);
+
+const REDO_ICON = (
+  <svg width="16" height="16" viewBox="0 0 16 16" {...STROKE} aria-hidden="true">
+    <path d="M10.5 3l3 3-3 3" />
+    <path d="M13.5 6H6.5a3.75 3.75 0 0 0 0 7.5H9" />
+  </svg>
+);
+
+/** 키 표기는 플랫폼마다 한 번 정한다 (⌘Z · Ctrl+Z) */
+export const KEYS = keyLabels(isApplePlatform(currentPlatform()));
+
+export function StatusBar({ t, onOpenShortcuts }: { t: ViewTransform; onOpenShortcuts?: () => void }) {
   const plan = useCurrentPlan();
   const snapping = useStore((s) => s.snapping);
   const toggleSnapping = useStore((s) => s.toggleSnapping);
+  const canUndo = useStore((s) => s.history.past.length > 0);
+  const canRedo = useStore((s) => s.history.future.length > 0);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
   return (
     <div className="statusbar mono">
+      <span className="statusbar__history" role="group" aria-label="실행 취소 · 다시 실행">
+        <button
+          type="button"
+          className="statusbar__icon"
+          aria-label="실행 취소"
+          title={`실행 취소 (${KEYS.undo})`}
+          disabled={!canUndo}
+          onClick={undo}
+        >
+          {UNDO_ICON}
+        </button>
+        <button
+          type="button"
+          className="statusbar__icon"
+          aria-label="다시 실행"
+          title={`다시 실행 (${KEYS.redo})`}
+          disabled={!canRedo}
+          onClick={redo}
+        >
+          {REDO_ICON}
+        </button>
+      </span>
+      <span className="statusbar__divider" />
       <span>{scaleRatioLabel(t)}</span>
       <span className="statusbar__divider" />
       <button
         className={`statusbar__snap${snapping.enabled ? ' is-on' : ''}`}
         onClick={toggleSnapping}
-        title="스냅 토글"
+        title="스냅 켜고 끄기"
       >
         {snapping.enabled ? `스냅 켜짐 · ${snapping.gridCm} cm` : '스냅 꺼짐'}
       </button>
       <span className="statusbar__divider" />
-      <span>
+      <span title="방 넓이에서 가구가 차지하는 비율이에요">
         가구 {plan.items.length}개 · 배치율 {occupancyPct(plan)}%
       </span>
+      {onOpenShortcuts && (
+        <>
+          <span className="statusbar__divider" />
+          <button
+            type="button"
+            className="statusbar__icon statusbar__help"
+            aria-label="단축키 보기"
+            aria-keyshortcuts="Shift+/"
+            title="단축키 보기 (?)"
+            onClick={onOpenShortcuts}
+          >
+            ?
+          </button>
+        </>
+      )}
     </div>
   );
 }

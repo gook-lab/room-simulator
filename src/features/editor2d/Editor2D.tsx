@@ -79,6 +79,9 @@ import { floorsOfBuilding } from '../../model/floorStack';
 import { rescalePlanGeometry } from '../../model/underlay';
 import { detectRoomsFromWalls } from '../../model/roomDetect';
 import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
+import { isShortcutSheetKey } from './shortcuts';
+import { ShortcutSheet } from './ShortcutSheet';
+import { EmptyState } from './EmptyState';
 import { sketchDraftPoints } from './sketchDraft';
 import { dragOriginPoses, type DragOriginPoses } from './dragPreview';
 import { alignmentSnap, axisLock, type AlignmentGuide } from './alignGuides';
@@ -195,8 +198,17 @@ export function Editor2D() {
   const [placingPos, setPlacingPos] = useState<Vec2 | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
   const [postDrop, setPostDrop] = useState<{ itemId: string } | null>(null);
-  const [missHint, setMissHint] = useState<string | null>(null);
+  /** 캔버스 아래 짧은 안내. withUndo 면 [되돌리기] 버튼을 붙인다 */
+  const [missHint, setMissHint] = useState<{ text: string; withUndo?: boolean } | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const openShortcuts = useCallback(() => setShortcutsOpen(true), []);
+  const closeShortcuts = useCallback(() => setShortcutsOpen(false), []);
   const missHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showHint = useCallback((text: string, ms: number, withUndo = false) => {
+    setMissHint({ text, withUndo });
+    if (missHintTimer.current) clearTimeout(missHintTimer.current);
+    missHintTimer.current = setTimeout(() => setMissHint(null), ms);
+  }, []);
   /**
    * 밑그림 스케일 보정 모드 — 언더레이 위에 기준선을 긋고 실측을 입력하면
    * 언더레이만 리스케일한다 (그린 벽·가구는 불변).
@@ -593,18 +605,17 @@ export function Editor2D() {
         const near = wallNear(pl, world, tRef.current.s, 24);
         if (!near) {
           // 무반응 방지: 벽을 못 맞춘 클릭에 안내 표시
-          setMissHint(tool === 'door' ? '벽 위를 클릭해 문을 배치하세요' : '벽 위를 클릭해 창을 배치하세요');
-          if (missHintTimer.current) clearTimeout(missHintTimer.current);
-          missHintTimer.current = setTimeout(() => setMissHint(null), 1800);
+          showHint(tool === 'door' ? '벽 위를 눌러 문을 달아 보세요' : '벽 위를 눌러 창을 달아 보세요', 1800);
           return;
         }
         {
           const width = tool === 'door' ? 0.9 : 1.2;
           const len = Math.hypot(near.wall.b.x - near.wall.a.x, near.wall.b.y - near.wall.a.y);
           if (len <= width + 0.1) {
-            setMissHint(`벽이 너무 짧습니다 (${tool === 'door' ? '문' : '창'} 폭 ${width}m 이상 필요)`);
-            if (missHintTimer.current) clearTimeout(missHintTimer.current);
-            missHintTimer.current = setTimeout(() => setMissHint(null), 1800);
+            showHint(
+              `이 벽엔 ${tool === 'door' ? '문이' : '창이'} 안 들어가요. ${width}m보다 긴 벽을 골라 주세요`,
+              2200,
+            );
             return;
           }
           const halfT = width / 2 / len;
@@ -872,6 +883,7 @@ export function Editor2D() {
       setPlacing,
       setSelection,
       scaleMode,
+      showHint,
     ],
   );
 
@@ -1357,6 +1369,11 @@ export function Editor2D() {
         setSpaceDown(true);
         return;
       }
+      if (!meta && !e.altKey && isShortcutSheetKey(e)) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
       // Cmd+Z / Cmd+Shift+Z 는 전역 useUndoShortcut 이 처리 (중복 등록 금지)
       if (meta && e.key.toLowerCase() === 'd') {
         e.preventDefault();
@@ -1541,15 +1558,13 @@ export function Editor2D() {
   const detectRooms = useCallback(() => {
     const pl = planRef.current;
     const rooms = detectRoomsFromWalls(pl, () => newId('room'));
-    if (missHintTimer.current) clearTimeout(missHintTimer.current);
     if (rooms.length === 0) {
-      setMissHint('닫힌 공간을 찾지 못했습니다 — 벽이 완전히 둘러싼 영역이 필요합니다');
+      showHint('닫힌 방을 못 찾았어요. 벽이 빈틈없이 이어졌는지 봐 주세요', 2600);
     } else {
       updatePlan((p) => ({ ...p, rooms: [...p.rooms, ...rooms] }));
-      setMissHint(`방 ${rooms.length}개 인식됨 — 필요 없으면 Cmd+Z`);
+      showHint(`방 ${rooms.length}개를 찾았어요`, 4000, true);
     }
-    missHintTimer.current = setTimeout(() => setMissHint(null), 2400);
-  }, [updatePlan]);
+  }, [updatePlan, showHint]);
 
   // 충돌 후 액션 칩 위치
   const postDropItem = postDrop ? plan.items.find((i) => i.id === postDrop.itemId) : null;
@@ -1592,15 +1607,38 @@ export function Editor2D() {
         onPointerUp={onPointerUp}
         cursor={cursor}
       />
-      {missHint && <div className="miss-hint">{missHint}</div>}
+      {missHint && (
+        <div className={`miss-hint${missHint.withUndo ? ' miss-hint--action' : ''}`} role="status">
+          {missHint.text}
+          {missHint.withUndo && (
+            <button
+              type="button"
+              className="miss-hint__action"
+              onClick={() => {
+                undo();
+                setMissHint(null);
+              }}
+            >
+              되돌리기
+            </button>
+          )}
+        </div>
+      )}
       <ToolDock onResetView={resetView} onDetectRooms={detectRooms} />
       <CatalogPanel />
       <Inspector />
-      <StatusBar t={t} />
+      <StatusBar t={t} onOpenShortcuts={openShortcuts} />
       {plan.tracing && (
         <UnderlayPanel onStartScale={() => setScaleMode({ stage: 'draw', line: null })} />
       )}
       <FloorAlignPanel ghostOn={floorGhostOn} setGhostOn={setFloorGhostOn} />
+      <EmptyState
+        plan={plan}
+        tool={tool}
+        onDraw={() => setTool('wall')}
+        onPickTemplate={() => useStore.getState().navigate('upload')}
+      />
+      {shortcutsOpen && <ShortcutSheet onClose={closeShortcuts} />}
 
       {/* 밑그림 스케일 보정 오버레이 */}
       {scaleMode && (
