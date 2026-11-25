@@ -187,6 +187,63 @@ input {
   color: var(--text-2);
 }
 
+/* ===== WebGL 폴백 (CanvasBoundary) ===== */
+.gl-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.gl-fallback__card {
+  width: min(360px, 100%);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  border-radius: var(--r-frame);
+}
+
+.gl-fallback__title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.gl-fallback__desc {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.gl-fallback__card .btn {
+  margin-top: 10px;
+}
+
+.gl-fallback--light .gl-fallback__card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+}
+
+.gl-fallback--light .gl-fallback__desc {
+  color: var(--text-2);
+}
+
+.gl-fallback--dark .gl-fallback__card {
+  background: var(--hud-panel);
+  border: 1px solid var(--hud-divider);
+  color: var(--hud-text);
+}
+
+.gl-fallback--dark .gl-fallback__desc {
+  color: var(--hud-text-2);
+}
+
 /* ===== View tabs ===== */
 .viewtabs {
   display: flex;

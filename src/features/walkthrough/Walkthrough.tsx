@@ -16,7 +16,7 @@ import {
 } from '../../model/interactions3d';
 import { useCurrentPlan, useStore } from '../../state/store';
 import { ViewTabs } from '../../components/ViewTabs';
-import { CanvasBoundary } from '../three/CanvasBoundary';
+import { CanvasBoundary, GlFallback } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
 import { PLAYER_RADIUS, buildColliders, moveAndSlide, resolveCollisions } from '../three/collision';
 import { toggleDayNight } from '../three/lighting';
@@ -233,6 +233,8 @@ export function Walkthrough() {
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [pose, setPose] = useState<PlayerPose>(poseRef.current);
   const [showKeymap, setShowKeymap] = useState(false);
+  // WebGL 실패 — 이동 · 메뉴 HUD 는 동작할 수 없으니 걷어 내고 안내만 남긴다
+  const [glFailed, setGlFailed] = useState(false);
 
   // 미니맵/방 이름 10fps 갱신
   useEffect(() => {
@@ -334,10 +336,8 @@ export function Walkthrough() {
             <ViewTabs dark />
           </div>
           <div className="wt-menu" style={{ width: 340 }}>
-            <div className="wt-menu__title">아직 걸어볼 공간이 없습니다</div>
-            <div className="wt-menu__hint">
-              방(닫힌 벽)을 먼저 그리거나 템플릿에서 시작하면 3D 워크스루를 쓸 수 있습니다.
-            </div>
+            <div className="wt-menu__title">아직 걸어 볼 방이 없어요</div>
+            <div className="wt-menu__hint">방을 그리거나 템플릿으로 시작해 보세요.</div>
             <div className="wt-menu__items">
               <button
                 className="wt-menu__item wt-menu__item--primary"
@@ -355,10 +355,23 @@ export function Walkthrough() {
     );
   }
 
+  if (glFailed) {
+    return (
+      <div className="walkthrough">
+        <GlFallback tone="dark" onBack={() => setView('2d')} />
+        <div className="hud">
+          <div className="hud__tabs">
+            <ViewTabs dark />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="walkthrough">
       <div className="walkthrough__canvas">
-        <CanvasBoundary>
+        <CanvasBoundary tone="dark" onFail={() => setGlFailed(true)}>
         <Canvas
           shadows={viewer.display.shadows}
           gl={{ preserveDrawingBuffer: true, antialias: true }}

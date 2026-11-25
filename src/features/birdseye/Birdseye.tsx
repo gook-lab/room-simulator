@@ -6,7 +6,7 @@ import './birdseye.css';
 import type { LightPreset } from '../../model/types';
 import { useCurrentPlan, useStore } from '../../state/store';
 import { ViewTabs } from '../../components/ViewTabs';
-import { CanvasBoundary } from '../three/CanvasBoundary';
+import { CanvasBoundary, GlFallback } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
 import { PRESET_LABELS, toggleDayNight } from '../three/lighting';
 import { planCenter } from '../three/wallGeometry';
@@ -75,6 +75,8 @@ export function Birdseye() {
   const mode = viewer.birdseyeMode;
   // 워크스루와 대칭인 Tab 미니 메뉴 (Esc 로도 닫힘)
   const [menuOpen, setMenuOpen] = useState(false);
+  // WebGL 실패 — 조명 · 카메라 패널은 동작할 수 없으니 걷어 내고 안내만 남긴다
+  const [glFailed, setGlFailed] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -110,6 +112,19 @@ export function Birdseye() {
     setView('walkthrough');
   };
 
+  if (glFailed) {
+    return (
+      <div className="birdseye">
+        <div className="birdseye__topbar">
+          <ViewTabs />
+        </div>
+        <div className="birdseye__viewport">
+          <GlFallback tone="light" onBack={() => setView('2d')} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="birdseye">
       <div className="birdseye__topbar">
@@ -117,7 +132,7 @@ export function Birdseye() {
       </div>
       <div className="birdseye__viewport">
         <div className="birdseye__canvas">
-          <CanvasBoundary>
+          <CanvasBoundary tone="light" onFail={() => setGlFailed(true)}>
             <Canvas shadows={viewer.display.shadows} gl={{ antialias: true, alpha: true }}>
               {mode === 'ortho' ? (
                 <OrthographicCamera
