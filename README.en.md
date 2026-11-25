@@ -32,7 +32,7 @@ spec.
 | 2D floor plan editor | Wall/door/window drawing, furniture placement with grid and wall-face snapping, 15° rotation, multi-select, collision and door-clearance warnings, persistent dimension notes, per-room floor and wall finishes |
 | 3D walkthrough | First-person WASD movement (capsule collision with sliding response), gaze interaction — toggle lamps and the TV, open and close hinged/sliding doors, edit materials |
 | Bird's-eye view | Dollhouse / section / orthographic cameras, lighting simulation (time-of-day presets, window orientation), enter the walkthrough from any viewpoint |
-| Upload | Drop a floor plan image and it opens as an editable plan right away — walls, rooms and doors are auto-detected; scale calibration and re-detection live in the editor |
+| Upload | Drop a floor plan image and it opens as an editable plan right away — walls and rooms are auto-detected (straight walls come out square, 45° outer walls stay diagonal); doors and windows are detected only where a wall line breaks, the rest are placed with the editor's door/window tools; scale calibration and re-detection live in the editor |
 | Apartment templates | Studio (23㎡), 59㎡ and 84㎡ Korean apartment layouts — net (inner-face) areas, furnished |
 | Dashboard | Plan list (rename/duplicate/delete), furniture library — prices shown only for items linked to verified products, JSON backup |
 
