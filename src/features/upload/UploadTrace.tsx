@@ -194,7 +194,7 @@ export function UploadTrace() {
                 {loading ? '불러오는 중이에요…' : '평면도 이미지를 여기로 끌어 오세요'}
               </span>
               <span className="dropzone__hint">
-                PNG · JPG — 스케일 보정·벽 자동 인식은 에디터의 '밑그림' 패널에서
+                PNG · JPG — 벽과 방은 찾아서 세워 줘요. 문 · 창은 에디터에서 달아요
               </span>
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button className="btn btn--dark" onClick={() => fileRef.current?.click()}>
@@ -257,7 +257,7 @@ export function UploadTrace() {
           <div className="upload__side-upload">
             <div className="tpl-section__title">평면도 이미지가 있다면</div>
             <p className="desc">
-              왼쪽에 올려 주세요. 바로 밑그림으로 깔리고, 벽은 나중에 그려도 괜찮아요.
+              왼쪽에 올려 주세요. 밑그림 위에 벽과 방을 바로 세워 줘요. 크기는 에디터의 '밑그림' 패널에서 맞춰요.
             </p>
             {hasCurrent && (
               <label className="upload__asfloor">
