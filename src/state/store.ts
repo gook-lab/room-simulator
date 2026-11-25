@@ -210,7 +210,9 @@ export const useStore = create<AppStore>()(readOnlyWhileShared((set, get) => {
     if (!get().sharedView) saveNow();
   };
 
+  // 보기 전용 동안 누른 도구 단축키가 복사 뒤 편집 화면에 남지 않게 도구도 되돌린다
   const freshEditor = {
+    tool: 'select',
     selection: [],
     placingCatalogId: null,
     drag: null,
@@ -261,7 +263,6 @@ export const useStore = create<AppStore>()(readOnlyWhileShared((set, get) => {
         currentPlanId: bundle.currentId,
         screen: 'editor',
         view: '2d',
-        tool: 'select',
       });
     },
     copySharedToMine: () => {

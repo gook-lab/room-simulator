@@ -137,12 +137,14 @@ describe('공유 링크 보기 — 내 도면으로 복사', () => {
     const bundle = await singleBundle();
     const storedBefore = JSON.parse(localStorage.getItem(STORAGE_KEY)!) as PersistShape;
     useStore.getState().openShared(bundle);
+    useStore.getState().setTool('door'); // 보기 중 눌린 단축키
     useStore.getState().copySharedToMine();
 
     const s = useStore.getState();
     expect(s.sharedView).toBeNull();
     expect(s.screen).toBe('editor');
     expect(s.view).toBe('2d');
+    expect(s.tool).toBe('select');
     const copyId = s.currentPlanId;
     expect(copyId).not.toBe(bundle.currentId);
     expect(storedBefore.planOrder).not.toContain(copyId);
