@@ -19,12 +19,13 @@
   --ink: #17201c;
   --text-2: #4a544e;
   --text-3: #5b6560;
-  --text-muted: #8b948e;
+  --text-muted: #656e68;
   --text-disabled: #a6aea8;
 
   /* Accent */
   --accent: #0e9f6e;
   --accent-deep: #0b7c56;
+  --accent-deeper: #096646;
   --accent-tint: #e7f6ef;
 
   /* Warning / info */

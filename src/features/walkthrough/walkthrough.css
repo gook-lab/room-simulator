@@ -147,7 +147,7 @@
 .gaze-chip__action {
   font-size: 11px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-deep);
   background: var(--accent-tint);
   padding: 3px 7px;
   border-radius: 5px;

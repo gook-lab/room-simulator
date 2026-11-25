@@ -127,7 +127,7 @@
   left: 6px;
   font-size: 10px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-deep);
   background: #ffffff;
   border: 1px solid var(--accent-tint);
   padding: 2px 6px;
@@ -437,7 +437,7 @@
 }
 
 .statusbar__snap.is-on {
-  color: var(--accent);
+  color: var(--accent-deep);
 }
 
 /* ---- 충돌 후 액션 칩 (1c-4) ---- */
@@ -517,20 +517,20 @@
 }
 
 .catalog-item__link {
-  color: var(--accent);
+  color: var(--accent-deep);
   cursor: pointer;
   font-weight: 800;
 }
 
 .catalog-item__link:hover {
-  color: var(--accent-deep);
+  color: var(--accent-deeper);
 }
 
 .inspector__product-link {
   margin-left: 8px;
   font-size: 10px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-deep);
   background: var(--accent-tint);
   padding: 3px 7px;
   border-radius: 5px;
@@ -538,7 +538,7 @@
 }
 
 .inspector__product-link:hover {
-  color: var(--accent-deep);
+  color: var(--accent-deeper);
 }
 
 /* ---- 밑그림(언더레이) 패널 + 스케일 보정 ---- */

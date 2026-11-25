@@ -143,7 +143,7 @@ input {
   border-radius: 7px;
   font-size: 13px;
   font-weight: 600;
-  color: #77807a;
+  color: var(--text-3);
   white-space: nowrap;
   transition: color var(--ease-color), background var(--ease-color);
 }
@@ -187,12 +187,12 @@ input {
 }
 
 .btn--primary {
-  background: var(--accent);
+  background: var(--accent-deep);
   color: #ffffff;
 }
 
 .btn--primary:hover {
-  background: var(--accent-deep);
+  background: var(--accent-deeper);
 }
 
 .btn--dark {
@@ -220,13 +220,13 @@ input {
 }
 
 .btn--text-accent {
-  color: var(--accent);
+  color: var(--accent-deep);
   font-size: 12px;
   font-weight: 700;
 }
 
 .btn--text-accent:hover {
-  color: var(--accent-deep);
+  color: var(--accent-deeper);
 }
 
 /* ===== Panels ===== */
@@ -292,7 +292,7 @@ input {
 .badge-accent {
   font-size: 10px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-deep);
   background: var(--accent-tint);
   padding: 3px 7px;
   border-radius: 5px;
