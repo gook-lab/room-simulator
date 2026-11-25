@@ -191,9 +191,7 @@ export function UploadTrace() {
             >
               <span className="dropzone__icon">↑</span>
               <span>
-                {loading
-                  ? '불러오는 중…'
-                  : '평면도 이미지를 끌어다 놓으면 바로 스케치 화면에 열립니다'}
+                {loading ? '불러오는 중이에요…' : '평면도 이미지를 여기로 끌어 오세요'}
               </span>
               <span className="dropzone__hint">
                 PNG · JPG — 스케일 보정·벽 자동 인식은 에디터의 '밑그림' 패널에서
@@ -225,26 +223,10 @@ export function UploadTrace() {
         </div>
 
         <aside className="upload__side">
-          <h2>평면도를 업로드하세요</h2>
-          <p className="desc">
-            이미지를 올리면 곧바로 스케치 화면에 밑그림으로 깔립니다. 벽을 그리지
-            않아도 가구 배치와 3D 미리보기를 쓸 수 있고, 필요하면 에디터의 '밑그림'
-            패널에서 스케일을 맞추거나 벽을 자동 인식할 수 있습니다.
-          </p>
-          {hasCurrent && (
-            <label className="upload__asfloor">
-              <input
-                type="checkbox"
-                checked={asFloor}
-                onChange={(e) => setAsFloor(e.target.checked)}
-              />
-              <span>
-                지금 도면에 <b>새 층</b>으로 추가하기
-              </span>
-            </label>
-          )}
+          {/* 일반 사용자 대부분은 도면 이미지가 없어서 템플릿을 먼저 둔다 (기획 D) */}
+          <h2>템플릿으로 바로 시작해 보세요</h2>
+          <p className="desc">가구까지 놓인 집을 열고 마음대로 바꿔 보세요.</p>
           <div className="tpl-section">
-            <div className="tpl-section__title">또는 템플릿에서 시작</div>
             {TEMPLATES.map((tpl) => {
               const preview = tpl.build();
               return (
@@ -268,9 +250,27 @@ export function UploadTrace() {
                 </button>
               );
             })}
-            <button className="link-plain" onClick={startEmpty}>
+            <button className="btn btn--outline btn--block" onClick={startEmpty}>
               빈 도면에서 시작
             </button>
+          </div>
+          <div className="upload__side-upload">
+            <div className="tpl-section__title">평면도 이미지가 있다면</div>
+            <p className="desc">
+              왼쪽에 올려 주세요. 바로 밑그림으로 깔리고, 벽은 나중에 그려도 괜찮아요.
+            </p>
+            {hasCurrent && (
+              <label className="upload__asfloor">
+                <input
+                  type="checkbox"
+                  checked={asFloor}
+                  onChange={(e) => setAsFloor(e.target.checked)}
+                />
+                <span>
+                  지금 도면에 <b>새 층</b>으로 추가하기
+                </span>
+              </label>
+            )}
           </div>
         </aside>
       </div>

@@ -1,0 +1,74 @@
+/* ===== 첫 방문 시작 경로 (기획 D) ===== */
+.quickstart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 18px 20px 20px;
+  background: var(--accent-tint);
+  border: 1px solid var(--info-border);
+  border-radius: var(--r-panel);
+}
+
+.quickstart__title {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.quickstart__desc {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.quickstart__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.quickstart__card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 8px 8px;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  transition: border-color var(--ease-color), box-shadow var(--ease-color);
+}
+
+.quickstart__card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-dock);
+}
+
+.quickstart__thumb {
+  flex: none;
+  display: flex;
+  border-radius: var(--r-btn);
+  background: var(--inset-b);
+  overflow: hidden;
+}
+
+.quickstart__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.quickstart__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.quickstart__meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-deep);
+}

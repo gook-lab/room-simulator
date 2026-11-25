@@ -9,6 +9,7 @@ import { renderPlanSvgString } from '../editor2d/ExportSvg';
 import { useStore } from '../../state/store';
 import { MiniPlan } from '../../components/MiniPlan';
 import { planCardMeta, workingPlan } from './planCardFormat';
+import { QuickStart } from './QuickStart';
 
 function planArea(plan: Plan): number {
   return plan.rooms.reduce((s, r) => s + r.areaSqm, 0);
@@ -185,6 +186,8 @@ export function Dashboard() {
               새 도면 만들기
             </button>
           </div>
+
+          <QuickStart />
 
           <div className="plan-grid">
             {orderedPlans.map((p) => {
