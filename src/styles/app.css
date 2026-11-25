@@ -46,7 +46,7 @@ input {
   height: 100%;
   display: flex;
   flex-direction: column;
-  min-width: 1024px;
+  min-width: 900px;
 }
 
 /* ===== Top bar ===== */
