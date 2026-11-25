@@ -112,11 +112,9 @@
 }
 
 .be-sun-card__label {
-  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
-  letter-spacing: 0.08em;
   margin-bottom: 4px;
 }
 
@@ -174,6 +172,9 @@
 }
 
 .be-camera-bar .chip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 12px;
   border-radius: 8px;
   font-size: 12px;
@@ -190,6 +191,16 @@
   background: var(--ink);
   color: #ffffff;
   font-weight: 700;
+}
+
+.be-camera-bar .keycap {
+  height: 18px;
+  font-size: 10px;
+}
+
+.be-camera-bar .btn {
+  padding: 7px 12px;
+  font-size: 12px;
 }
 
 .be-camera-bar__divider {
