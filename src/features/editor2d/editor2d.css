@@ -258,10 +258,9 @@
 }
 
 .inspector__cell-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
+  color: var(--text-3);
 }
 
 .inspector__cell-value {
@@ -917,4 +916,35 @@
   font-size: 12px;
   font-weight: 600;
   pointer-events: none;
+}
+
+/* ---- 다중 선택 · 카탈로그 접기 (디자인 B-6 · QA B-14) ---- */
+.catalog-panel.is-collapsed .pills {
+  padding-bottom: 8px;
+}
+
+.catalog-expand {
+  align-self: flex-start;
+  margin: 0 16px 14px;
+}
+
+.inspector__summary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.inspector__multi-actions {
+  padding: 0 16px 12px;
+}
+
+.inspector__hint {
+  padding: 0 16px 14px;
+  margin-bottom: 0;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.catalog-grid[hidden] {
+  display: none;
 }

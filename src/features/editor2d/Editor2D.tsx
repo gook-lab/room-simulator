@@ -1626,7 +1626,7 @@ export function Editor2D() {
       )}
       <ToolDock onResetView={resetView} onDetectRooms={detectRooms} />
       <CatalogPanel />
-      <Inspector />
+      <Inspector onDeleteSelection={deleteSelection} onDuplicateSelection={duplicateSelection} />
       <StatusBar t={t} onOpenShortcuts={openShortcuts} />
       {plan.tracing && (
         <UnderlayPanel onStartScale={() => setScaleMode({ stage: 'draw', line: null })} />

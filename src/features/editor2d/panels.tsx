@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CatalogCategory, PlacedItem, Tool, Vec2 } from '../../model/types';
+import type { CatalogCategory, PlacedItem, Plan, Tool, Vec2 } from '../../model/types';
 import { autoAlignOffset, floorsOfBuilding, translatePlanGeometry } from '../../model/floorStack';
 import { FLOOR_FINISHES, WALL_FINISHES, setRoomFinish } from '../../model/finishes';
 import { isWallCatalogItem, moveWallItem } from '../../model/wallItems';
@@ -205,12 +205,21 @@ export function CatalogPanel() {
   const [query, setQuery] = useState('');
   const placing = useStore((s) => s.placingCatalogId);
   const setPlacing = useStore((s) => s.setPlacing);
+  const plan = useCurrentPlan();
+  const selection = useStore((s) => s.selection);
+  const setSelection = useStore((s) => s.setSelection);
+  // 무언가 고른 동안은 목록을 접어 아래 인스펙터 자리를 비운다 (디자인 B-6).
+  // 검색 · 카테고리를 다시 만지면 가구를 고르려는 것으로 보고 선택을 풀어 목록을 편다.
+  const collapsed = !placing && inspectorKind(plan, selection) != null;
+  const expand = () => {
+    if (collapsed) setSelection([]);
+  };
   const q = query.trim().toLowerCase();
   // 검색 중에는 카테고리 무시하고 전체에서 이름·브랜드·별칭 매칭
   const items = q ? searchCatalog(q) : CATALOG.filter((c) => c.category === category);
 
   return (
-    <aside className="float-panel catalog-panel">
+    <aside className={`float-panel catalog-panel${collapsed ? ' is-collapsed' : ''}`}>
       <div className="panel-header">
         <span className="panel-header__title">가구 카탈로그</span>
         <span className="panel-header__meta">{CATALOG.length.toLocaleString()}</span>
@@ -221,7 +230,10 @@ export function CatalogPanel() {
           type="search"
           placeholder="가구 이름 검색"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            expand();
+          }}
         />
       </div>
       {!q && (
@@ -230,14 +242,22 @@ export function CatalogPanel() {
             <button
               key={c}
               className={`pill${category === c ? ' is-active' : ''}`}
-              onClick={() => setCategory(c)}
+              onClick={() => {
+                setCategory(c);
+                expand();
+              }}
             >
               {CATEGORY_LABELS[c]}
             </button>
           ))}
         </div>
       )}
-      <div className="catalog-grid scroll-y">
+      {collapsed && (
+        <button type="button" className="catalog-expand btn--text-accent" onClick={expand}>
+          선택을 풀고 가구 목록 보기
+        </button>
+      )}
+      <div className="catalog-grid scroll-y" hidden={collapsed}>
         {items.length === 0 && q && (
           <div className="catalog-empty">'{query.trim()}' 검색 결과가 없습니다</div>
         )}
@@ -301,7 +321,7 @@ function NumField({
   };
   return (
     <label className="inspector__cell">
-      <span className="inspector__cell-label mono">{label}</span>
+      <span className="inspector__cell-label">{label}</span>
       <span className="inspector__cell-value">
         <input
           className="inspector__input mono"
@@ -433,7 +453,6 @@ function WallInspector({ wallIds }: { wallIds: string[] }) {
         <span className="panel-header__title">
           벽{walls.length > 1 ? ` ${walls.length}개` : ''} · {totalLen.toFixed(1)}m
         </span>
-        <span className="badge-accent">선택됨</span>
       </div>
       <div className="inspector__swatches">
         <span className="inspector__swatch-label">
@@ -748,7 +767,87 @@ function WallItemInspector({ wallItemId }: { wallItemId: string }) {
   );
 }
 
-export function Inspector() {
+export type InspectorKind = 'walls' | 'multi' | 'item' | 'opening' | 'wallItem' | 'room';
+
+/** 선택에 맞는 인스펙터 종류. 인스펙터가 뜨면 카탈로그 목록을 접는다 (디자인 B-6) */
+export function inspectorKind(plan: Plan, selection: string[]): InspectorKind | null {
+  if (selection.length === 0) return null;
+  const has = (list: { id: string }[]) => (id: string) => list.some((x) => x.id === id);
+  if (selection.every(has(plan.walls))) return 'walls';
+  if (selection.length >= 2) return 'multi';
+  const id = selection[0];
+  if (has(plan.items)(id)) return 'item';
+  if (has(plan.openings)(id)) return 'opening';
+  if (has(plan.wallItems ?? [])(id)) return 'wallItem';
+  if (has(plan.rooms)(id)) return 'room';
+  return null;
+}
+
+/** 다중 선택 요약 — "가구 3 · 문 1" */
+export function selectionSummary(plan: Plan, selection: string[]): string {
+  const count = (list: { id: string }[]) => list.filter((x) => selection.includes(x.id)).length;
+  const doors = plan.openings.filter((o) => o.kind === 'door' && selection.includes(o.id)).length;
+  const windows = plan.openings.filter((o) => o.kind === 'window' && selection.includes(o.id)).length;
+  return [
+    ['가구', count(plan.items) + count(plan.wallItems ?? [])],
+    ['벽', count(plan.walls)],
+    ['문', doors],
+    ['창', windows],
+    ['방', count(plan.rooms)],
+    ['치수', count(plan.dimensions ?? [])],
+  ]
+    .filter(([, n]) => (n as number) > 0)
+    .map(([label, n]) => `${label} ${n}`)
+    .join(' · ');
+}
+
+/** 다중 선택 (QA B-14) — 개수와 일괄 복제 · 삭제 */
+function MultiInspector({
+  onDelete,
+  onDuplicate,
+}: {
+  onDelete: () => void;
+  onDuplicate: () => void;
+}) {
+  const plan = useCurrentPlan();
+  const selection = useStore((s) => s.selection);
+  const itemCount = plan.items.filter((i) => selection.includes(i.id)).length;
+  return (
+    <aside className="float-panel inspector" aria-label="선택한 것">
+      <div className="panel-header">
+        <span className="panel-header__title">{selection.length}개 선택됨</span>
+      </div>
+      <div className="inspector__swatches">
+        <span className="inspector__summary">{selectionSummary(plan, selection)}</span>
+      </div>
+      <div className="inspector__detail-actions inspector__multi-actions">
+        <button
+          type="button"
+          className="btn btn--outline"
+          disabled={itemCount === 0}
+          title={`가구만 복제해요 (${KEYS.duplicate})`}
+          onClick={onDuplicate}
+        >
+          {itemCount > 0 ? `가구 ${itemCount}개 복제` : '복제할 가구 없음'}
+        </button>
+        <button type="button" className="btn btn--outline detail-danger" title="Delete" onClick={onDelete}>
+          모두 삭제
+        </button>
+      </div>
+      <div className="inspector__swatch-label inspector__hint">
+        Shift를 누른 채 누르거나 끌어서 더 고를 수 있어요. 고른 것 하나를 끌면 함께 옮겨져요.
+      </div>
+    </aside>
+  );
+}
+
+export function Inspector({
+  onDeleteSelection,
+  onDuplicateSelection,
+}: {
+  onDeleteSelection: () => void;
+  onDuplicateSelection: () => void;
+}) {
   const plan = useCurrentPlan();
   const selection = useStore((s) => s.selection);
   const updatePlan = useStore((s) => s.updatePlan);
@@ -757,10 +856,11 @@ export function Inspector() {
   const selectedId = selection.length === 1 ? selection[0] : undefined;
   // 선택이 바뀌면 상세 옵션 접기
   useEffect(() => setDetailOpen(false), [selectedId]);
+  const kind = inspectorKind(plan, selection);
   // 벽 선택(단일·다중 모두) → 벽 속성 패널
-  const selectedWallIds = selection.filter((id) => plan.walls.some((w) => w.id === id));
-  if (selectedWallIds.length > 0 && selectedWallIds.length === selection.length) {
-    return <WallInspector wallIds={selectedWallIds} />;
+  if (kind === 'walls') return <WallInspector wallIds={selection} />;
+  if (kind === 'multi') {
+    return <MultiInspector onDelete={onDeleteSelection} onDuplicate={onDuplicateSelection} />;
   }
   const item = selectedId ? plan.items.find((i) => i.id === selectedId) : undefined;
   if (!item) {
@@ -813,7 +913,6 @@ export function Inspector() {
     <aside className="float-panel inspector">
       <div className="panel-header">
         <span className="panel-header__title">{cat.name}</span>
-        <span className="badge-accent">선택됨</span>
       </div>
       <div className="inspector__grid">
         <NumField
