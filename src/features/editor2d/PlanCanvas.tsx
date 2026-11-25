@@ -962,7 +962,7 @@ function PlacingGhostPreview({
 }
 
 export function PlanCanvas(props: PlanCanvasProps) {
-  const { plan, t, viewport, selection, hoverItemId, drag, ghostPlan } = props;
+  const { plan, t, viewport, selection, hoverItemId, drag, ghostPlan, highlightRoomIds } = props;
   const items = sortedItems(plan);
   const selectedItems = plan.items.filter((i) => selection.includes(i.id));
 
@@ -1003,9 +1003,9 @@ export function PlanCanvas(props: PlanCanvasProps) {
             />
           ))}
         {/* 문 도구 중에는 문이 없는 방을 표시해 어디에 문을 달지 보이게 한다 */}
-        {props.highlightRoomIds &&
+        {highlightRoomIds &&
           plan.rooms
-            .filter((r) => props.highlightRoomIds!.includes(r.id))
+            .filter((r) => highlightRoomIds.includes(r.id))
             .map((r) => (
               <polygon
                 key={`iso-${r.id}`}
