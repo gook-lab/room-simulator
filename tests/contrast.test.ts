@@ -64,3 +64,15 @@ describe('글자 대비 — 작은 글자 4.5:1', () => {
     expect(contrast(WHITE, t('accent-deeper'))).toBeGreaterThan(contrast(WHITE, t('accent-deep')));
   });
 });
+
+describe('HUD 대비 — 3D 장면 위 반투명 패널 (계산값, 실렌더는 실기기 확인)', () => {
+  it.each(['wall3d-front-a', 'panel'])('--hud-mono · --hud-text-2 / --hud-panel 이 --%s 위에 깔릴 때', (under) => {
+    const bg = over(t('hud-panel'), t(under));
+    expect(contrast(t('hud-mono'), bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(t('hud-text-2'), bg)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('hover 패널은 기본 패널보다 진하다', () => {
+    expect(t('hud-panel-strong')[3]).toBeGreaterThan(t('hud-panel')[3]);
+  });
+});
