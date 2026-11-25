@@ -259,7 +259,7 @@ export function CatalogPanel() {
       )}
       <div className="catalog-grid scroll-y" hidden={collapsed}>
         {items.length === 0 && q && (
-          <div className="catalog-empty">'{query.trim()}' 검색 결과가 없습니다</div>
+          <div className="catalog-empty">'{query.trim()}'에 맞는 가구가 없어요</div>
         )}
         {items.map((c) => {
           const isPlacing = placing === c.id;
@@ -268,10 +268,10 @@ export function CatalogPanel() {
               key={c.id}
               className="catalog-item"
               onClick={() => setPlacing(isPlacing ? null : c.id)}
-              title={`${c.name} 배치`}
+              title={`${c.name} 놓기`}
             >
               <span className={`catalog-thumb${isPlacing ? ' is-placing' : ''}`}>
-                {isPlacing && <span className="catalog-thumb__badge">배치중</span>}
+                {isPlacing && <span className="catalog-thumb__badge">놓는 중</span>}
                 <Thumb catalogId={c.id} />
               </span>
               <span className="catalog-item__name">{c.name}</span>
@@ -377,7 +377,7 @@ export function FloorAlignPanel({
         아래층 겹쳐 보기
       </label>
       <div className="underlay-panel__actions">
-        <button className="btn" onClick={autoAlign} title="두 층 벽 범위의 중심을 맞춥니다">
+        <button className="btn" onClick={autoAlign} title="두 층 벽 범위의 가운데를 맞춰요">
           아래층에 자동 정렬
         </button>
       </div>
@@ -393,7 +393,7 @@ export function FloorAlignPanel({
           <button
             key={label}
             className="btn"
-            title="0.1m 이동 · Shift+클릭 0.5m"
+            title="0.1m씩 옮겨요 · Shift+클릭은 0.5m"
             onClick={(e) => nudge(dx * (e.shiftKey ? 5 : 1), dy * (e.shiftKey ? 5 : 1))}
           >
             {label}
@@ -401,8 +401,8 @@ export function FloorAlignPanel({
         ))}
       </div>
       <span className="inspector__swatch-label">
-        이동은 문서 전체(벽·가구·밑그림)에 적용되고 undo 대상입니다. 계단(카탈로그 '구조'
-        탭)을 배치하면 워크스루에서 층을 오갈 수 있습니다.
+        벽 · 가구 · 밑그림이 함께 움직여요. 되돌리기도 돼요. 카탈로그 '구조'에서 계단을
+        놓으면 3D에서 층을 오갈 수 있어요.
       </span>
     </aside>
   );
@@ -456,7 +456,7 @@ function WallInspector({ wallIds }: { wallIds: string[] }) {
       </div>
       <div className="inspector__swatches">
         <span className="inspector__swatch-label">
-          두께{sameT ? '' : ' — 값 다름, 선택 시 일괄 적용'}
+          두께{sameT ? '' : ' — 벽마다 달라요. 고르면 모두 바뀌어요'}
         </span>
         <div className="seg-row">
           {WALL_THICKNESS_PRESETS.map((p) => (
@@ -490,9 +490,9 @@ function WallInspector({ wallIds }: { wallIds: string[] }) {
           높이 {first.height.toFixed(2)}m 층 전체 적용
         </button>
       </div>
-      <div className="inspector__swatch-label">
-        Shift+클릭으로 벽 추가 선택 = 일괄 편집 · 층 전체 적용은 기본 층고로 저장되어 새 벽·천장에
-        쓰입니다
+      <div className="inspector__swatch-label inspector__hint">
+        Shift+클릭으로 벽을 더 고르면 한꺼번에 바꿀 수 있어요. 층 전체에 적용한 높이는 새 벽과
+        천장에도 쓰여요.
       </div>
     </aside>
   );
@@ -529,7 +529,7 @@ function RoomInspector({ roomId }: { roomId: string }) {
         <span className="badge-accent">{room.areaSqm.toFixed(1)}㎡</span>
       </div>
       <div className="inspector__swatches">
-        <span className="inspector__swatch-label">용도 — 기본 바닥색·견적 분류가 따라옵니다</span>
+        <span className="inspector__swatch-label">용도 — 바닥색과 견적 분류가 함께 바뀌어요</span>
         <div className="seg-row">
           {(
             [
@@ -555,7 +555,7 @@ function RoomInspector({ roomId }: { roomId: string }) {
             checked={room.openCeiling === true}
             onChange={(e) => patchMeta({ openCeiling: e.target.checked || undefined })}
           />
-          오픈 천장 (보이드) — 복층에서 위층까지 뚫린 공간
+          천장 열기 — 복층에서 위층까지 뚫린 공간이에요
         </label>
       </div>
       <div className="inspector__swatches">
@@ -590,7 +590,7 @@ function RoomInspector({ roomId }: { roomId: string }) {
       </div>
       <div className="inspector__footer">
         <span className="inspector__price" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-          다시 클릭하면 기본 마감으로
+          한 번 더 누르면 기본 마감으로 돌아가요
         </span>
       </div>
     </aside>
@@ -618,7 +618,7 @@ function OpeningInspector({ openingId }: { openingId: string }) {
         <span className="panel-header__title">
           {isDoor ? (sliding ? '미닫이문' : '여닫이문') : '창'}
         </span>
-        <span className="badge-accent">개구부</span>
+        <span className="badge-accent">{isDoor ? '문' : '창'}</span>
       </div>
 
       {isDoor && (
@@ -685,7 +685,7 @@ function OpeningInspector({ openingId }: { openingId: string }) {
 
       <div className="inspector__footer">
         <span className="inspector__price" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-          {isDoor ? '재클릭 시 여닫기' : '벽 위 개구부'}
+          {isDoor ? '도면에서 문을 한 번 더 누르면 여닫혀요' : '벽에 달린 창이에요'}
         </span>
         <button
           className="btn btn--outline detail-danger"
@@ -949,7 +949,7 @@ export function Inspector({
             {catalogById.get(
               plan.items.find((i) => i.id === item.parentId)?.catalogId ?? '',
             )?.name ?? '가구'}{' '}
-            위에 올려짐
+            위에 올려져 있어요
           </span>
           <button
             className="btn btn--outline"
@@ -1106,7 +1106,7 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
       knownWidthM: tracing.widthM,
     });
     if (r.lines.length === 0 && r.outline.length < 3) {
-      setStatus('벽을 인식하지 못했습니다 — 선 그리기(S)로 직접 그리세요');
+      setStatus('벽을 못 찾았어요. 선 그리기(S)로 직접 그려 주세요');
       setDetecting(false);
       return;
     }
@@ -1134,7 +1134,7 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
       openings: [...pl.openings.filter((o) => !/-ad\d+$/.test(o.id)), ...openings],
     }));
     setStatus(
-      `벽 ${walls.length} · 공간 ${rooms.length} · 문/창 ${openings.length} 인식 — 필요 없으면 Cmd+Z`,
+      `벽 ${walls.length}개 · 공간 ${rooms.length}개 · 문과 창 ${openings.length}개를 찾았어요. 필요 없으면 ${KEYS.undo}로 되돌려요`,
     );
     setDetecting(false);
   };
@@ -1146,7 +1146,8 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
         <button
           className={`toggle${tracing.visible ? ' is-on' : ''}`}
           aria-pressed={tracing.visible}
-          title="표시/숨김"
+          aria-label="밑그림 보이기"
+          title="밑그림 보이기 · 숨기기"
           onClick={() => patch({ visible: !tracing.visible })}
         />
       </div>
@@ -1166,14 +1167,14 @@ export function UnderlayPanel({ onStartScale }: { onStartScale: () => void }) {
           스케일 맞추기
         </button>
         <button className="btn btn--outline" disabled={detecting} onClick={() => void autoDetect()}>
-          {detecting ? '인식 중…' : '벽 자동 인식'}
+          {detecting ? '찾는 중…' : '벽 자동 인식'}
         </button>
       </div>
       {status ? (
         <div className="underlay-panel__status">{status}</div>
       ) : (
         <div className="underlay-panel__status underlay-panel__status--muted">
-          면적이 실제와 다르면 '스케일 맞추기'로 1회 보정하세요
+          면적이 실제와 다르면 '스케일 맞추기'로 한 번 맞춰 주세요
         </div>
       )}
     </aside>

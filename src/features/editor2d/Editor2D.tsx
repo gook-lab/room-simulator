@@ -1645,7 +1645,7 @@ export function Editor2D() {
         <>
           {scaleMode.stage === 'draw' && !scaleMode.line && (
             <div className="miss-hint" style={{ bottom: 132 }}>
-              밑그림에서 길이를 아는 벽을 드래그해 기준선을 그으세요 (Esc 취소)
+              길이를 아는 벽을 따라 끌어서 기준선을 그어 주세요 (Esc로 취소)
             </div>
           )}
           {scaleMode.line &&

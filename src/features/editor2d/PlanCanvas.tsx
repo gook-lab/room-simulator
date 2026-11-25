@@ -15,6 +15,7 @@ import { FurnitureSymbol, shapeOf } from './symbols';
 import type { DragOriginPoses } from './dragPreview';
 import { w2s, type ViewTransform } from './view';
 import { layoutRoomLabels } from './roomLabels';
+import { withAnd } from './josa';
 
 export type WallDraft = { points: Vec2[]; cursor: Vec2 | null };
 export type WallItemGhost = {
@@ -617,8 +618,8 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
           y={topCenter.y - 20}
           text={
             drag.surfaceInvalid
-              ? '상판 밖이거나 다른 물건과 겹칩니다'
-              : `${catalogById.get(plan.items.find((i) => i.id === drag.surfaceTargetId)?.catalogId ?? '')?.name ?? '가구'} 위에 올려놓기`
+              ? '상판 밖이거나 다른 물건과 겹쳐요'
+              : `${catalogById.get(plan.items.find((i) => i.id === drag.surfaceTargetId)?.catalogId ?? '')?.name ?? '가구'} 위에 올려요`
           }
           bg={drag.surfaceInvalid ? '#e8590c' : '#0e9f6e'}
           mono={false}
@@ -629,7 +630,7 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
         <ScreenChip
           x={topCenter.x}
           y={topCenter.y - 20}
-          text={`겹침 · ${plan.items.filter((i) => drag.collisions.includes(i.id)).map((i) => catalogById.get(i.catalogId)?.name ?? '가구')[0]}`}
+          text={`${withAnd(catalogById.get(plan.items.find((i) => drag.collisions.includes(i.id))?.catalogId ?? '')?.name ?? '가구')} 겹쳐요`}
           bg="#e8590c"
           mono={false}
         />
@@ -637,7 +638,7 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
         <ScreenChip
           x={topCenter.x}
           y={topCenter.y - 20}
-          text="문 앞 공간을 막음"
+          text="문 앞 공간을 막아요"
           bg="#e8590c"
           mono={false}
         />

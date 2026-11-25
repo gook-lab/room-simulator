@@ -107,7 +107,7 @@ function FloorTabs() {
         <button
           key={f.id}
           className={`floor-tab${f.id === plan.id ? ' is-active' : ''}`}
-          title={f.id === plan.id ? '더블클릭 — 층 이름 변경' : `${f.floorLabel ?? f.name} 열기`}
+          title={f.id === plan.id ? '두 번 눌러 층 이름을 바꿔요' : `${f.floorLabel ?? f.name} 열기`}
           onClick={() => f.id !== plan.id && openPlan(f.id)}
           onDoubleClick={() => {
             const label = window.prompt('층 이름', f.floorLabel ?? '1층');
@@ -118,7 +118,7 @@ function FloorTabs() {
           {f.id === plan.id && floors.length > 1 && (
             <span
               className="floor-tab__close"
-              title="이 층 삭제"
+              title="이 층 지우기"
               onClick={(e) => {
                 e.stopPropagation();
                 removeFloor(f);

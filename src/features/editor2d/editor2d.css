@@ -763,6 +763,10 @@
   padding: 12px;
 }
 
+.floor-align-panel .panel-header {
+  padding: 2px 2px 0;
+}
+
 .floor-align-panel__nudge {
   display: flex;
   gap: 6px;
