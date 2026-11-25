@@ -903,7 +903,6 @@
 .empty-state__actions kbd {
   font-family: var(--font-mono);
   font-size: 11px;
-  opacity: 0.8;
 }
 
 /* 선 그리기를 고른 뒤에는 캔버스를 막지 않게 위쪽 칩으로 줄인다 */

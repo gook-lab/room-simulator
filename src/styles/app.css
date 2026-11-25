@@ -584,7 +584,7 @@ input {
 .floor-tab--add {
   padding: 4px 8px;
   font-weight: 800;
-  color: var(--text-muted);
+  color: var(--text-2);
 }
 
 /* 층 추가 메뉴 (디자인 B-7) */

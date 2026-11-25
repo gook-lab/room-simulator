@@ -38,7 +38,7 @@ export function importPlan(json: string): ImportResult {
   try {
     raw = JSON.parse(json);
   } catch {
-    return { ok: false, error: 'JSON 파싱 실패 — 올바른 JSON 파일이 아닙니다.' };
+    return { ok: false, error: 'JSON 파일을 읽지 못했어요. 룸 시뮬레이터에서 내보낸 파일인지 확인해 주세요.' };
   }
   return parsePlanExport(raw);
 }
@@ -47,15 +47,15 @@ export function importPlan(json: string): ImportResult {
 export function parsePlanExport(raw: unknown): ImportResult {
   const data = raw as Partial<PlanExport>;
   if (data?.format !== PLAN_EXPORT_FORMAT) {
-    return { ok: false, error: `룸 시뮬레이터 도면 파일이 아닙니다 (format: ${String(data?.format)})` };
+    return { ok: false, error: '룸 시뮬레이터 도면 파일이 아니에요. 대시보드의 JSON 내보내기로 만든 파일을 골라 주세요.' };
   }
   if (!isNum(data.version) || data.version < 1) {
-    return { ok: false, error: '버전 필드가 없거나 잘못되었습니다.' };
+    return { ok: false, error: '파일의 버전 정보가 없거나 잘못됐어요.' };
   }
   if (data.version > PLAN_EXPORT_VERSION) {
     return {
       ok: false,
-      error: `이 파일은 더 새로운 버전(v${data.version})입니다 — 앱을 업데이트하세요 (지원: v${PLAN_EXPORT_VERSION}).`,
+      error: `더 새로운 버전(v${data.version})의 앱에서 만든 파일이에요. 페이지를 새로고침한 뒤 다시 가져와 주세요 (지원: v${PLAN_EXPORT_VERSION}).`,
     };
   }
   const plan = data.plan as Plan | undefined;
