@@ -18,6 +18,23 @@ import {
 
 const HISTORY_LIMIT = 100;
 
+/** undo/redo 로 바뀐 문서에 아직 있는 대상만 선택에 남긴다 */
+function selectionStillIn(plan: Plan, selection: string[]): string[] {
+  if (selection.length === 0) return selection;
+  const ids = new Set<string>();
+  for (const list of [
+    plan.items,
+    plan.walls,
+    plan.openings,
+    plan.rooms,
+    plan.wallItems ?? [],
+    plan.dimensions ?? [],
+  ]) {
+    for (const x of list) ids.add(x.id);
+  }
+  return selection.filter((id) => ids.has(id));
+}
+
 function loadPlans(): PersistShape {
   try {
     const { shape } = loadPersistShape(localStorage);
@@ -372,7 +389,7 @@ export const useStore = create<AppStore>((set, get) => {
 
     undo: () => {
       lastCommitKey = null;
-      const { plans, currentPlanId, history } = get();
+      const { plans, currentPlanId, history, selection } = get();
       const prev = history.past[history.past.length - 1];
       if (!prev) return;
       set({
@@ -381,14 +398,14 @@ export const useStore = create<AppStore>((set, get) => {
           past: history.past.slice(0, -1),
           future: [plans[currentPlanId], ...history.future],
         },
-        selection: [],
+        selection: selectionStillIn(prev, selection),
       });
       scheduleSave();
     },
 
     redo: () => {
       lastCommitKey = null;
-      const { plans, currentPlanId, history } = get();
+      const { plans, currentPlanId, history, selection } = get();
       const next = history.future[0];
       if (!next) return;
       set({
@@ -397,7 +414,7 @@ export const useStore = create<AppStore>((set, get) => {
           past: [...history.past, plans[currentPlanId]],
           future: history.future.slice(1),
         },
-        selection: [],
+        selection: selectionStillIn(next, selection),
       });
       scheduleSave();
     },
