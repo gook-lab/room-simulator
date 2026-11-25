@@ -581,6 +581,11 @@ input {
   color: var(--app-bg);
 }
 
+/* 누를 거리가 없는 층 칩 (단층 문서 · 받은 도면) — 버튼처럼 보이지 않게 */
+.floor-tab--static {
+  cursor: default;
+}
+
 .floor-tab--add {
   padding: 4px 8px;
   font-weight: 800;
