@@ -31,6 +31,8 @@ three.js + @react-three/fiber를 사용합니다. 상태는 zustand 단일 스�
 | SSOT | `plans`, `planOrder`, `currentPlanId`, `history`, `savedAt`, `pendingFitView` | `updatePlan` 단일 변경 경로 · 2초 디바운스 localStorage 저장 · 오픈 시 fit-to-view 1회 |
 | 2D 에디터 | `tool`, `selection`, `placingCatalogId`, `drag`, `camera2d`, `snapping` | 일시적 상태 — undo 대상 아님 |
 | 3D 뷰어 | `viewer` (조명 프리셋·시점 높이·표시 토글·조감 카메라 모드) | 뷰 설정 — plan에 저장하지 않음 |
+| 공유 보기 | `sharedView`, `toast` | 링크로 받은 도면을 보는 동안 내 문서(`plans`·`planOrder`·`currentPlanId`)를 맡겨 두는 칸. 아래 "공유 링크" 절 |
+| 초안 | `draftPlanId` | "빈 도면에서 시작"으로 만든, 아직 손대지 않은 문서 id. 저장에서 빠짐 |
 
 `Plan` 타입은 핸드오프 README의 정의를 따르되, 구현하며 필요해진 필드를
 추가했습니다. 전부 optional이라 기존 저장본과 호환됩니다.
@@ -71,6 +73,27 @@ y 오프셋(아래층 층고 합)으로 겹쳐 그리는 것뿐이라 SSOT는 �
    백업으로 폴백하고, 손상 원본은 `.corrupt` 키로 보존.
 3. **용량 실패 표면화** — quota 초과는 백업을 비우고 1회 재시도, 그래도 실패하면
    상단바 배지로 알리고 JSON 백업을 안내(조용한 무시 제거).
+
+세 겹 밖의 예외는 둘입니다(45차).
+
+- **초안** — "빈 도면에서 시작"으로 만든 문서는 첫 편집 전까지 저장 스냅샷에서
+  빠지고(`state/draftPlan.ts`), 손대지 않은 채 에디터를 나가면 메모리에서도
+  지웁니다. 저장본에 한 번도 들어가지 않으므로 병합 가드가 되살릴 일이 없습니다.
+- **공유 보기** — 링크로 받은 도면을 보는 동안에는 저장 타이머가 저장하지 않고,
+  보기로 들어가기 직전에 미뤄 둔 내 저장을 먼저 끝냅니다.
+
+## 공유 링크 — URL 해시 + 보기 전용
+
+백엔드 없이 공유합니다(`model/shareLink.ts`). 해시 `#share=` 에 planIO v1 내보내기
+객체(다른 층은 `floors`)를 deflate-raw + base64url 로 담고, 받는 쪽은 파일 가져오기와
+같은 검증(`planIO.parsePlanExport`)을 거칩니다. 밑그림 이미지는 빼고 보냅니다.
+길이 측정과 채택 근거는 [DECISIONS.md](DECISIONS.md) 에 있습니다.
+
+받은 도면은 보기 전용입니다. 쓰기 차단은 store 미들웨어 `readOnlyWhileShared` 한곳에서
+합니다. 쓰기 액션 이름을 `WRITE_ACTIONS` 에 모으고, `updatePlan` 은 문 여닫기 ·
+전원처럼 `viewOnly` 로 표시한 조작만 화면에 반영합니다. **새 쓰기 액션을 만들면
+이 목록에 넣는 것이 규칙입니다.** "내 도면으로 복사"는 새 문서 id · 새 건물 id 로
+저장하고 해시를 지웁니다.
 
 ## 모듈 구조
 
@@ -136,6 +159,10 @@ src/
    둡니다.
 5. 새 오버레이 패널을 추가할 때는 `OVERLAY_SELECTOR`에 클래스를 등록하고
    스크롤 영역에 `.scroll-y`를 쓰는 것이 규칙입니다.
+6. 2D 화면 맞춤(`fitCamera`)은 캔버스 위에 떠 있는 패널의 실제 화면 사각형을
+   장애물로 받아, 그것을 피한 영역에 평면 · 치수선 · 문 호를 담습니다(45차).
+   장애물은 `FIT_OBSTACLE_SELECTOR` 로 고릅니다. 캔버스를 덮는 새 패널을 만들면
+   이 셀렉터에도 넣습니다.
 
 ## 미리보기=커밋 계약 (드래그 편집)
 
