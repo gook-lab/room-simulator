@@ -30,7 +30,11 @@ function useShareHash(): boolean {
     let seq = 0;
     const open = async () => {
       const hash = window.location.hash;
-      if (!isShareHash(hash)) return;
+      if (!isShareHash(hash)) {
+        // 뒤로 가기 등으로 링크 해시가 사라지면 보기도 닫는다
+        if (useStore.getState().sharedView) navigate('dashboard');
+        return;
+      }
       const mine = ++seq;
       setOpening(true);
       const result = await readShareHash(hash);
