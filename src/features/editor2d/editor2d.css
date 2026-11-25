@@ -81,8 +81,13 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  padding: 2px 16px 16px;
+  padding: 4px 16px 16px;
   min-height: 0;
+}
+
+/* 스크롤 영역이 바깥 링을 자르므로 붙여 그린다 */
+.catalog-item:focus-visible {
+  outline-offset: 0;
 }
 
 .catalog-item {
