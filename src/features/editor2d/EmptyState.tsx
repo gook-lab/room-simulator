@@ -1,9 +1,5 @@
 import type { Plan, Tool } from '../../model/types';
-
-/** 손댈 것이 없는 도면 — 벽 · 가구 · 밑그림이 하나도 없다 */
-export function isEmptyPlan(plan: Plan): boolean {
-  return plan.walls.length === 0 && plan.items.length === 0 && !plan.tracing;
-}
+import { isEmptyPlan } from './editorState';
 
 /**
  * 빈 도면 안내 (디자인 B-4 · QA B-12). 첫 벽이 생기면 사라진다.

@@ -85,3 +85,18 @@ export function sheetKeyAction(
   if (e.key === 'Enter' || e.key === ' ') return 'close';
   return 'swallow';
 }
+
+/** 이 기기의 키 표기 (⌘Z · Ctrl+Z) */
+export const KEYS = keyLabels(isApplePlatform(currentPlatform()));
+
+type Focusable = { focus: () => void; isConnected?: boolean };
+
+/**
+ * 시트를 연 순간 포커스가 있던 곳을 기억했다가 닫을 때 돌려준다.
+ * 키보드로 연 사람이 닫은 뒤 처음 자리부터 다시 탭하지 않게 한다.
+ */
+export function rememberFocus(active: Focusable | null | undefined): () => void {
+  return () => {
+    if (active && active.isConnected !== false) active.focus();
+  };
+}

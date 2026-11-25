@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CatalogCategory, PlacedItem, Plan, Tool, Vec2 } from '../../model/types';
+import type { CatalogCategory, PlacedItem, Tool, Vec2 } from '../../model/types';
 import { autoAlignOffset, floorsOfBuilding, translatePlanGeometry } from '../../model/floorStack';
 import { FLOOR_FINISHES, WALL_FINISHES, setRoomFinish } from '../../model/finishes';
 import { isWallCatalogItem, moveWallItem } from '../../model/wallItems';
@@ -28,7 +28,8 @@ import {
   unmountItem,
 } from '../../model/surfaces';
 import { scaleRatioLabel, type ViewTransform } from './view';
-import { currentPlatform, isApplePlatform, keyLabels } from './shortcuts';
+import { KEYS } from './shortcuts';
+import { inspectorKind, selectionSummary } from './editorState';
 
 /* ===== 툴 독 ===== */
 
@@ -767,40 +768,6 @@ function WallItemInspector({ wallItemId }: { wallItemId: string }) {
   );
 }
 
-export type InspectorKind = 'walls' | 'multi' | 'item' | 'opening' | 'wallItem' | 'room';
-
-/** 선택에 맞는 인스펙터 종류. 인스펙터가 뜨면 카탈로그 목록을 접는다 (디자인 B-6) */
-export function inspectorKind(plan: Plan, selection: string[]): InspectorKind | null {
-  if (selection.length === 0) return null;
-  const has = (list: { id: string }[]) => (id: string) => list.some((x) => x.id === id);
-  if (selection.every(has(plan.walls))) return 'walls';
-  if (selection.length >= 2) return 'multi';
-  const id = selection[0];
-  if (has(plan.items)(id)) return 'item';
-  if (has(plan.openings)(id)) return 'opening';
-  if (has(plan.wallItems ?? [])(id)) return 'wallItem';
-  if (has(plan.rooms)(id)) return 'room';
-  return null;
-}
-
-/** 다중 선택 요약 — "가구 3 · 문 1" */
-export function selectionSummary(plan: Plan, selection: string[]): string {
-  const count = (list: { id: string }[]) => list.filter((x) => selection.includes(x.id)).length;
-  const doors = plan.openings.filter((o) => o.kind === 'door' && selection.includes(o.id)).length;
-  const windows = plan.openings.filter((o) => o.kind === 'window' && selection.includes(o.id)).length;
-  return [
-    ['가구', count(plan.items) + count(plan.wallItems ?? [])],
-    ['벽', count(plan.walls)],
-    ['문', doors],
-    ['창', windows],
-    ['방', count(plan.rooms)],
-    ['치수', count(plan.dimensions ?? [])],
-  ]
-    .filter(([, n]) => (n as number) > 0)
-    .map(([label, n]) => `${label} ${n}`)
-    .join(' · ');
-}
-
 /** 다중 선택 (QA B-14) — 개수와 일괄 복제 · 삭제 */
 function MultiInspector({
   onDelete,
@@ -1194,9 +1161,6 @@ const REDO_ICON = (
     <path d="M13.5 6H6.5a3.75 3.75 0 0 0 0 7.5H9" />
   </svg>
 );
-
-/** 키 표기는 플랫폼마다 한 번 정한다 (⌘Z · Ctrl+Z) */
-export const KEYS = keyLabels(isApplePlatform(currentPlatform()));
 
 export function StatusBar({ t, onOpenShortcuts }: { t: ViewTransform; onOpenShortcuts?: () => void }) {
   const plan = useCurrentPlan();

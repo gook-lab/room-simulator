@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { timeAgoLabel, useCurrentPlan, useStore } from '../state/store';
 import { ViewTabs } from './ViewTabs';
 import { floorsOfBuilding } from '../model/floorStack';
@@ -10,14 +10,20 @@ import type { Plan } from '../model/types';
  * Esc · 바깥 누르기로 닫고 포커스를 "층 추가" 버튼으로 돌려준다.
  */
 function FloorAddMenu({
+  anchorRef,
+  setOpen,
   onPick,
-  onClose,
 }: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  setOpen: (open: boolean) => void;
   onPick: (source: 'empty' | 'duplicate') => void;
-  onClose: (restoreFocus: boolean) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const onClose = (restoreFocus: boolean) => {
+      setOpen(false);
+      if (restoreFocus) anchorRef.current?.focus();
+    };
     const items = () => [...(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
     items()[0]?.focus();
     const onKey = (e: KeyboardEvent) => {
@@ -45,7 +51,7 @@ function FloorAddMenu({
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('pointerdown', onDown, true);
     };
-  }, [onClose]);
+  }, [anchorRef, setOpen]);
   return (
     <div ref={ref} className="floor-add__menu" role="menu" aria-label="층 추가">
       <button type="button" role="menuitem" onClick={() => onPick('empty')}>
@@ -80,10 +86,6 @@ function FloorTabs() {
   const floors = floorsOfBuilding(plans, plan);
   const [addOpen, setAddOpen] = useState(false);
   const addBtnRef = useRef<HTMLButtonElement>(null);
-  const closeAddMenu = useCallback((restoreFocus: boolean) => {
-    setAddOpen(false);
-    if (restoreFocus) addBtnRef.current?.focus();
-  }, []);
 
   const removeFloor = (f: Plan) => {
     if (!window.confirm(floorDeleteConfirmText(f))) return;
@@ -142,11 +144,12 @@ function FloorTabs() {
         </button>
         {addOpen && (
           <FloorAddMenu
+            anchorRef={addBtnRef}
+            setOpen={setAddOpen}
             onPick={(source) => {
               setAddOpen(false);
               addFloor(source);
             }}
-            onClose={closeAddMenu}
           />
         )}
       </div>

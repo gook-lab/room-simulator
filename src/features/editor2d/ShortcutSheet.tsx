@@ -1,17 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { currentPlatform, isApplePlatform, sheetKeyAction, shortcutGroups } from './shortcuts';
-
-type Focusable = { focus: () => void; isConnected?: boolean };
-
-/**
- * 시트를 연 순간 포커스가 있던 곳을 기억했다가 닫을 때 돌려준다.
- * 키보드로 연 사람이 닫은 뒤 처음 자리부터 다시 탭하지 않게 한다.
- */
-export function rememberFocus(active: Focusable | null | undefined): () => void {
-  return () => {
-    if (active && active.isConnected !== false) active.focus();
-  };
-}
+import {
+  currentPlatform,
+  isApplePlatform,
+  rememberFocus,
+  sheetKeyAction,
+  shortcutGroups,
+} from './shortcuts';
 
 /** 단축키 목록 — `?` 키 · 상태바 `?` 버튼으로 열고 Esc 로 닫는다 */
 export function ShortcutSheet({ onClose }: { onClose: () => void }) {

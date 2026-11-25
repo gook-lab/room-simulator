@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   isApplePlatform,
   isShortcutSheetKey,
+  rememberFocus,
   keyLabels,
   sheetKeyAction,
   shortcutGroups,
 } from '../src/features/editor2d/shortcuts';
-import { rememberFocus } from '../src/features/editor2d/ShortcutSheet';
 import { OVERLAY_SELECTOR, toolForKeyCode } from '../src/features/editor2d/inputRouting';
-import { isEmptyPlan } from '../src/features/editor2d/EmptyState';
+import { isEmptyPlan } from '../src/features/editor2d/editorState';
 import { TEMPLATES } from '../src/model/templates';
 import type { Plan } from '../src/model/types';
 

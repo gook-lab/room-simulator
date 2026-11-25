@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isFirstVisit } from '../src/features/dashboard/QuickStart';
+import { isFirstVisit } from '../src/features/dashboard/firstVisit';
 import { createSamplePlan, createStudyPlan } from '../src/model/samplePlan';
 import { TEMPLATES } from '../src/model/templates';
 

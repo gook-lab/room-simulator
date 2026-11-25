@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inspectorKind, selectionSummary } from '../src/features/editor2d/panels';
+import { inspectorKind, selectionSummary } from '../src/features/editor2d/editorState';
 import { createSamplePlan } from '../src/model/samplePlan';
 
 describe('인스펙터 종류 — 다중 선택도 패널이 뜬다 (QA B-14)', () => {

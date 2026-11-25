@@ -1,17 +1,10 @@
 import { useMemo } from 'react';
 import './quickStart.css';
 import { TEMPLATES } from '../../model/templates';
-import { createSamplePlan, createStudyPlan } from '../../model/samplePlan';
 import { MiniPlan } from '../../components/MiniPlan';
 import { useStore } from '../../state/store';
+import { isFirstVisit } from './firstVisit';
 
-/** 처음 열면 들어 있는 견본 문서 */
-const BUILT_IN_IDS = new Set([createSamplePlan().id, createStudyPlan().id]);
-
-/** 내가 만든 문서가 하나도 없으면 첫 방문으로 본다 — 기존 사용자 화면은 그대로 둔다 */
-export function isFirstVisit(planOrder: string[]): boolean {
-  return planOrder.every((id) => BUILT_IN_IDS.has(id));
-}
 
 /**
  * 첫 방문 시작 경로 (기획 D). 대시보드에서 템플릿 하나를 누르면 바로 가구가 놓인 에디터가 열린다.

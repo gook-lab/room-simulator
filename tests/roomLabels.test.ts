@@ -7,7 +7,8 @@ import type { Plan } from '../src/model/types';
 import { layoutRoomLabels, roomLabelSpec, textWidthPx } from '../src/features/editor2d/roomLabels';
 import { readFileSync } from 'node:fs';
 import { BASE_PX_PER_M, fitCamera } from '../src/features/editor2d/view';
-import { renderPlanSvgString, resolveCssVars } from '../src/features/editor2d/ExportSvg';
+import { renderPlanSvgString } from '../src/features/editor2d/ExportSvg';
+import { resolveCssVars } from '../src/features/editor2d/cssVars';
 
 /** 이름표 상자 (world) */
 function labelBox(plan: Plan, roomId: string, pxPerM: number) {
