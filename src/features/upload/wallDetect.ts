@@ -619,3 +619,62 @@ export function detectSegments(
       : { points: [{ x: s.at, y: s.from }, { x: s.at, y: s.to }], closed: false },
   );
 }
+
+/**
+ * 45° 사선 벽 검출 — 두 대각 방향(x−y 일정 · x+y 일정)으로 어두운 런을 훑어
+ * 벽 두께만큼 붙은 런을 중심선 하나로 합친다. 외곽 실루엣이 사선 모서리를
+ * 계단 대신 사선으로 따라가게 하는 용도라, 그 밖의 각도는 찾지 않는다.
+ *
+ * grid 에는 수평·수직 벽 띠를 뺀 격자를 넣는다 — 두꺼운 벽 모서리의 픽셀만으로도
+ * 대각 런이 생기기 때문이다. 같은 이유로 끊김은 한 걸음만 잇는다.
+ * 길이 · 병합 허용치는 detectSegments 와 같은 셀 단위(대각 한 걸음 = √2 셀).
+ */
+export function detectDiagonalLines(
+  grid: Uint8Array,
+  w: number,
+  h: number,
+  opts: { minLen: number; mergeTol: number },
+): DetectedLine[] {
+  const minSteps = opts.minLen / Math.SQRT2;
+  const gapSteps = 1;
+  // dir 'd': x − y = k (y 로 매개), dir 'a': x + y = k (x 로 매개)
+  const runs = { d: [] as Segment[], a: [] as Segment[] };
+  const scan = (dir: 'd' | 'a', k: number) => {
+    const cell = (t: number) => (dir === 'd' ? { x: t + k, y: t } : { x: t, y: k - t });
+    const tMin = dir === 'd' ? Math.max(0, -k) : Math.max(0, k - (h - 1));
+    const tMax = dir === 'd' ? Math.min(h - 1, w - 1 - k) : Math.min(w - 1, k);
+    let start = -1;
+    let last = -1;
+    let miss = 0;
+    for (let t = tMin; t <= tMax + 1; t++) {
+      const c = cell(t);
+      const dark = t <= tMax && grid[c.y * w + c.x] === 1;
+      if (dark) {
+        if (start < 0) start = t;
+        last = t;
+        miss = 0;
+      } else if (start >= 0) {
+        miss++;
+        if (miss > gapSteps || t > tMax) {
+          if (last + 1 - start >= minSteps) {
+            runs[dir].push({ axis: dir === 'd' ? 'h' : 'v', at: k, from: start, to: last + 1 });
+          }
+          start = -1;
+          miss = 0;
+        }
+      }
+    }
+  };
+  for (let k = -(h - 1); k <= w - 1; k++) scan('d', k);
+  for (let k = 0; k <= w + h - 2; k++) scan('a', k);
+  // 대각선 사이 수직 거리는 1/√2 셀 — 병합 허용치를 k 단위로 환산
+  const tolK = opts.mergeTol * Math.SQRT2;
+  const out: DetectedLine[] = [];
+  for (const s of mergeParallel(runs.d, tolK)) {
+    out.push({ points: [{ x: s.from + s.at, y: s.from }, { x: s.to + s.at, y: s.to }], closed: false });
+  }
+  for (const s of mergeParallel(runs.a, tolK)) {
+    out.push({ points: [{ x: s.from, y: s.at - s.from }, { x: s.to, y: s.at - s.to }], closed: false });
+  }
+  return out;
+}

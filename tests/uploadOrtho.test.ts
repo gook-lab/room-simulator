@@ -9,7 +9,7 @@ import {
 } from '../src/features/upload/orthoSnap';
 import { closeOutline, traceRegionPolygon } from '../src/features/upload/wallDetect';
 import { buildAutoGeometry, underlaySize } from '../src/model/underlay';
-import { rasterPlan, type Shape } from './rasterPlan';
+import { rasterPlan, strokeBand, type Shape } from './rasterPlan';
 
 /**
  * 업로드 벽 인식 직교화 (45차 QA B-01).
@@ -153,6 +153,28 @@ describe('업로드 인식 — 직교 입력은 반듯한 벽으로 (QA B-01)', 
     expect(winWall.thickness).toBe(0.2); // 창은 외벽 위
   });
 
+  it('45° 사선 모서리: 사선 벽은 사선으로 남고(억지 직교 없음) 나머지는 수평·수직', () => {
+    const { walls, rooms } = upload(
+      [
+        R(100, 100, 800, 112),
+        { poly: strokeBand({ x: 800, y: 106 }, { x: 1094, y: 400 }, 12) },
+        R(1088, 400, 1100, 700),
+        R(100, 688, 1100, 700),
+        R(100, 100, 112, 700),
+      ],
+      1200,
+      800,
+    );
+    const angle = (w: Wall) => (Math.atan2(Math.abs(w.b.y - w.a.y), Math.abs(w.b.x - w.a.x)) * 180) / Math.PI;
+    const diagonal = walls.filter((w) => tiltOf(w) > 0.01);
+    expect(diagonal).toHaveLength(1);
+    expect(angle(diagonal[0])).toBeGreaterThan(43);
+    expect(angle(diagonal[0])).toBeLessThan(47);
+    expect(walls).toHaveLength(5); // 외벽 5변 (사선 1)
+    expect(worstJunctionGap(walls)).toBeLessThanOrEqual(0.02);
+    expect(rooms).toHaveLength(1);
+    expect(isOrthogonal(rooms[0].polygon)).toBe(false); // 방 윤곽도 사선 변을 가진다
+  });
 });
 
 describe('직교 보정 코어 (orthoSnap)', () => {

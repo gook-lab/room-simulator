@@ -1,4 +1,5 @@
 import {
+  detectDiagonalLines,
   detectEnclosedRegions,
   detectSegments,
   estimateWallThickness,
@@ -160,7 +161,20 @@ export function traceRaster(
 
   // ── 건물 외곽 윤곽 (실루엣 풋프린트) — 외곽 벽 생성용.
   // 실루엣은 벽 바깥 면을 따라가므로 변을 같은 벽의 중심선으로 옮긴다.
-  const centerlines = gridLines;
+  // 45° 사선 벽은 외곽 실루엣에만 보탠다 — 없으면 사선 모서리가 직각 계단으로
+  // 채워진다. 내벽 후보로는 쓰지 않는다(바닥 빗금 같은 사선 무늬가 벽이 되지 않게).
+  // 수평·수직 벽 띠의 픽셀은 빼고 찾고, 끝은 만나는 수평·수직 벽 중심선에 맞춘다.
+  const hvBand = rasterizeSegments(gridLines, gw, gh, Math.ceil(thicknessPx / STEP / 2) + 1);
+  const diagGrid = grid.map((v, i) => (v === 1 && hvBand[i] === 0 ? 1 : 0));
+  const diagLines = joinLineEnds(
+    detectDiagonalLines(diagGrid, gw, gh, {
+      minLen: MIN_LEN_PX / STEP,
+      mergeTol: MERGE_TOL_PX / STEP,
+    }).filter((l) => ((l.points[0].y + l.points[1].y) / 2) * STEP < captionTop),
+    gridLines.map((l) => [l.points[0], l.points[1]] as [Vec2, Vec2]),
+    2 * (10 / STEP),
+  );
+  const centerlines = [...gridLines, ...diagLines];
   const silhouette = silhouetteMask(rasterizeSegments(centerlines, gw, gh, 2), gw, gh);
   const outlineGrid = snapPolygonToCenterlines(
     footprintOutline(silhouette, gw, gh, Math.round(0.3 / cellM)),

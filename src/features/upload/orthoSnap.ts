@@ -168,6 +168,30 @@ export function polygonToLines(poly: Vec2[]): EdgeLine[] {
 }
 
 /**
+ * 사선 변 직선 — 양 끝 정점은 이웃 수평·수직 띠의 모서리라 사선에서 벗어나
+ * 있으므로, 그 사이 계단 정점들에 주축을 맞춘다. 정점이 모자라면 양 끝을 잇는다.
+ */
+function fitLine(raw: Vec2[], i0: number, i1: number, p: Vec2, q: Vec2): FreeLine {
+  const pts: Vec2[] = [];
+  for (let k = i0 + 1; k < i1; k++) pts.push(raw[k % raw.length]);
+  if (pts.length < 4) return { kind: 'free', p, q };
+  const mx = pts.reduce((s, v) => s + v.x, 0) / pts.length;
+  const my = pts.reduce((s, v) => s + v.y, 0) / pts.length;
+  let sxx = 0;
+  let syy = 0;
+  let sxy = 0;
+  for (const v of pts) {
+    sxx += (v.x - mx) ** 2;
+    syy += (v.y - my) ** 2;
+    sxy += (v.x - mx) * (v.y - my);
+  }
+  const theta = Math.atan2(2 * sxy, sxx - syy) / 2;
+  const ux = Math.cos(theta);
+  const uy = Math.sin(theta);
+  return { kind: 'free', p: { x: mx, y: my }, q: { x: mx + ux, y: my + uy } };
+}
+
+/**
  * 셀 계단 루프 → 단순 다각형. eps 이하의 요철은 지우고, 축에서 maxDeg 이내인
  * 변은 수평·수직으로 편다(좌표 = 그 변이 덮는 원래 계단의 길이 가중 중앙값).
  * 결과가 원래 면적에서 크게 벗어나면 원래 루프를 돌려준다.
@@ -188,7 +212,7 @@ export function simplifyLoop(raw: Vec2[], eps: number, maxDeg = ORTHO_SNAP_DEG):
     const dy = Math.abs(q.y - p.y);
     const kind: EdgeLine['kind'] = dy <= dx * tan ? 'h' : dx <= dy * tan ? 'v' : 'free';
     if (kind === 'free') {
-      drafts.push({ line: { kind, p, q }, samples: [] });
+      drafts.push({ line: fitLine(raw, i0, i1, p, q), samples: [] });
       continue;
     }
     const samples: { v: number; w: number }[] = [];
