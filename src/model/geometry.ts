@@ -1,4 +1,4 @@
-import type { Plan, Room, Vec2, Wall } from './types';
+import type { Opening, Plan, Room, Vec2, Wall } from './types';
 
 export const deg2rad = (d: number) => (d * Math.PI) / 180;
 
@@ -104,6 +104,94 @@ export function collidingItemIds(
     if (polysOverlap(movingCorners, itemCorners(other))) out.push(other.id);
   }
   return out;
+}
+
+/**
+ * SAT 침투 깊이(m) — 두 볼록 다각형을 떼어 놓는 데 필요한 최소 이동 거리.
+ * 0 이하면 떨어져 있거나 면끼리 맞닿은 상태다.
+ */
+export function polysPenetration(a: Vec2[], b: Vec2[]): number {
+  let depth = Infinity;
+  for (const poly of [a, b]) {
+    for (let i = 0; i < poly.length; i++) {
+      const p1 = poly[i];
+      const p2 = poly[(i + 1) % poly.length];
+      const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      if (len < 1e-12) continue;
+      const ax = (p2.y - p1.y) / len;
+      const ay = (p1.x - p2.x) / len;
+      let minA = Infinity,
+        maxA = -Infinity,
+        minB = Infinity,
+        maxB = -Infinity;
+      for (const p of a) {
+        const d = p.x * ax + p.y * ay;
+        minA = Math.min(minA, d);
+        maxA = Math.max(maxA, d);
+      }
+      for (const p of b) {
+        const d = p.x * ax + p.y * ay;
+        minB = Math.min(minB, d);
+        maxB = Math.max(maxB, d);
+      }
+      const overlap = Math.min(maxA, maxB) - Math.max(minA, minB);
+      if (overlap <= 0) return overlap;
+      depth = Math.min(depth, overlap);
+    }
+  }
+  return depth;
+}
+
+/**
+ * 벽 몸통 사각형들 — 문 개구부 구간은 빈 통로라 잘라 낸다.
+ * 창은 아래 벽(창대)이 남아 가구가 지나갈 수 없으므로 몸통으로 친다.
+ */
+export function wallSolidPieces(wall: Wall, openings: Opening[]): Vec2[][] {
+  const len = wallLength(wall);
+  if (len < 1e-6) return [];
+  const doors = openings
+    .filter((o) => o.wallId === wall.id && o.kind === 'door')
+    .map((o) => [o.t * len - o.width / 2, o.t * len + o.width / 2])
+    .sort((p, q) => p[0] - q[0]);
+  const spans: [number, number][] = [];
+  let cursor = 0;
+  for (const [start, end] of doors) {
+    if (start > cursor) spans.push([cursor, Math.min(start, len)]);
+    cursor = Math.max(cursor, end);
+  }
+  if (cursor < len) spans.push([cursor, len]);
+  const ux = (wall.b.x - wall.a.x) / len;
+  const uy = (wall.b.y - wall.a.y) / len;
+  const nx = -uy * (wall.thickness / 2);
+  const ny = ux * (wall.thickness / 2);
+  return spans
+    .filter(([s, e]) => e - s > 1e-6)
+    .map(([s, e]) => {
+      const p0 = { x: wall.a.x + ux * s, y: wall.a.y + uy * s };
+      const p1 = { x: wall.a.x + ux * e, y: wall.a.y + uy * e };
+      return [
+        { x: p0.x + nx, y: p0.y + ny },
+        { x: p1.x + nx, y: p1.y + ny },
+        { x: p1.x - nx, y: p1.y - ny },
+        { x: p0.x - nx, y: p0.y - ny },
+      ];
+    });
+}
+
+/** 가구 외곽이 tolerance(m)보다 깊이 파고든 벽 id — 면에 맞닿은 정도는 겹침이 아니다 */
+export function wallOverlapIds(
+  plan: Pick<Plan, 'walls' | 'openings'>,
+  moving: { position: Vec2; rotationDeg: number; size: { w: number; d: number } },
+  tolerance: number,
+): string[] {
+  const corners = itemCorners(moving);
+  return plan.walls
+    .filter((wall) =>
+      wallSolidPieces(wall, plan.openings).some(
+        (piece) => polysPenetration(corners, piece) > tolerance,
+      ),
+    )
+    .map((wall) => wall.id);
 }
 
 export function distance(a: Vec2, b: Vec2): number {

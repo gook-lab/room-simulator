@@ -523,8 +523,9 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
   const cm = (v: number) => Math.round(v * 100);
   const colliding = drag.collisions.length > 0;
   const doorBlocked = drag.blockedDoors.length > 0;
+  const wallHit = (drag.wallHits?.length ?? 0) > 0;
   const onSurface = drag.surfaceTargetId != null;
-  const warn = colliding || doorBlocked || drag.surfaceInvalid === true;
+  const warn = colliding || doorBlocked || wallHit || drag.surfaceInvalid === true;
 
   return (
     <g>
@@ -617,6 +618,8 @@ function DragOverlay({ plan, drag, t }: { plan: Plan; drag: DragState; t: ViewTr
           bg={drag.surfaceInvalid ? '#e8590c' : '#0e9f6e'}
           mono={false}
         />
+      ) : wallHit ? (
+        <ScreenChip x={topCenter.x} y={topCenter.y - 20} text="벽과 겹쳐요" bg="var(--warn)" mono={false} />
       ) : colliding ? (
         <ScreenChip
           x={topCenter.x}
