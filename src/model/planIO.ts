@@ -40,6 +40,11 @@ export function importPlan(json: string): ImportResult {
   } catch {
     return { ok: false, error: 'JSON 파싱 실패 — 올바른 JSON 파일이 아닙니다.' };
   }
+  return parsePlanExport(raw);
+}
+
+/** 파싱된 내보내기 객체 검증 — 공유 링크도 파일 가져오기와 같은 검증을 거친다. */
+export function parsePlanExport(raw: unknown): ImportResult {
   const data = raw as Partial<PlanExport>;
   if (data?.format !== PLAN_EXPORT_FORMAT) {
     return { ok: false, error: `룸 시뮬레이터 도면 파일이 아닙니다 (format: ${String(data?.format)})` };
