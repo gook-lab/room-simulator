@@ -654,11 +654,13 @@
 }
 
 /* ---- 층 정렬 패널 ---- */
+/* 툴독(left 20 + 폭 60) 오른쪽 위. 좌하단에 쌓으면 낮은 창에서 툴독 아래쪽 버튼을 덮는다 (QA B-05) */
 .floor-align-panel {
   position: absolute;
-  left: 20px;
+  left: 92px;
   right: auto;
-  bottom: 268px; /* 밑그림 패널 위에 쌓임 (같은 좌하단 도크) */
+  top: var(--panel-top);
+  bottom: auto;
   width: 220px;
   display: flex;
   flex-direction: column;
