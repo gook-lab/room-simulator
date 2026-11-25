@@ -73,11 +73,11 @@
   --light-preset-bg: #f5ebd4;
 
   /* Dark HUD */
-  --hud-panel: rgba(23, 32, 28, 0.66);
-  --hud-panel-strong: rgba(23, 32, 28, 0.7);
+  --hud-panel: rgba(23, 32, 28, 0.82);
+  --hud-panel-strong: rgba(23, 32, 28, 0.9);
   --hud-text: #f7f4ef;
   --hud-text-2: #c9d2cc;
-  --hud-mono: #93a09a;
+  --hud-mono: #adb9b3;
   --hud-keycap-bg: rgba(247, 244, 239, 0.16);
   --hud-keycap-border: rgba(247, 244, 239, 0.35);
   --hud-divider: rgba(247, 244, 239, 0.16);

@@ -254,7 +254,7 @@ input {
 }
 
 .viewtabs--dark {
-  background: rgba(23, 32, 28, 0.62);
+  background: var(--hud-panel);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
