@@ -171,6 +171,8 @@ export function TopBar() {
   const navigate = useStore((s) => s.navigate);
   const openShoppingList = useStore((s) => s.openShoppingList);
   const shared = useStore((s) => s.sharedView != null);
+  // 빈 도면 초안은 첫 편집 전까지 저장하지 않는다 (state/draftPlan.ts)
+  const isDraft = useStore((s) => s.draftPlanId != null && s.draftPlanId === s.currentPlanId);
   const copyShareLink = useCopyShareLink();
   const [, forceTick] = useState(0);
 
@@ -196,7 +198,7 @@ export function TopBar() {
         <span className="topbar__divider" />
         <span className="topbar__project">{plan.name}</span>
         <span className="topbar__meta">
-          {Math.round(area)}㎡ · {shared ? '보기 전용' : timeAgoLabel(savedAt)}
+          {Math.round(area)}㎡ · {shared ? '보기 전용' : isDraft ? '그리기 시작하면 저장돼요' : timeAgoLabel(savedAt)}
         </span>
         {saveError && (
           <span
