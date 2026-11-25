@@ -18,6 +18,23 @@ import {
 
 const HISTORY_LIMIT = 100;
 
+/** undo/redo 로 바뀐 문서에 아직 있는 대상만 선택에 남긴다 */
+function selectionStillIn(plan: Plan, selection: string[]): string[] {
+  if (selection.length === 0) return selection;
+  const ids = new Set<string>();
+  for (const list of [
+    plan.items,
+    plan.walls,
+    plan.openings,
+    plan.rooms,
+    plan.wallItems ?? [],
+    plan.dimensions ?? [],
+  ]) {
+    for (const x of list) ids.add(x.id);
+  }
+  return selection.filter((id) => ids.has(id));
+}
+
 function loadPlans(): PersistShape {
   try {
     const { shape } = loadPersistShape(localStorage);
@@ -63,6 +80,8 @@ export interface AppStore {
   renameFloor: (planId: string, label: string) => void;
   /** 층(문서) 삭제 — 마지막 남은 문서는 삭제하지 않음 */
   deleteFloor: (planId: string) => void;
+  /** 지운 층을 planOrder 의 원래 자리로 되살리고 그 층을 연다 — 층 탭 [되돌리기] */
+  restoreFloor: (plan: Plan, index: number) => void;
   /**
    * 현재 도면을 변경. commit=true(기본)면 undo 히스토리에 스냅샷 push.
    * coalesceKey: 같은 키의 커밋이 400ms 내 연속되면 히스토리를 1개로 묶는다
@@ -329,6 +348,24 @@ export const useStore = create<AppStore>((set, get) => {
       scheduleSave();
     },
 
+    restoreFloor: (plan, index) => {
+      const s = get();
+      if (s.plans[plan.id]) return;
+      const planOrder = [...s.planOrder];
+      planOrder.splice(Math.max(0, Math.min(index, planOrder.length)), 0, plan.id);
+      set({
+        plans: { ...s.plans, [plan.id]: plan },
+        planOrder,
+        currentPlanId: plan.id,
+        selection: [],
+        placingCatalogId: null,
+        drag: null,
+        history: { past: [], future: [] },
+        pendingFitView: true,
+      });
+      scheduleSave();
+    },
+
     updatePlan: (mutate, opts) => {
       const { plans, currentPlanId, history } = get();
       const current = plans[currentPlanId];
@@ -372,7 +409,7 @@ export const useStore = create<AppStore>((set, get) => {
 
     undo: () => {
       lastCommitKey = null;
-      const { plans, currentPlanId, history } = get();
+      const { plans, currentPlanId, history, selection } = get();
       const prev = history.past[history.past.length - 1];
       if (!prev) return;
       set({
@@ -381,14 +418,14 @@ export const useStore = create<AppStore>((set, get) => {
           past: history.past.slice(0, -1),
           future: [plans[currentPlanId], ...history.future],
         },
-        selection: [],
+        selection: selectionStillIn(prev, selection),
       });
       scheduleSave();
     },
 
     redo: () => {
       lastCommitKey = null;
-      const { plans, currentPlanId, history } = get();
+      const { plans, currentPlanId, history, selection } = get();
       const next = history.future[0];
       if (!next) return;
       set({
@@ -397,7 +434,7 @@ export const useStore = create<AppStore>((set, get) => {
           past: [...history.past, plans[currentPlanId]],
           future: history.future.slice(1),
         },
-        selection: [],
+        selection: selectionStillIn(next, selection),
       });
       scheduleSave();
     },

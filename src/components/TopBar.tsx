@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { timeAgoLabel, useCurrentPlan, useStore } from '../state/store';
 import { ViewTabs } from './ViewTabs';
 import { floorsOfBuilding } from '../model/floorStack';
+import { floorDeleteConfirmText, floorDeletedText } from '../model/floorDelete';
+import type { Plan } from '../model/types';
 
 /** 층 탭 — 같은 buildingId 문서 묶음 전환 + 추가/이름변경/복제/삭제 */
 function FloorTabs() {
@@ -11,8 +13,34 @@ function FloorTabs() {
   const addFloor = useStore((s) => s.addFloor);
   const renameFloor = useStore((s) => s.renameFloor);
   const deleteFloor = useStore((s) => s.deleteFloor);
+  const restoreFloor = useStore((s) => s.restoreFloor);
+  // 층 문서는 층마다 undo 기록이 따로라 Cmd+Z 로는 못 살린다 — 대시보드 삭제처럼 알림으로 되살린다
+  const [deleted, setDeleted] = useState<{ plan: Plan; index: number } | null>(null);
+  const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (deleteTimer.current) clearTimeout(deleteTimer.current);
+    },
+    [],
+  );
 
   const floors = floorsOfBuilding(plans, plan);
+
+  const removeFloor = (f: Plan) => {
+    if (!window.confirm(floorDeleteConfirmText(f))) return;
+    const index = useStore.getState().planOrder.indexOf(f.id);
+    deleteFloor(f.id);
+    setDeleted({ plan: f, index });
+    if (deleteTimer.current) clearTimeout(deleteTimer.current);
+    deleteTimer.current = setTimeout(() => setDeleted(null), 6000);
+  };
+
+  const undoDelete = () => {
+    if (!deleted) return;
+    restoreFloor(deleted.plan, deleted.index);
+    setDeleted(null);
+    if (deleteTimer.current) clearTimeout(deleteTimer.current);
+  };
 
   return (
     <div className="floor-tabs">
@@ -34,9 +62,7 @@ function FloorTabs() {
               title="이 층 삭제"
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm(`'${f.floorLabel ?? f.name}' 층을 삭제할까요?`)) {
-                  deleteFloor(f.id);
-                }
+                removeFloor(f);
               }}
             >
               ✕
@@ -54,6 +80,12 @@ function FloorTabs() {
       >
         ⧉
       </button>
+      {deleted && (
+        <div className="snackbar" role="status">
+          {floorDeletedText(deleted.plan)}
+          <button onClick={undoDelete}>되돌리기</button>
+        </div>
+      )}
     </div>
   );
 }
