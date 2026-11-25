@@ -23,7 +23,7 @@ describe('planCardMeta — 도면 카드 메타 줄', () => {
 
   it('영문 축약(₩5.5M · ₩0K) 없이 만 원 단위 대략값을 쓴다', () => {
     const meta = planCardMeta(74.2, 13, 5_497_600);
-    expect(meta).toBe('74㎡ · 가구 13개 · 약 550만 원');
+    expect(meta).toBe('74㎡ · 가구 13개 · 추정 포함 약 550만 원');
     expect(meta).not.toMatch(/₩|K\b|M\b/);
   });
 });

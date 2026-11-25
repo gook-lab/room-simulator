@@ -11,7 +11,7 @@
  * 새 오버레이 패널을 추가하면 반드시 OVERLAY_SELECTOR 에 클래스를 등록할 것.
  */
 export const OVERLAY_SELECTOR =
-  '.float-panel, .tooldock, .statusbar, .collision-actions, .viewtabs, .topbar, .miss-hint, .empty-state, .shortcut-sheet';
+  '.float-panel, .tooldock, .statusbar, .collision-actions, .viewtabs, .topbar, .shared-bar, .app-toast, .miss-hint, .empty-state, .shortcut-sheet';
 
 /**
  * wheel 이벤트를 캔버스 줌으로 라우팅해도 되는가.

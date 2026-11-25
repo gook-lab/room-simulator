@@ -1162,7 +1162,16 @@ const REDO_ICON = (
   </svg>
 );
 
-export function StatusBar({ t, onOpenShortcuts }: { t: ViewTransform; onOpenShortcuts?: () => void }) {
+export function StatusBar({
+  t,
+  readOnly = false,
+  onOpenShortcuts,
+}: {
+  t: ViewTransform;
+  /** 공유 링크 보기 — 편집이 없어 실행 취소 버튼을 감춘다 */
+  readOnly?: boolean;
+  onOpenShortcuts?: () => void;
+}) {
   const plan = useCurrentPlan();
   const snapping = useStore((s) => s.snapping);
   const toggleSnapping = useStore((s) => s.toggleSnapping);
@@ -1172,6 +1181,8 @@ export function StatusBar({ t, onOpenShortcuts }: { t: ViewTransform; onOpenShor
   const redo = useStore((s) => s.redo);
   return (
     <div className="statusbar mono">
+      {!readOnly && (
+        <>
       <span className="statusbar__history" role="group" aria-label="실행 취소 · 다시 실행">
         <button
           type="button"
@@ -1195,6 +1206,8 @@ export function StatusBar({ t, onOpenShortcuts }: { t: ViewTransform; onOpenShor
         </button>
       </span>
       <span className="statusbar__divider" />
+        </>
+      )}
       <span>{scaleRatioLabel(t)}</span>
       <span className="statusbar__divider" />
       <button

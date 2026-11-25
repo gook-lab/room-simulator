@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create, type StateCreator } from 'zustand';
 import type {
   DragState,
   Plan,
@@ -16,6 +16,7 @@ import {
   type PersistShape,
 } from './persistence';
 import { discardDraft, withoutDraft } from './draftPlan';
+import type { SharedBundle } from '../model/shareLink';
 
 const HISTORY_LIMIT = 100;
 
@@ -52,12 +53,37 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let lastCommitKey: string | null = null;
 let lastCommitAt = 0;
 
+/** 공유 링크를 보는 동안 맡겨 둔 받은 사람 자신의 문서 */
+export type OwnPlansStash = Pick<AppStore, 'plans' | 'planOrder' | 'currentPlanId'>;
+
+export type Toast = { id: number; text: string; detail?: string };
+
 export interface AppStore {
   /* ---- routing ---- */
   screen: Screen;
   view: View;
+  /** 공유 링크 보기 중에 에디터 밖으로 나가면 보기를 닫고 내 문서로 돌아온다 */
   navigate: (screen: Screen) => void;
   setView: (view: View) => void;
+  /** 대시보드가 열리면 포커스할 구역 — 에디터 '쇼핑 리스트' 버튼이 지정 */
+  dashboardFocus: 'shopping' | null;
+  openShoppingList: () => void;
+  clearDashboardFocus: () => void;
+
+  /* ---- 공유 링크 보기 (읽기 전용) ---- */
+  /**
+   * null 이 아니면 공유 링크로 받은 도면을 보는 중이다. 그동안 plans 는 받은 도면이고
+   * 내 문서는 여기 맡겨 둔다. 저장 · 편집은 막힌다(readOnlyWhileShared).
+   */
+  sharedView: OwnPlansStash | null;
+  openShared: (bundle: SharedBundle) => void;
+  /** 보던 공유 도면을 새 id 의 내 도면으로 저장하고 편집 화면으로 간다 */
+  copySharedToMine: () => void;
+
+  /* ---- 화면 알림 ---- */
+  toast: Toast | null;
+  showToast: (text: string, detail?: string) => void;
+  dismissToast: () => void;
 
   /* ---- plans (SSOT) ---- */
   plans: Record<string, Plan>;
@@ -90,10 +116,12 @@ export interface AppStore {
    * 현재 도면을 변경. commit=true(기본)면 undo 히스토리에 스냅샷 push.
    * coalesceKey: 같은 키의 커밋이 400ms 내 연속되면 히스토리를 1개로 묶는다
    * (스와치 연타·수치 입력 등 — undo 한 번으로 묶음 전체가 되돌아감).
+   * viewOnly: 문 여닫기 · 전원처럼 둘러보며 하는 조작 — 공유 링크 보기에서도
+   * 화면에만 반영한다(저장 · 히스토리 없음).
    */
   updatePlan: (
     mutate: (plan: Plan) => Plan,
-    opts?: { commit?: boolean; coalesceKey?: string },
+    opts?: { commit?: boolean; coalesceKey?: string; viewOnly?: boolean },
   ) => void;
   undo: () => void;
   redo: () => void;
@@ -128,40 +156,172 @@ export interface AppStore {
   setDisplay: (patch: Partial<ViewerState['display']>) => void;
 }
 
-export const useStore = create<AppStore>((set, get) => {
+/**
+ * 공유 링크 보기 동안 막는 쓰기 액션. 받은 도면은 '내 도면으로 복사' 전까지 고칠 수
+ * 없어야 한다. 한곳에서 막아 편집 경로가 늘어도 새지 않게 하고, 새 쓰기 액션은
+ * 여기에 이름을 넣는다. updatePlan 은 viewOnly 조작만 통과시킨다.
+ */
+const WRITE_ACTIONS = [
+  'addPlan',
+  'addFloor',
+  'addPlanAsFloor',
+  'renamePlan',
+  'duplicatePlan',
+  'renameFloor',
+  'deleteFloor',
+  'restoreFloor',
+  'pushHistory',
+  'undo',
+  'redo',
+] as const satisfies readonly (keyof AppStore)[];
+
+const readOnlyWhileShared =
+  (init: StateCreator<AppStore>): StateCreator<AppStore> =>
+  (set, get, api) => {
+    const store = init(set, get, api);
+    const guarded: AppStore = { ...store };
+    for (const key of WRITE_ACTIONS) {
+      const action = store[key] as (...args: unknown[]) => void;
+      (guarded as unknown as Record<string, unknown>)[key] = (...args: unknown[]) => {
+        if (!get().sharedView) action(...args);
+      };
+    }
+    guarded.updatePlan = (mutate, opts) => {
+      if (!get().sharedView) return store.updatePlan(mutate, opts);
+      if (!opts?.viewOnly) return;
+      const { plans, currentPlanId } = get();
+      set({ plans: { ...plans, [currentPlanId]: mutate(plans[currentPlanId]) } });
+    };
+    return guarded;
+  };
+
+let toastSeq = 0;
+let copySeq = 0;
+
+export const useStore = create<AppStore>()(readOnlyWhileShared((set, get) => {
   const persisted = loadPlans();
+
+  const saveNow = () => {
+    const { plans, planOrder, draftPlanId } = get();
+    try {
+      const result = savePersistShape(localStorage, withoutDraft({ plans, planOrder }, draftPlanId));
+      if (result.restored.length > 0) {
+        // 병합 가드가 저장본에서 살린 문서 — 메모리에도 반영해 UI 와 일치시킨다
+        const merged = loadPersistShape(localStorage).shape;
+        if (merged) set({ plans: merged.plans, planOrder: merged.planOrder });
+        console.warn('[persist] 사라질 뻔한 문서 복원:', result.restored);
+      }
+      set({ savedAt: Date.now(), saveError: result.ok ? null : 'quota' });
+    } catch {
+      set({ saveError: 'quota' });
+    }
+  };
 
   const scheduleSave = () => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      const { plans, planOrder, draftPlanId } = get();
-      try {
-        const result = savePersistShape(localStorage, withoutDraft({ plans, planOrder }, draftPlanId));
-        if (result.restored.length > 0) {
-          // 병합 가드가 저장본에서 살린 문서 — 메모리에도 반영해 UI 와 일치시킨다
-          const merged = loadPersistShape(localStorage).shape;
-          if (merged) set({ plans: merged.plans, planOrder: merged.planOrder });
-          console.warn('[persist] 사라질 뻔한 문서 복원:', result.restored);
-        }
-        set({ savedAt: Date.now(), saveError: result.ok ? null : 'quota' });
-      } catch {
-        set({ saveError: 'quota' });
-      }
+      saveTimer = null;
+      // 공유 링크 보기 중의 plans 는 받은 도면이다 — 저장하면 내 저장본을 덮는다
+      if (!get().sharedView) saveNow();
     }, 2000);
   };
+
+  /** 공유 보기로 들어가기 전에 미뤄 둔 내 저장을 끝낸다 */
+  const flushSave = () => {
+    if (!saveTimer) return;
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    if (!get().sharedView) saveNow();
+  };
+
+  // 보기 전용 동안 누른 도구 단축키가 복사 뒤 편집 화면에 남지 않게 도구도 되돌린다
+  const freshEditor = {
+    tool: 'select',
+    selection: [],
+    placingCatalogId: null,
+    drag: null,
+    history: { past: [], future: [] },
+    camera2d: { pan: { x: 0, y: 0 }, zoom: 1 },
+    pendingFitView: true,
+    walkthroughSpawn: null,
+  } satisfies Partial<AppStore>;
 
   return {
     // 진입점은 대시보드(도면 목록+견적) — 문서 열기/생성/업로드 시 2D 스케치로 이동
     screen: 'dashboard',
     view: '2d',
-    navigate: (screen) =>
+    navigate: (screen) => {
+      const own = get().sharedView;
       set((s) => ({
-        ...(screen !== 'editor' ? discardDraft(s) : null),
+        // 손대지 않은 빈 도면은 나갈 때 지운다 (draftPlan.ts). 공유 보기 중의 plans 는 받은 도면이라 건드리지 않는다
+        ...(screen !== 'editor' && !own ? discardDraft(s) : null),
         screen,
         placingCatalogId: null,
         drag: null,
-      })),
+        ...(own && screen !== 'editor'
+          ? { ...own, ...freshEditor, sharedView: null }
+          : {}),
+      }));
+    },
     setView: (view) => set({ view, placingCatalogId: null, drag: null }),
+    dashboardFocus: null,
+    openShoppingList: () => {
+      get().navigate('dashboard');
+      set({ dashboardFocus: 'shopping' });
+    },
+    clearDashboardFocus: () => set({ dashboardFocus: null }),
+
+    sharedView: null,
+    openShared: (bundle) => {
+      flushSave();
+      const s = get();
+      // 이미 공유 보기 중이면 맡겨 둔 내 문서를 그대로 둔다(받은 도면을 맡기면 안 됨)
+      const own = s.sharedView ?? {
+        plans: s.plans,
+        planOrder: s.planOrder,
+        currentPlanId: s.currentPlanId,
+      };
+      set({
+        ...freshEditor,
+        sharedView: own,
+        plans: Object.fromEntries(bundle.plans.map((p) => [p.id, p])),
+        planOrder: bundle.plans.map((p) => p.id),
+        currentPlanId: bundle.currentId,
+        screen: 'editor',
+        view: '2d',
+      });
+    },
+    copySharedToMine: () => {
+      const s = get();
+      const own = s.sharedView;
+      if (!own) return;
+      const stamp = `${Date.now().toString(36)}${(copySeq++).toString(36)}`;
+      // 같은 링크를 두 번 복사해도 층이 섞이지 않게 건물 id 도 새로 낸다
+      const buildingId = `bld-${stamp}-sh`;
+      const now = new Date().toISOString();
+      const copies = s.planOrder.map((id, i): Plan => {
+        const copy: Plan = { ...s.plans[id], id: `plan-${stamp}-sh${i}`, updatedAt: now };
+        if (copy.buildingId) copy.buildingId = buildingId;
+        return copy;
+      });
+      const currentCopy = copies[s.planOrder.indexOf(s.currentPlanId)] ?? copies[0];
+      set({
+        ...freshEditor,
+        sharedView: null,
+        plans: { ...own.plans, ...Object.fromEntries(copies.map((c) => [c.id, c])) },
+        planOrder: [...copies.map((c) => c.id), ...own.planOrder],
+        currentPlanId: currentCopy.id,
+        screen: 'editor',
+        view: '2d',
+      });
+      // '담았어요' 알림이 뜨는 순간 저장돼 있어야 한다 — 2초 지연 저장을 기다리지 않는다
+      scheduleSave();
+      flushSave();
+    },
+
+    toast: null,
+    showToast: (text, detail) => set({ toast: { id: ++toastSeq, text, detail } }),
+    dismissToast: () => set({ toast: null }),
 
     plans: persisted.plans,
     planOrder: persisted.planOrder,
@@ -487,7 +647,7 @@ export const useStore = create<AppStore>((set, get) => {
     setDisplay: (patch) =>
       set((s) => ({ viewer: { ...s.viewer, display: { ...s.viewer.display, ...patch } } })),
   };
-});
+}));
 
 export const useCurrentPlan = (): Plan => {
   return useStore((s) => s.plans[s.currentPlanId]);
