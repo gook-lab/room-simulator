@@ -1,5 +1,7 @@
 # Room Simulator
 
+![Room Simulator cover — a 59 m² floor plan turning into a 3D dollhouse model](docs/cover.png)
+
 [한국어](README.md) | **English**
 
 A browser-based 3D interior planner: draw or trace a floor plan, furnish it,
@@ -7,7 +9,7 @@ and inspect the result in a first-person walkthrough or a dollhouse bird's-eye
 view.
 
 The core design decision is a single plan model (SSOT) from which the 2D
-editor, both 3D views and the furniture library are all derived. Any change made in
+editor, both 3D views and the shopping list are all derived. Any change made in
 any view — moving furniture, opening a door, switching a lamp, changing a floor
 finish — mutates the same model, with command-level undo and debounced
 localStorage persistence. The project implements an 8-screen design handoff
@@ -34,7 +36,8 @@ spec.
 | Bird's-eye view | Dollhouse / section / orthographic cameras, lighting simulation (time-of-day presets, window orientation), enter the walkthrough from any viewpoint |
 | Upload | Drop a floor plan image and it opens as an editable plan right away — walls and rooms are auto-detected (straight walls come out square, 45° outer walls stay diagonal); doors and windows are detected only where a wall line breaks, the rest are placed with the editor's door/window tools; scale calibration and re-detection live in the editor |
 | Apartment templates | Studio (23㎡), 59㎡ and 84㎡ Korean apartment layouts — net (inner-face) areas, furnished |
-| Dashboard | Plan list (rename/duplicate/delete), furniture library — prices shown only for items linked to verified products, JSON backup |
+| Dashboard | Plan list (rename/duplicate/delete), shopping list — prices shown only for items linked to verified products, JSON backup |
+| Link sharing | Share a plan as a link that carries the plan in the URL hash — the recipient opens it read-only in 2D and 3D with nothing to install, then "Copy to my plans" to edit. No server storage |
 
 The furniture catalog spans categories from sofas and bedrooms to appliances,
 and some items are linked to real products (price, dimensions, store link).

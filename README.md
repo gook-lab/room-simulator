@@ -1,11 +1,13 @@
 # Room Simulator
 
+![Room Simulator 표지 — 25평 평면도가 왼쪽에서 3D 모형으로 바뀌는 모습](docs/cover.png)
+
 **한국어** | [English](README.en.md)
 
 > **About (EN)** — A browser-based 3D interior planner. Draw or trace a floor
 > plan, furnish it from the catalog, then inspect the result in a
 > first-person WASD walkthrough or a dollhouse bird's-eye view. One plan model
-> drives the 2D editor, both 3D views and the furniture library. Built with
+> drives the 2D editor, both 3D views and the shopping list. Built with
 > React 18, Three.js / React Three Fiber and Zustand.
 
 평면도를 그리거나 이미지 위에 트레이싱해서 가구를 배치하고, 1인칭 워크스루와
@@ -39,6 +41,7 @@ localStorage 자동 저장이 함께 동작합니다. 디자인 핸드오프 문
 | 업로드 | 도면 이미지를 올리면 벽·방을 자동 인식해 즉시 편집 가능한 도면으로 열림(수평·수직 벽은 반듯하게, 45° 사선 외벽은 사선 그대로). 문·창은 벽 선이 끊긴 자리만 자동으로 잡고 나머지는 에디터의 문·창 도구로 배치 — 스케일 보정·재인식은 에디터의 밑그림 패널에서 |
 | 평형 템플릿 | 원룸(전용 23㎡)·25평(59㎡)·34평(84㎡) — 안목치수 기준, 기본 가구 배치 포함 |
 | 대시보드 | 도면 목록(이름 변경·복제·삭제), 쇼핑 리스트 — 실판매가·상품 링크가 확인된 가구만 가격 표시, JSON 백업 |
+| 링크 공유 | 도면을 URL 해시에 담은 링크로 공유 — 받은 쪽은 설치 없이 보기 전용으로 2D·3D를 보고, "내 도면으로 복사"로 가져가 편집. 서버 저장 없음 |
 
 가구 카탈로그는 소파·침실·가전·아이방 등 카테고리로 나뉘고, 일부 아이템은
 실제 판매 상품(가격·치수·링크)과 연동됩니다. 액자·벽시계·벽거울·벽걸이
