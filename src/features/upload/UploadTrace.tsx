@@ -159,7 +159,7 @@ export function UploadTrace() {
       items: [],
       updatedAt: new Date().toISOString(),
     };
-    addPlan(plan);
+    addPlan(plan, { draft: true }); // 첫 편집 전까지 저장하지 않는다 (state/draftPlan.ts)
     openPlan(plan.id);
   }, [addPlan, openPlan]);
 

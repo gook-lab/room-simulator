@@ -15,6 +15,7 @@ import {
   savePersistShape,
   type PersistShape,
 } from './persistence';
+import { discardDraft, withoutDraft } from './draftPlan';
 
 const HISTORY_LIMIT = 100;
 
@@ -66,7 +67,10 @@ export interface AppStore {
   /** 저장 실패(용량 초과 등) — TopBar 가 배지로 표시. null = 정상 */
   saveError: 'quota' | null;
   openPlan: (id: string) => void;
-  addPlan: (plan: Plan) => void;
+  /** draft: 첫 편집 전까지 저장하지 않고, 손대지 않고 나가면 지우는 빈 도면 (draftPlan.ts) */
+  addPlan: (plan: Plan, opts?: { draft?: boolean }) => void;
+  /** 아직 손대지 않은 "빈 도면에서 시작" 문서 id */
+  draftPlanId: string | null;
   /** 층 추가 — 'empty'=빈 층, 'duplicate'=현재 층 복제. 첫 호출 시 현재 문서를 1층으로 승격 */
   addFloor: (source: 'empty' | 'duplicate') => void;
   /** 업로드 문서를 현재 문서의 새 층으로 연결해 추가 */
@@ -130,9 +134,9 @@ export const useStore = create<AppStore>((set, get) => {
   const scheduleSave = () => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      const { plans, planOrder } = get();
+      const { plans, planOrder, draftPlanId } = get();
       try {
-        const result = savePersistShape(localStorage, { plans, planOrder });
+        const result = savePersistShape(localStorage, withoutDraft({ plans, planOrder }, draftPlanId));
         if (result.restored.length > 0) {
           // 병합 가드가 저장본에서 살린 문서 — 메모리에도 반영해 UI 와 일치시킨다
           const merged = loadPersistShape(localStorage).shape;
@@ -150,7 +154,13 @@ export const useStore = create<AppStore>((set, get) => {
     // 진입점은 대시보드(도면 목록+견적) — 문서 열기/생성/업로드 시 2D 스케치로 이동
     screen: 'dashboard',
     view: '2d',
-    navigate: (screen) => set({ screen, placingCatalogId: null, drag: null }),
+    navigate: (screen) =>
+      set((s) => ({
+        ...(screen !== 'editor' ? discardDraft(s) : null),
+        screen,
+        placingCatalogId: null,
+        drag: null,
+      })),
     setView: (view) => set({ view, placingCatalogId: null, drag: null }),
 
     plans: persisted.plans,
@@ -164,6 +174,7 @@ export const useStore = create<AppStore>((set, get) => {
       set((s) =>
         s.plans[id]
           ? {
+              ...(id !== s.draftPlanId ? discardDraft(s) : null),
               currentPlanId: id,
               screen: 'editor',
               view: '2d',
@@ -177,10 +188,12 @@ export const useStore = create<AppStore>((set, get) => {
           : s,
       ),
 
-    addPlan: (plan) => {
+    draftPlanId: null,
+    addPlan: (plan, opts) => {
       set((s) => ({
         plans: { ...s.plans, [plan.id]: plan },
         planOrder: [plan.id, ...s.planOrder.filter((id) => id !== plan.id)],
+        draftPlanId: opts?.draft ? plan.id : s.draftPlanId,
       }));
       scheduleSave();
     },
@@ -222,6 +235,7 @@ export const useStore = create<AppStore>((set, get) => {
       set({
         plans: { ...plans, [next.id]: next },
         planOrder: [next.id, ...s.planOrder],
+        draftPlanId: s.draftPlanId === cur.id ? null : s.draftPlanId,
         currentPlanId: next.id,
         selection: [],
         placingCatalogId: null,
@@ -251,6 +265,7 @@ export const useStore = create<AppStore>((set, get) => {
       set({
         plans: { ...plans, [next.id]: next },
         planOrder: [next.id, ...s.planOrder.filter((id) => id !== next.id)],
+        draftPlanId: s.draftPlanId === cur.id ? null : s.draftPlanId,
         currentPlanId: next.id,
         selection: [],
         placingCatalogId: null,
@@ -276,7 +291,7 @@ export const useStore = create<AppStore>((set, get) => {
           : [planId];
         const plans = { ...s.plans };
         for (const id of ids) plans[id] = { ...plans[id], name };
-        return { plans };
+        return { plans, draftPlanId: ids.includes(s.draftPlanId ?? '') ? null : s.draftPlanId };
       });
       scheduleSave();
     },
@@ -384,6 +399,7 @@ export const useStore = create<AppStore>((set, get) => {
       }
       set({
         plans: { ...plans, [currentPlanId]: next },
+        draftPlanId: get().draftPlanId === currentPlanId ? null : get().draftPlanId,
         history:
           commit && !coalesced
             ? {
