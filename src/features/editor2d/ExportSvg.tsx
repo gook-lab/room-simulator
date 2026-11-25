@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import tokensCss from '../../styles/tokens.css?raw';
 import type { Plan } from '../../model/types';
 import { floorColor2d } from '../../model/finishes';
 import { planBounds } from '../../model/geometry';
@@ -87,9 +88,21 @@ export function PlanExportSvg({ plan, pxPerM = 90 }: { plan: Plan; pxPerM?: numb
   );
 }
 
-/** 독립 SVG 문자열 (CSS 변수 폰트를 실제 스택으로 치환) */
+/**
+ * markup 의 var(--색토큰) 을 css(tokens.css 원문)의 값으로 바꾼다. 독립 SVG 파일에는
+ * 앱 스타일시트가 없어 풀어 써야 한다. 없는 토큰은 그대로 둔다.
+ */
+export function resolveCssVars(markup: string, css: string): string {
+  const values = new Map(
+    [...css.matchAll(/(--[a-z0-9-]+):\s*(#[0-9a-f]{3,8}|rgba?\([^)]*\));/gi)].map((m) => [m[1], m[2]]),
+  );
+  return markup.replace(/var\((--[a-z0-9-]+)\)/gi, (whole, name: string) => values.get(name) ?? whole);
+}
+
+/** 독립 SVG 문자열 (CSS 변수 폰트 · 색을 실제 값으로 치환) */
 export function renderPlanSvgString(plan: Plan, pxPerM = 90): string {
-  return renderToStaticMarkup(<PlanExportSvg plan={plan} pxPerM={pxPerM} />)
+  const markup = renderToStaticMarkup(<PlanExportSvg plan={plan} pxPerM={pxPerM} />)
     .replaceAll('var(--font-mono)', 'ui-monospace, Menlo, monospace')
     .replaceAll('var(--font-ui)', "'Plus Jakarta Sans', sans-serif");
+  return resolveCssVars(markup, tokensCss);
 }

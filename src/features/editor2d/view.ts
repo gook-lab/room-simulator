@@ -1,4 +1,4 @@
-import type { Plan, Vec2 } from '../../model/types';
+import type { Opening, Plan, Vec2 } from '../../model/types';
 import { itemAabb, planBounds } from '../../model/geometry';
 
 /** 기본 화면 스케일 (px per meter, zoom=1) — 1a 목업의 도면 밀도에 맞춤 */
@@ -49,6 +49,30 @@ function grow(b: Bounds, p: Vec2): void {
 }
 
 /**
+ * 열린 여닫이문이 90° 돌며 쓸고 가는 사분면의 상자 (world). 문이 아니거나 미닫이 ·
+ * 닫힘이면 null. 방향은 PlanCanvas OpeningGlyph 의 스윙 호와 같다.
+ */
+export function doorSwingBox(plan: Plan, o: Opening): Bounds | null {
+  if (o.kind !== 'door' || o.doorType === 'sliding' || o.open === false) return null;
+  const wall = plan.walls.find((w) => w.id === o.wallId);
+  if (!wall) return null;
+  const len = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
+  if (len === 0) return null;
+  const dir = { x: (wall.b.x - wall.a.x) / len, y: (wall.b.y - wall.a.y) / len };
+  const c = { x: wall.a.x + (wall.b.x - wall.a.x) * o.t, y: wall.a.y + (wall.b.y - wall.a.y) * o.t };
+  const side = o.swing === 'right' ? -1 : 1;
+  const half = { x: (dir.x * o.width) / 2, y: (dir.y * o.width) / 2 };
+  const hinge = o.swing === 'right' ? { x: c.x + half.x, y: c.y + half.y } : { x: c.x - half.x, y: c.y - half.y };
+  const leaf = { x: 2 * c.x - hinge.x, y: 2 * c.y - hinge.y };
+  const swingTo = { x: -dir.y * o.width * side, y: dir.x * o.width * side };
+  const b: Bounds = { min: { ...hinge }, max: { ...hinge } };
+  grow(b, leaf);
+  grow(b, { x: hinge.x + swingTo.x, y: hinge.y + swingTo.y });
+  grow(b, { x: leaf.x + swingTo.x, y: leaf.y + swingTo.y });
+  return b;
+}
+
+/**
  * 화면 맞춤에 담을 도면 범위 (world). 벽 선만 보면 벽 두께 · 밖으로 열리는 문 호 ·
  * 벽 밖 가구 · 치수 주석이 화면 가장자리에서 잘린다.
  */
@@ -61,22 +85,11 @@ export function fitBounds(plan: Plan): Bounds {
     grow(b, { x: Math.max(w.a.x, w.b.x) + h, y: Math.max(w.a.y, w.b.y) + h });
   }
   for (const o of plan.openings) {
-    if (o.kind !== 'door' || o.doorType === 'sliding' || o.open === false) continue;
-    const wall = plan.walls.find((w) => w.id === o.wallId);
-    if (!wall) continue;
-    const len = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
-    if (len === 0) continue;
-    const dir = { x: (wall.b.x - wall.a.x) / len, y: (wall.b.y - wall.a.y) / len };
-    const c = { x: wall.a.x + (wall.b.x - wall.a.x) * o.t, y: wall.a.y + (wall.b.y - wall.a.y) * o.t };
-    const side = o.swing === 'right' ? -1 : 1;
-    const hinge = o.swing === 'right'
-      ? { x: c.x + (dir.x * o.width) / 2, y: c.y + (dir.y * o.width) / 2 }
-      : { x: c.x - (dir.x * o.width) / 2, y: c.y - (dir.y * o.width) / 2 };
-    // 문짝이 90° 돌며 쓸고 가는 사분면의 바깥 모서리까지 (PlanCanvas OpeningGlyph 와 같은 방향)
-    const swingTo = { x: -dir.y * o.width * side, y: dir.x * o.width * side };
-    const leaf = { x: 2 * c.x - hinge.x, y: 2 * c.y - hinge.y };
-    grow(b, { x: hinge.x + swingTo.x, y: hinge.y + swingTo.y });
-    grow(b, { x: leaf.x + swingTo.x, y: leaf.y + swingTo.y });
+    const swing = doorSwingBox(plan, o);
+    if (swing) {
+      grow(b, swing.min);
+      grow(b, swing.max);
+    }
   }
   for (const it of plan.items) {
     const a = itemAabb(it);

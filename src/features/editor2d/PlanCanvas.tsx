@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type {
   DragState,
   Opening,
@@ -13,6 +14,7 @@ import { itemAabb, planBounds, wallPointAt } from '../../model/geometry';
 import { FurnitureSymbol, shapeOf } from './symbols';
 import type { DragOriginPoses } from './dragPreview';
 import { w2s, type ViewTransform } from './view';
+import { layoutRoomLabels } from './roomLabels';
 
 export type WallDraft = { points: Vec2[]; cursor: Vec2 | null };
 export type WallItemGhost = {
@@ -284,38 +286,41 @@ export function OpeningGlyph({ plan, opening }: { plan: Plan; opening: Opening }
   );
 }
 
-function centroid(poly: Vec2[]): Vec2 {
-  let x = 0;
-  let y = 0;
-  for (const p of poly) {
-    x += p.x;
-    y += p.y;
-  }
-  return { x: x / poly.length, y: y / poly.length };
-}
-
+/**
+ * 방 이름표 — 가구 레이어 위(screen 레이어)에 반투명 받침을 깔고, 가구를 피한 자리에 둔다
+ * (layoutRoomLabels). 내보내기 SVG 도 같은 컴포넌트를 쓴다.
+ */
 export function RoomLabels({ plan, t }: { plan: Plan; t: ViewTransform }) {
+  const spots = useMemo(() => layoutRoomLabels(plan, t.s), [plan, t.s]);
   return (
-    <g>
+    <g pointerEvents="none">
       {plan.rooms.map((r) => {
-        const c = w2s(t, centroid(r.polygon));
-        const big = r.areaSqm > 14;
-        if (big) {
-          return (
-            <g key={r.id}>
-              <text x={c.x} y={c.y - 4} textAnchor="middle" fontSize={17} fontWeight={700} fill="#17201c" fontFamily="var(--font-ui)">
-                {r.name}
-              </text>
-              <text x={c.x} y={c.y + 14} textAnchor="middle" fontSize={12} fontWeight={500} fill="#8b948e" fontFamily="var(--font-ui)">
-                {r.areaSqm.toFixed(1)}㎡
-              </text>
-            </g>
-          );
-        }
-        return (
-          <text key={r.id} x={c.x} y={c.y + 4} textAnchor="middle" fontSize={12} fontWeight={700} fill="#8b948e" fontFamily="var(--font-ui)">
-            {r.name} · {r.areaSqm.toFixed(1)}㎡
+        const spot = spots.get(r.id);
+        if (!spot) return null;
+        const c = w2s(t, spot.at);
+        const { kind, lines, wPx, hPx } = spot.spec;
+        const text = (y: number, size: number, weight: number, fill: string, body: string) => (
+          <text x={c.x} y={y} textAnchor="middle" fontSize={size} fontWeight={weight} fill={fill} fontFamily="var(--font-ui)">
+            {body}
           </text>
+        );
+        return (
+          <g key={r.id}>
+            <rect x={c.x - wPx / 2} y={c.y - hPx / 2} width={wPx} height={hPx} rx={6} fill="var(--panel)" opacity={0.85} />
+            {kind === 'big' && (
+              <>
+                {text(c.y - 3, 17, 700, 'var(--ink)', lines[0])}
+                {text(c.y + 14, 12, 600, 'var(--text-muted)', lines[1])}
+              </>
+            )}
+            {kind === 'stack' && (
+              <>
+                {text(c.y - 2, 12, 700, 'var(--ink)', lines[0])}
+                {text(c.y + 12, 11, 600, 'var(--text-muted)', lines[1])}
+              </>
+            )}
+            {kind === 'line' && text(c.y + 4, 12, 700, 'var(--text-muted)', lines[0])}
+          </g>
         );
       })}
     </g>
