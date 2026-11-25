@@ -8,14 +8,10 @@ import { exportPlan, importPlan } from '../../model/planIO';
 import { renderPlanSvgString } from '../editor2d/ExportSvg';
 import { useStore } from '../../state/store';
 import { MiniPlan } from '../../components/MiniPlan';
+import { planCardMeta, workingPlan } from './planCardFormat';
 
 function planArea(plan: Plan): number {
   return plan.rooms.reduce((s, r) => s + r.areaSqm, 0);
-}
-
-function shortPrice(v: number): string {
-  if (v >= 1_000_000) return `₩${(v / 1_000_000).toFixed(1)}M`;
-  return `₩${Math.round(v / 1000)}K`;
 }
 
 function updatedAgo(plans: Plan[]): string {
@@ -144,7 +140,7 @@ export function Dashboard() {
   };
 
   const orderedPlans = planOrder.map((id) => plans[id]).filter(Boolean);
-  const estimatePlan = plans[currentPlanId] ?? orderedPlans[0];
+  const estimatePlan = workingPlan(plans, orderedPlans, currentPlanId);
   // 견적 → 가구 라이브러리(쇼핑 리스트) 재포지셔닝: 실판매가만 가격 표시
   const library = estimatePlan
     ? aggregateLibrary(estimatePlan)
@@ -191,13 +187,55 @@ export function Dashboard() {
           </div>
 
           <div className="plan-grid">
-            {orderedPlans.map((p, idx) => (
-              <div key={p.id} className="plan-card" role="button" onClick={() => openPlan(p.id)}>
+            {orderedPlans.map((p) => {
+              const thumb = (
                 <span className="plan-card__thumb">
-                  {idx === 0 && <span className="plan-card__badge">작업중</span>}
-                  <MiniPlan plan={p} width={280} height={150} />
-                  <span className="plan-card__actions" onClick={(e) => e.stopPropagation()}>
+                  {p.id === estimatePlan?.id && <span className="plan-card__badge">작업 중</span>}
+                  <MiniPlan plan={p} width={280} height={150} fluid />
+                </span>
+              );
+              const floor = p.floorLabel && <span className="plan-card__floor">{p.floorLabel}</span>;
+              return (
+                <article key={p.id} className="plan-card">
+                  {renamingId === p.id ? (
+                    <div className="plan-card__open">
+                      {thumb}
+                      <span className="plan-card__body">
+                        <span className="plan-card__name">
+                          <input
+                            className="plan-card__rename"
+                            aria-label="도면 이름"
+                            autoFocus
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onBlur={commitRename}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitRename();
+                              if (e.key === 'Escape') setRenamingId(null);
+                            }}
+                          />
+                          {floor}
+                        </span>
+                      </span>
+                    </div>
+                  ) : (
+                    <button type="button" className="plan-card__open" onClick={() => openPlan(p.id)}>
+                      {thumb}
+                      <span className="plan-card__body">
+                        <span className="plan-card__name">
+                          {p.name}
+                          {floor}
+                        </span>
+                        <span className="plan-card__meta">
+                          {planCardMeta(planArea(p), p.items.length, totalPrice(p))}
+                        </span>
+                      </span>
+                    </button>
+                  )}
+                  <div className="plan-card__actions" role="group" aria-label={`${p.name} 관리`}>
                     <button
+                      type="button"
+                      aria-label="이름 바꾸기"
                       title="이름 바꾸기"
                       onClick={() => {
                         setRenamingId(p.id);
@@ -206,48 +244,35 @@ export function Dashboard() {
                     >
                       ✎
                     </button>
-                    <button title="복제" onClick={() => duplicatePlan(p.id)}>
+                    <button
+                      type="button"
+                      aria-label="복제"
+                      title="복제"
+                      onClick={() => duplicatePlan(p.id)}
+                    >
                       ⧉
                     </button>
-                    <button title="JSON 내보내기" onClick={() => downloadJson(p)}>
+                    <button
+                      type="button"
+                      aria-label="JSON 파일로 내보내기"
+                      title="JSON 내보내기"
+                      onClick={() => downloadJson(p)}
+                    >
                       ⤓
                     </button>
                     <button
+                      type="button"
+                      aria-label="삭제"
                       title="삭제"
                       className="plan-card__action-danger"
                       onClick={() => handleDelete(p)}
                     >
                       🗑
                     </button>
-                  </span>
-                </span>
-                <span className="plan-card__body">
-                  <div className="plan-card__name">
-                    {renamingId === p.id ? (
-                      <input
-                        className="plan-card__rename"
-                        autoFocus
-                        value={renameValue}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onBlur={commitRename}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') commitRename();
-                          if (e.key === 'Escape') setRenamingId(null);
-                        }}
-                      />
-                    ) : (
-                      p.name
-                    )}
-                    {p.floorLabel && <span className="plan-card__floor">{p.floorLabel}</span>}
                   </div>
-                  <div className="plan-card__meta">
-                    {Math.round(planArea(p))}㎡ · 가구 {p.items.length} ·{' '}
-                    {shortPrice(totalPrice(p))}
-                  </div>
-                </span>
-              </div>
-            ))}
+                </article>
+              );
+            })}
             <button className="plan-card--empty" onClick={() => navigate('upload')}>
               <span className="plus">+</span>
               평면도 업로드
@@ -275,15 +300,15 @@ export function Dashboard() {
             </div>
             <div className="estimate-card__divider" />
             {library.rows.length === 0 && (
-              <div className="library-empty">배치된 가구가 없습니다</div>
+              <div className="library-empty">아직 놓은 가구가 없어요</div>
             )}
-            {library.rows.map((r) => (
+            {library.rows.filter((r) => r.priceKrw != null).map((r) => (
               <div className="estimate-row" key={r.catalogId}>
                 <span className="estimate-row__name">
                   {r.name}
                   {r.count > 1 && <span className="library-qty"> ×{r.count}</span>}
                 </span>
-                {r.priceKrw != null ? (
+                {r.priceKrw != null && (
                   <span className="estimate-row__price">
                     ₩{(r.priceKrw * r.count).toLocaleString('ko-KR')}
                     {r.url && (
@@ -293,16 +318,30 @@ export function Dashboard() {
                         target="_blank"
                         rel="noopener noreferrer"
                         title={`${r.mall ?? ''}에서 보기`}
+                        aria-label={`${r.name} 상품 페이지 (새 창)`}
                       >
                         ↗
                       </a>
                     )}
                   </span>
-                ) : (
-                  <span className="estimate-row__price library-noprice">—</span>
                 )}
               </div>
             ))}
+            {library.estCount > 0 && (
+              <details className="price-pending" open={library.realCount === 0}>
+                <summary>가격 확인 전 {library.estCount}개</summary>
+                {library.rows
+                  .filter((r) => r.priceKrw == null)
+                  .map((r) => (
+                    <div className="estimate-row" key={r.catalogId}>
+                      <span className="estimate-row__name">
+                        {r.name}
+                        {r.count > 1 && <span className="library-qty"> ×{r.count}</span>}
+                      </span>
+                    </div>
+                  ))}
+              </details>
+            )}
             {finish.rows.length > 0 && (
               <details className="finish-fold">
                 <summary>마감 시공 — 참고 추정 ₩{finish.total.toLocaleString('ko-KR')}</summary>
@@ -317,7 +356,7 @@ export function Dashboard() {
                   </div>
                 ))}
                 <div className="finish-fold__note">
-                  단가 근사 기반 추정치입니다 — 실제 시공비와 다를 수 있습니다.
+                  대략 계산한 값이에요. 실제 시공비와 다를 수 있어요.
                 </div>
               </details>
             )}
@@ -389,7 +428,7 @@ export function Dashboard() {
       {deleted && (
         <div className="snackbar">
           '{deleted.name}
-          {deleted.floorLabel ? ` ${deleted.floorLabel}` : ''}' 삭제됨
+          {deleted.floorLabel ? ` ${deleted.floorLabel}` : ''}' 도면을 지웠어요
           <button onClick={undoDelete}>되돌리기</button>
         </div>
       )}

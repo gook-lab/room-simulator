@@ -238,7 +238,9 @@ export function UploadTrace() {
                 checked={asFloor}
                 onChange={(e) => setAsFloor(e.target.checked)}
               />
-              현재 문서의 <b>새 층</b>으로 추가 (Floor2 등 다층 도면)
+              <span>
+                지금 도면에 <b>새 층</b>으로 추가하기
+              </span>
             </label>
           )}
           <div className="tpl-section">
@@ -260,7 +262,7 @@ export function UploadTrace() {
                   </span>
                   <span className="tpl-card__body">
                     <span className="tpl-card__name">{tpl.name}</span>
-                    <span className="tpl-card__meta mono">{tpl.sizeLabel}</span>
+                    <span className="tpl-card__meta">{tpl.sizeLabel}</span>
                     <span className="tpl-card__desc">{tpl.desc}</span>
                   </span>
                 </button>

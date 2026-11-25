@@ -39,15 +39,20 @@ const FLOOR_COLORS: Record<string, string> = {
   bath: '#f0f4f2',
 };
 
-/** 도면 미니 렌더 — 대시보드 카드·템플릿 선택 썸네일 공용 */
+/**
+ * 도면 미니 렌더 — 대시보드 카드·템플릿 선택 썸네일 공용.
+ * width·height 는 그리기 좌표계이고, fluid 면 부모 크기에 맞춰 비율을 지키며 줄어든다.
+ */
 export function MiniPlan({
   plan,
   width,
   height,
+  fluid = false,
 }: {
   plan: Plan;
   width: number;
   height: number;
+  fluid?: boolean;
 }) {
   const view = useMemo(() => {
     const b = thumbnailBounds(plan);
@@ -66,7 +71,13 @@ export function MiniPlan({
   const { s, ox, oy } = view;
 
   return (
-    <svg width={width} height={height}>
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width={fluid ? '100%' : width}
+      height={fluid ? '100%' : height}
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden="true"
+    >
       {plan.rooms.map((r) => (
         <polygon
           key={r.id}
