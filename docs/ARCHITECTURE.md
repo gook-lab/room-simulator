@@ -92,7 +92,7 @@ src/
     walkthrough/      1d: 1인칭 워크스루 + HUD
     birdseye/         1f: 조감도 + 조명 시뮬레이션
     three/            공유 3D — PlanScene(벽 분할·가구 프리미티브)·충돌·조명 프리셋
-    dashboard/        1h: 도면 목록·가구 라이브러리·JSON 백업
+    dashboard/        1h: 도면 목록·쇼핑 리스트·링크 공유·JSON 백업
     upload/           1g: 업로드 즉시 로드 — 벽·방·문 자동 인식(wallDetect)
 ```
 
