@@ -1,4 +1,5 @@
 import type { Vec2 } from '../../model/types';
+import { simplifyLoop } from './orthoSnap';
 
 /**
  * 업로드 도면 벽 자동 인식 — 순수 코어 (DOM 무관, 테스트 대상).
@@ -112,7 +113,8 @@ export type DetectedLine = { points: Vec2[]; closed: boolean };
 
 /**
  * 외곽 폐합 후처리 — "집 둘레는 끊김 없이 벽으로 완결" 기대 기준.
- * 1) 코너 스냅: 세그먼트 끝점을 근처 수직 세그먼트 라인까지 연장 (T/L 접합 봉합)
+ * 1) 코너 스냅: 세그먼트 끝점을 근처 수직 세그먼트 중심선에 맞춤 — 모자라면
+ *    늘이고 넘치면 줄인다 (T/L 접합 봉합)
  * 2) 외곽 브리징: 전체 bbox 가장자리에 붙은 라인은 동일선상 gap 을
  *    관대한 기준(boundaryBridge)으로 이어붙인다 — 내부 라인에는 미적용
  *    (복도 등 실제 통로를 오연결하지 않기 위해).
@@ -124,16 +126,25 @@ export function closeOutline(
   if (segments.length === 0) return segments;
   const hs = segments.filter((s) => s.axis === 'h');
   const vs = segments.filter((s) => s.axis === 'v');
-  const snapEnds = (s: Segment, perps: Segment[]): Segment => {
-    let { from, to } = s;
+  // 끝을 가장 가까운 수직선 중심(at)에 맞춘다 — 늘이기만 하면 벽 두께만큼
+  // 삐져나온 끝이 남아 T자 · 모서리에서 벽이 엇갈린다(45차 B-01)
+  const snapEnd = (end: number, at: number, perps: Segment[]): number => {
+    let best = end;
+    let bestD = Infinity;
     for (const p of perps) {
-      const coversAt =
-        p.from - opts.cornerSnap <= s.at && p.to + opts.cornerSnap >= s.at;
-      if (!coversAt) continue;
-      if (Math.abs(from - p.at) <= opts.cornerSnap) from = Math.min(from, p.at);
-      if (Math.abs(to - p.at) <= opts.cornerSnap) to = Math.max(to, p.at);
+      const coversAt = p.from - opts.cornerSnap <= at && p.to + opts.cornerSnap >= at;
+      const d = Math.abs(end - p.at);
+      if (coversAt && d <= opts.cornerSnap && d < bestD) {
+        best = p.at;
+        bestD = d;
+      }
     }
-    return { ...s, from, to };
+    return best;
+  };
+  const snapEnds = (s: Segment, perps: Segment[]): Segment => {
+    const from = snapEnd(s.from, s.at, perps);
+    const to = snapEnd(s.to, s.at, perps);
+    return to - from > opts.cornerSnap ? { ...s, from, to } : s;
   };
   const snapped = [...hs.map((s) => snapEnds(s, vs)), ...vs.map((s) => snapEnds(s, hs))];
 
@@ -183,8 +194,9 @@ export function closeOutline(
 /**
  * 라벨된 영역의 외곽 윤곽을 직교 폴리곤으로 추출한다.
  * 경계 셀 변을 "영역이 왼쪽"이 되는 방향의 단위 엣지로 수집해 체인으로 잇고,
- * 동일선 병합 후 tol 미만의 계단(지그재그)을 직선화한다. 구멍(내부 루프)은
- * 무시하고 가장 긴 루프만 반환한다.
+ * 동일선 병합 후 tol 이하의 요철을 지우고 축에 가까운 변만 수평·수직으로 편다
+ * (orthoSnap.simplifyLoop — 사선은 그대로). 구멍(내부 루프)은 무시하고 가장 긴
+ * 루프만 반환한다.
  */
 export function traceRegionPolygon(
   inRegion: (x: number, y: number) => boolean,
@@ -252,33 +264,8 @@ export function traceRegionPolygon(
     }
     return out;
   };
-  let poly = collapse(best);
-  // 4) 계단 직선화: H-V(짧음)-H / V-H(짧음)-V 패턴의 짧은 변 제거
-  let changed = true;
-  let guard2 = 0;
-  while (changed && guard2++ < 200 && poly.length > 4) {
-    changed = false;
-    for (let i = 0; i < poly.length; i++) {
-      const a = poly[i];
-      const b = poly[(i + 1) % poly.length];
-      const len = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
-      if (len === 0 || len >= simplifyTol) continue;
-      if (a.x === b.x) {
-        // 짧은 수직 변 → 이웃 수평 변을 같은 y 로
-        const y = Math.round((a.y + b.y) / 2);
-        a.y = y;
-        b.y = y;
-      } else {
-        const x = Math.round((a.x + b.x) / 2);
-        a.x = x;
-        b.x = x;
-      }
-      poly = collapse(poly);
-      changed = true;
-      break;
-    }
-  }
-  return poly;
+  // 4) 요철 정리 + 직교 보정 — 짧은 변의 두 끝만 옮기면 이웃 변이 기운다(45차 B-01)
+  return simplifyLoop(collapse(best), simplifyTol);
 }
 
 /* ===== 개구부(문·창) 검출 — 벽 선 위의 밝은 갭 ===== */
