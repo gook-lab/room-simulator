@@ -167,7 +167,7 @@ function build59(): Plan {
       item('t59-table', 'table-oak-round', { x: 5.9, y: 1.2 }, 0, 'r-kitchen'),
       item('t59-stool1', 'stool-bar', { x: 5.0, y: 1.2 }, 0, 'r-kitchen'),
       item('t59-stool2', 'stool-bar', { x: 5.9, y: 0.38 }, 0, 'r-kitchen'),
-      item('t59-fridge', 'fridge', { x: 7.25, y: 0.6 }, 90, 'r-kitchen', 2),
+      item('t59-fridge', 'fridge', { x: 7.15, y: 0.6 }, 90, 'r-kitchen', 2),
       // 안방 (침대는 부속욕실 반대편)
       item('t59-bed', 'bed-queen', { x: 1.15, y: 4.65 }, 90, 'r-master'),
       item('t59-night', 'nightstand', { x: 2.6, y: 5.2 }, 0, 'r-master'),
