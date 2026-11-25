@@ -274,7 +274,7 @@ export function Walkthrough() {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0 || !document.pointerLockElement || !gaze) return;
       if (gaze.kind === 'door') {
-        updatePlan((pl) => toggleDoor(pl, gaze.id));
+        updatePlan((pl) => toggleDoor(pl, gaze.id), { viewOnly: true });
         return;
       }
       const item = plan.items.find((i) => i.id === gaze.id);
@@ -285,7 +285,7 @@ export function Walkthrough() {
         return;
       }
       if (!isInteractiveItem(item.catalogId)) return;
-      updatePlan((pl) => togglePower(pl, gaze.id));
+      updatePlan((pl) => togglePower(pl, gaze.id), { viewOnly: true });
     };
     window.addEventListener('mousedown', onMouseDown);
     return () => window.removeEventListener('mousedown', onMouseDown);
@@ -652,7 +652,9 @@ export function Walkthrough() {
                 <button
                   className={`toggle${isPowered(editItem) ? ' is-on' : ''}`}
                   aria-pressed={isPowered(editItem)}
-                  onClick={() => updatePlan((pl) => togglePower(pl, editItem.id))}
+                  onClick={() =>
+                    updatePlan((pl) => togglePower(pl, editItem.id), { viewOnly: true })
+                  }
                 />
               </div>
             )}
