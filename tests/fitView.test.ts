@@ -111,6 +111,25 @@ describe('fitCamera — 패널을 뺀 영역에 맞춤 (QA B-06)', () => {
     expect(zoom).toBeGreaterThan(0.55);
   });
 
+  it('좌하단 상태바만 피할 때(보기 전용) 도면은 필요한 만큼만 비키고 통째로 쏠리지 않는다', () => {
+    const plan = TEMPLATES[1].build();
+    const viewport = { w: 1440, h: 800 };
+    const statusbar = { left: 20, top: 742, right: 372, bottom: 776 };
+    const parts = visibleParts(plan, viewport, [statusbar]);
+    for (const rect of [parts.plan, parts.topDim, parts.rightDim]) {
+      expect(inside(rect, viewport)).toBe(true);
+      expect(overlaps(rect, statusbar)).toBe(false);
+    }
+    const boxLeft = parts.plan.left - 16;
+    const boxRight = parts.plan.right + 72;
+    if (parts.plan.bottom > statusbar.top) {
+      // 상태바 옆으로 비킬 때는 상태바 오른쪽 간격(16px)에 붙는다
+      expect(boxLeft).toBeCloseTo(statusbar.right + 16, 3);
+    }
+    // 도면 상자 왼쪽 여백이 오른쪽 여백보다 상태바 폭만큼 더 커지지 않는다
+    expect(boxLeft - (viewport.w - boxRight)).toBeLessThan(statusbar.right - statusbar.left);
+  });
+
   it('패널이 없으면 도면 상자 중심이 뷰포트 중심에 온다', () => {
     const plan = TEMPLATES[1].build();
     const viewport = { w: 1200, h: 800 };

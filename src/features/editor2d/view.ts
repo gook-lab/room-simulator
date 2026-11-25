@@ -137,38 +137,40 @@ export function fitCamera(
   const fw = Math.max(0.5, f.max.x - f.min.x);
   const fh = Math.max(0.5, f.max.y - f.min.y);
 
-  let best: { zoom: number; area: ScreenRect } | null = null;
+  let best: { zoom: number; area: ScreenRect; home: ScreenRect } | null = null;
   const combos = 4 ** obstacles.length;
   for (let combo = 0; combo < combos; combo++) {
     const area: ScreenRect = { left: pad, top: pad, right: viewport.w - pad, bottom: viewport.h - pad };
+    const home = { ...area };
     let code = combo;
     for (const r of obstacles) {
       const side = SIDES[code % 4];
       code = Math.floor(code / 4);
-      if (side === 'left') area.left = Math.max(area.left, r.right + FIT_GAP_PX);
-      if (side === 'right') area.right = Math.min(area.right, r.left - FIT_GAP_PX);
-      if (side === 'top') area.top = Math.max(area.top, r.bottom + FIT_GAP_PX);
-      if (side === 'bottom') area.bottom = Math.min(area.bottom, r.top - FIT_GAP_PX);
+      cut(area, r, side);
+      // 패널의 긴 방향으로 피한 띠만 목표 자리에 넣는다 (cut 설명)
+      const tall = r.bottom - r.top >= r.right - r.left;
+      if (tall === (side === 'left' || side === 'right')) cut(home, r, side);
     }
     const availW = area.right - area.left - ann.left - ann.right;
     const availH = area.bottom - area.top - ann.top - ann.bottom;
     if (availW < 40 || availH < 40) continue;
     const zoom = Math.min(availW / (fw * BASE_PX_PER_M), availH / (fh * BASE_PX_PER_M));
-    if (!best || zoom > best.zoom + 1e-9) best = { zoom, area };
+    if (!best || zoom > best.zoom + 1e-9) best = { zoom, area, home };
   }
   const area = best?.area ?? { left: 0, top: 0, right: viewport.w, bottom: viewport.h };
+  const home = best?.home ?? area;
   const zoom = Math.min(2, Math.max(0.3, best?.zoom ?? 1));
 
   // makeTransform 은 pan=0 일 때 planBounds 중심을 뷰포트 중앙에 둔다.
-  // 주석까지 포함한 상자의 중심을 비운 영역의 중심으로 옮기는 pan 을 구한다.
+  // 주석까지 포함한 상자의 중심을 비운 영역 안 목표 자리로 옮기는 pan 을 구한다.
   const s = BASE_PX_PER_M * zoom;
   const b = planBounds(plan);
   const cx = (b.min.x + b.max.x) / 2;
   const cy = (b.min.y + b.max.y) / 2;
   const fcx = (f.min.x + f.max.x) / 2;
   const fcy = (f.min.y + f.max.y) / 2;
-  const targetX = (area.left + area.right) / 2;
-  const targetY = (area.top + area.bottom) / 2;
+  const targetX = placeAlong((home.left + home.right) / 2, area.left, area.right, fw * s + ann.left + ann.right);
+  const targetY = placeAlong((home.top + home.bottom) / 2, area.top, area.bottom, fh * s + ann.top + ann.bottom);
   return {
     pan: {
       x: targetX - viewport.w / 2 - (fcx - cx) * s - (ann.right - ann.left) / 2,
@@ -176,6 +178,27 @@ export function fitCamera(
     },
     zoom,
   };
+}
+
+/**
+ * 패널 r 을 side 쪽 띠로 피하도록 영역을 깎는다.
+ *
+ * 도면 상자는 비운 영역(area)의 중심이 아니라 home 의 중심을 노리고 area 안으로만 당긴다.
+ * home 은 툴독 · 카탈로그처럼 세로로 긴 패널을 옆으로, 상태바처럼 가로로 긴 패널을 위아래로
+ * 피한 띠만 깎은 영역이다. 보기 전용 화면처럼 좌하단 상태바 하나를 옆으로 피할 때 area 중심을
+ * 쓰면 도면이 상태바 폭만큼 통째로 오른쪽에 쏠린다. home 을 노리면 필요한 만큼만 비킨다.
+ */
+function cut(area: ScreenRect, r: ScreenRect, side: Side): void {
+  if (side === 'left') area.left = Math.max(area.left, r.right + FIT_GAP_PX);
+  if (side === 'right') area.right = Math.min(area.right, r.left - FIT_GAP_PX);
+  if (side === 'top') area.top = Math.max(area.top, r.bottom + FIT_GAP_PX);
+  if (side === 'bottom') area.bottom = Math.min(area.bottom, r.top - FIT_GAP_PX);
+}
+
+/** [lo, hi] 안에 size 상자를 놓을 때 want 에 가장 가까운 중심. 넘치면 가운데 */
+function placeAlong(want: number, lo: number, hi: number, size: number): number {
+  if (hi - lo < size) return (lo + hi) / 2;
+  return Math.min(hi - size / 2, Math.max(lo + size / 2, want));
 }
 
 /** CSS px per meter ≈ 3779.5 → "1 : N" 표기용 축척 */
