@@ -82,7 +82,25 @@ import { toolForKeyCode, wheelTargetsCanvas } from './inputRouting';
 import { sketchDraftPoints } from './sketchDraft';
 import { dragOriginPoses, type DragOriginPoses } from './dragPreview';
 import { alignmentSnap, axisLock, type AlignmentGuide } from './alignGuides';
-import { fitCamera, makeTransform, s2w, w2s } from './view';
+import { fitCamera, makeTransform, s2w, w2s, type ScreenRect } from './view';
+
+/** 화면 맞춤이 피할 떠 있는 패널. 빈 상태 카드 · 안내 칩은 도면 위에 떠도 되므로 뺀다 */
+const FIT_OBSTACLE_SELECTOR = '.tooldock, .float-panel, .statusbar';
+
+function overlayRects(host: HTMLElement): ScreenRect[] {
+  const h = host.getBoundingClientRect();
+  return [...host.querySelectorAll<HTMLElement>(FIT_OBSTACLE_SELECTOR)]
+    .map((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left - h.left, top: r.top - h.top, right: r.right - h.left, bottom: r.bottom - h.top };
+    })
+    .filter((r) => r.right > r.left && r.bottom > r.top);
+}
+
+function fitToHost(plan: Plan, host: HTMLElement | null) {
+  const viewport = { w: host?.clientWidth ?? 1440, h: host?.clientHeight ?? 844 };
+  return fitCamera(plan, viewport, { obstacles: host ? overlayRects(host) : [] });
+}
 
 let idSeq = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${idSeq++}`;
@@ -223,7 +241,7 @@ export function Editor2D() {
   const clearFitView = useStore((s) => s.clearFitView);
   useEffect(() => {
     if (pendingFitView && measured) {
-      setCamera2d(fitCamera(planRef.current, { w: hostRef.current!.clientWidth, h: hostRef.current!.clientHeight }));
+      setCamera2d(fitToHost(planRef.current, hostRef.current));
       clearFitView();
     }
   }, [pendingFitView, measured, setCamera2d, clearFitView]);
@@ -1516,13 +1534,7 @@ export function Editor2D() {
                 : 'default';
 
   const resetView = useCallback(() => {
-    const el = hostRef.current;
-    setCamera2d(
-      fitCamera(planRef.current, {
-        w: el?.clientWidth ?? 1440,
-        h: el?.clientHeight ?? 844,
-      }),
-    );
+    setCamera2d(fitToHost(planRef.current, hostRef.current));
   }, [setCamera2d]);
 
   // 방 인식 — 현재 벽으로 닫힌 공간을 찾아 방 생성 (기존 방과 중복 스킵, 1 undo)
