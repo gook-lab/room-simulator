@@ -19,7 +19,7 @@ import { ViewTabs } from '../../components/ViewTabs';
 import { CanvasBoundary, GlFallback } from '../three/CanvasBoundary';
 import { PlanScene } from '../three/PlanScene';
 import { PLAYER_RADIUS, buildColliders, moveAndSlide, resolveCollisions } from '../three/collision';
-import { toggleDayNight } from '../three/lighting';
+import { PRESET_LABELS, toggleDayNight } from '../three/lighting';
 import { Minimap, type PlayerPose } from './Minimap';
 import { hotkeyAllowed, movementAllowed, walkthroughAllowed } from './menu';
 
@@ -418,14 +418,6 @@ export function Walkthrough() {
           에디터로 돌아가기
         </button>
 
-        <button
-          className="hud__esc hud__daynight"
-          onClick={() => setLighting({ preset: toggleDayNight(viewer.lighting.preset) })}
-          title="주간/야간 전환"
-        >
-          {viewer.lighting.preset === 'night' ? '주간으로' : '야간으로'}
-        </button>
-
         <div className="crosshair">
           <span />
           <span />
@@ -439,8 +431,8 @@ export function Walkthrough() {
           !editItemId &&
           !plan.items.some((i) => catalogById.get(i.catalogId)?.shape === 'stairs') && (
             <div className="wt-stairs-hint">
-              {stairsTarget.floorLabel ?? '다른 층'}으로 가려면 2D 에디터에서 계단을
-              배치하세요 — 카탈로그 '구조' 탭
+              {stairsTarget.floorLabel ?? '다른 층'}으로 가려면 평면도에서 계단을 놓아 주세요.
+              카탈로그 '구조' 탭에 있어요
             </div>
           )}
         {locked && gazeItem && gazeCat && !editItemId && (
@@ -585,13 +577,13 @@ export function Walkthrough() {
             <span className="hud-panel__title">조명</span>
           </div>
           <div className="light-presets">
-            {(['afternoon', 'sunset', 'night'] as const).map((p) => (
+            {(['afternoon', 'sunset', 'overcast', 'night'] as const).map((p) => (
               <button
                 key={p}
                 className={viewer.lighting.preset === p ? 'is-active' : ''}
                 onClick={() => setLighting({ preset: p })}
               >
-                {p === 'afternoon' ? '오후 3시' : p === 'sunset' ? '해질녘' : '밤'}
+                {PRESET_LABELS[p]}
               </button>
             ))}
           </div>
@@ -605,6 +597,8 @@ export function Walkthrough() {
             <input
               type="range"
               className="slider slider--hud"
+              aria-label="실내등 밝기"
+              aria-valuetext={`${Math.round(viewer.lighting.indoorIntensity * 100)}%`}
               min={0}
               max={100}
               value={Math.round(viewer.lighting.indoorIntensity * 100)}
@@ -619,6 +613,8 @@ export function Walkthrough() {
             <input
               type="range"
               className="slider slider--hud"
+              aria-label="시야각"
+              aria-valuetext={`${Math.round(viewer.lighting.fov)}도`}
               min={50}
               max={100}
               value={Math.round(viewer.lighting.fov)}
@@ -663,8 +659,11 @@ export function Walkthrough() {
               <div className="gaze-edit__power">
                 <span>전원</span>
                 <button
+                  type="button"
+                  role="switch"
+                  aria-label="전원"
+                  aria-checked={isPowered(editItem)}
                   className={`toggle${isPowered(editItem) ? ' is-on' : ''}`}
-                  aria-pressed={isPowered(editItem)}
                   onClick={() => updatePlan((pl) => togglePower(pl, editItem.id))}
                 />
               </div>
