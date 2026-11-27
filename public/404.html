@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>없는 주소예요 · Room Simulator</title>
+    <!-- JS 없이 보이는 404 화면. 색은 src/styles/tokens.css 와 같은 값입니다. -->
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        min-height: 100%;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        min-height: 100dvh;
+        padding: 32px 16px;
+        background: #f7f4ef;
+        color: #17201c;
+        font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        width: min(560px, 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        text-align: center;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        color: inherit;
+        text-decoration: none;
+      }
+      .brand svg {
+        width: 22px;
+        height: 22px;
+      }
+      .art {
+        position: relative;
+        width: 100%;
+        max-width: 480px;
+      }
+      .art img {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: #fff;
+        border: 1px solid #e3dcd1;
+        border-radius: 13px;
+      }
+      .code {
+        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: #0b7c56;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        line-height: 1.35;
+      }
+      p {
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.55;
+        color: #4a544e;
+      }
+      .home {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 6px;
+        padding: 11px 20px;
+        border-radius: 8px;
+        background: #0b7c56;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .home:hover {
+        background: #096646;
+      }
+      a:focus-visible {
+        outline: 2px solid #0e9f6e;
+        outline-offset: 3px;
+      }
+      /* 휴대폰 가로처럼 낮은 화면: 그림을 왼쪽, 글을 오른쪽에 */
+      @media (max-height: 480px) and (min-width: 600px) {
+        body {
+          padding: 16px 24px;
+        }
+        main {
+          width: min(760px, 100%);
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          column-gap: 28px;
+          row-gap: 10px;
+          align-items: center;
+          justify-items: start;
+          text-align: left;
+        }
+        .art {
+          grid-column: 1;
+          grid-row: 1 / span 5;
+        }
+        main > :not(.art) {
+          grid-column: 2;
+        }
+        h1 {
+          font-size: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="brand" href="/">
+        <svg viewBox="0 0 22 22" aria-hidden="true">
+          <rect width="22" height="22" rx="6" fill="#0e9f6e" />
+          <path
+            d="M11 16.5h5.5v-11h-11v11H7.5M11 5.5v5M11 16.5V13M7.5 16.5a3.5 3.5 0 0 1 3.5-3.5"
+            fill="none"
+            stroke="#fff"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        Room Simulator
+      </a>
+      <div class="art">
+        <img src="/cover-800.webp" width="800" height="450" alt="" />
+      </div>
+      <span class="code">404</span>
+      <h1>이 주소에는 도면이 없어요</h1>
+      <p>주소가 바뀌었거나 잘못 입력된 것 같아요.<br />처음 화면에서 내 도면을 다시 열어 보세요.</p>
+      <a class="home" href="/">처음 화면으로</a>
+    </main>
+  </body>
+</html>

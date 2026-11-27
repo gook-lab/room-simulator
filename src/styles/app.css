@@ -82,10 +82,14 @@ input {
 }
 
 .brand__mark {
+  flex: none;
   width: 22px;
   height: 22px;
   border-radius: var(--r-chip);
-  background: var(--accent);
+  /* 문이 달린 방 평면 — index.html 시작 화면 · public/404.html · BrandGlyph 와 같은 그림 */
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cpath d='M11 16.5h5.5v-11h-11v11H7.5M11 5.5v5M11 16.5V13M7.5 16.5a3.5 3.5 0 0 1 3.5-3.5' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 100% no-repeat;
 }
 
 .brand__word {
@@ -168,15 +172,84 @@ input {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    padding: 24px;
+    gap: 14px;
+    padding: 24px 16px;
+    overflow-y: auto;
     text-align: center;
     background: var(--app-bg);
   }
+
+  .narrow-notice__art {
+    display: block;
+    flex: none;
+    width: min(420px, 100%, 62vh);
+    aspect-ratio: 16 / 9;
+    background: var(--panel) url('/cover-800.webp') center / cover no-repeat;
+    border: 1px solid var(--border);
+    border-radius: var(--r-panel);
+  }
+}
+
+/* 휴대폰 가로: 높이가 낮아 그림을 왼쪽, 글을 오른쪽에 둔다 */
+@media (max-width: 899px) and (max-height: 480px) {
+  .narrow-notice {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    column-gap: 24px;
+    row-gap: 12px;
+    align-content: center;
+    padding: 16px 24px;
+    text-align: left;
+  }
+
+  .narrow-notice__art {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: center;
+    width: 100%;
+  }
+
+  .narrow-notice > :not(.narrow-notice__art) {
+    grid-column: 2;
+  }
+
+  .narrow-notice .narrow-notice__brand {
+    justify-content: flex-start;
+  }
+}
+
+.narrow-notice__brand {
+  justify-content: center;
+}
+
+.narrow-notice__lede,
+.narrow-notice__desc {
+  word-break: keep-all;
+  text-wrap: balance;
+}
+
+.narrow-notice__lede {
+  max-width: 340px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.narrow-notice__card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(340px, 100%);
+  padding: 16px 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
 }
 
 .narrow-notice__title {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 800;
   letter-spacing: -0.01em;
 }
@@ -581,6 +654,11 @@ input {
   color: var(--app-bg);
 }
 
+/* 누를 거리가 없는 층 칩 (단층 문서 · 받은 도면) — 버튼처럼 보이지 않게 */
+.floor-tab--static {
+  cursor: default;
+}
+
 .floor-tab--add {
   padding: 4px 8px;
   font-weight: 800;
@@ -629,4 +707,13 @@ input {
 
 .floor-tab__close:hover {
   opacity: 1;
+}
+
+/* 앱 안 로딩 · 오류 화면(LoadingScreen)의 단추 줄. 화면 모양은 index.html 의 .boot */
+.boot__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
 }

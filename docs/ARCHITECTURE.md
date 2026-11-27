@@ -193,6 +193,14 @@ false`)으로 반영하므로, 화면의 요소가 곧 프리뷰이고 드롭 �
 경량 판정만 유지하고 파생 재계산(룸·콜라이더)은 커밋 시 1회 수행한다는 성능
 원칙을 따랐습니다.
 
+## 첫 화면 로딩 — 인라인 시작 화면 · 3D 청크 분리
+
+- `index.html` 의 `#boot` 는 JS · 앱 CSS 없이 바로 그려지는 시작 화면입니다. 15초가 지나면 느린 망 안내와 [다시 불러오기]를, 진입 스크립트 · 앱 CSS 를 못 받거나 첫 그림 전에 오류가 나면 실패 안내를 띄웁니다. JS 가 꺼져 있으면 `<noscript>` 안내가 보입니다. 앱이 첫 화면을 그리면 `src/boot.ts` 의 `dismissBoot()` 가 걷습니다.
+- 앱 안 로딩 · 오류 화면(`LoadingScreen`)도 같은 `.boot` 클래스를 씁니다. 그래서 시작 화면 → 공유 도면 여는 중 → 3D 준비 중이 같은 모양으로 이어집니다.
+- 워크스루 · 조감도는 `src/viewerChunks.ts` 에서 `React.lazy` 로 따로 받습니다. three.js · R3F · drei 는 첫 화면 번들에 들어가지 않습니다(테스트로 고정). 도면을 열면 쉬는 틈에 미리 받습니다. 받지 못하면 `ViewLoadBoundary` 가 그 자리에 [다시 시도] · [평면도로 돌아가기]를 띄웁니다.
+- 없는 주소는 `public/404.html`(JS 없음, `noindex`)이 받습니다. 앱은 주소 경로를 쓰지 않고(공유는 `#share=` 해시) `vercel.json` 재작성이 없어서, Vercel 이 이 파일을 404 상태로 돌려줍니다.
+- 측정 방법과 전후 수치는 [DECISIONS.md](DECISIONS.md) "첫 화면 로딩" 절에 있습니다. 같은 방법으로 다시 재려면 `scripts/measure-first-load.mjs` 를 씁니다.
+
 ## 빌드와 테스트
 
 `npm run build`는 `tsc -b && vite build`입니다. 테스트는 Vitest로 순수 로직만

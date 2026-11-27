@@ -3,6 +3,7 @@ import { timeAgoLabel, useCurrentPlan, useStore } from '../state/store';
 import { ViewTabs } from './ViewTabs';
 import { floorsOfBuilding } from '../model/floorStack';
 import { floorDeleteConfirmText, floorDeletedText } from '../model/floorDelete';
+import { floorTabAction } from './floorTab';
 import type { Plan } from '../model/types';
 import { useCopyShareLink } from '../features/share/useCopyShareLink';
 
@@ -74,6 +75,7 @@ function FloorTabs() {
   const renameFloor = useStore((s) => s.renameFloor);
   const deleteFloor = useStore((s) => s.deleteFloor);
   const restoreFloor = useStore((s) => s.restoreFloor);
+  const readOnly = useStore((s) => s.sharedView != null);
   // 층 문서는 층마다 undo 기록이 따로라 Cmd+Z 로는 못 살린다 — 대시보드 삭제처럼 알림으로 되살린다
   const [deleted, setDeleted] = useState<{ plan: Plan; index: number } | null>(null);
   const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,32 +108,50 @@ function FloorTabs() {
 
   return (
     <div className="floor-tabs">
-      {floors.map((f) => (
-        <button
-          key={f.id}
-          className={`floor-tab${f.id === plan.id ? ' is-active' : ''}`}
-          title={f.id === plan.id ? '두 번 눌러 층 이름을 바꿔요' : `${f.floorLabel ?? f.name} 열기`}
-          onClick={() => f.id !== plan.id && openPlan(f.id)}
-          onDoubleClick={() => {
-            const label = window.prompt('층 이름', f.floorLabel ?? '1층');
-            if (label) renameFloor(f.id, label);
-          }}
-        >
-          {f.floorLabel ?? (plan.buildingId ? '1층' : '단층')}
-          {f.id === plan.id && floors.length > 1 && (
-            <span
-              className="floor-tab__close"
-              title="이 층 지우기"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeFloor(f);
-              }}
-            >
-              ✕
+      {floors.map((f) => {
+        const text = f.floorLabel ?? (plan.buildingId ? '1층' : '단층');
+        const action = floorTabAction(floors.length, f.id === plan.id, readOnly);
+        if (action === 'label') {
+          return (
+            <span key={f.id} className="floor-tab floor-tab--static is-active" aria-current="true">
+              {text}
             </span>
-          )}
-        </button>
-      ))}
+          );
+        }
+        return (
+          <button
+            key={f.id}
+            type="button"
+            className={`floor-tab${action === 'rename' ? ' is-active' : ''}`}
+            aria-current={action === 'rename' ? 'true' : undefined}
+            title={action === 'rename' ? '눌러서 층 이름을 바꿔요' : `${f.floorLabel ?? f.name} 열기`}
+            onClick={(e) => {
+              if (action === 'open') {
+                openPlan(f.id);
+                return;
+              }
+              // 다른 층을 두 번 누르면 두 번째 클릭이 막 열린 이 칩에 닿는다 — 이름 바꾸기로 새지 않게
+              if (e.detail > 1) return;
+              const label = window.prompt('층 이름', text);
+              if (label) renameFloor(f.id, label);
+            }}
+          >
+            {text}
+            {action === 'rename' && (
+              <span
+                className="floor-tab__close"
+                title="이 층 지우기"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeFloor(f);
+                }}
+              >
+                ✕
+              </span>
+            )}
+          </button>
+        );
+      })}
       <div className="floor-add">
         <button
           ref={addBtnRef}
