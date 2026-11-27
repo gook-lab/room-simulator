@@ -21,3 +21,4 @@
 | --- | --- | --- |
 | `docs/cover.png` | 1600 × 900 PNG, 1.4MB | README · README.en 맨 위 |
 | `public/cover.jpg` | 1200 × 630 JPEG q86, 89KB | `index.html` 미리보기 메타(og:image · twitter:image). 공유 링크를 메신저에 붙이면 이 그림이 뜹니다 |
+| `public/cover-800.webp` | 800 × 450 WebP q80, 27KB | `docs/cover.png` 를 `cwebp -q 80 -resize 800 450` 로 줄인 것(46차). 첫 방문 띠(넓은 화면) · 900px 미만 안내 화면 · `public/404.html` |

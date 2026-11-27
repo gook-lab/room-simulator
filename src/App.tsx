@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { TopBar } from './components/TopBar';
+import { LoadingScreen } from './components/LoadingScreen';
 import { useStore } from './state/store';
 import { useUndoShortcut } from './state/useUndoShortcut';
 import { Editor2D } from './features/editor2d/Editor2D';
-import { Walkthrough } from './features/walkthrough/Walkthrough';
-import { Birdseye } from './features/birdseye/Birdseye';
 import { Dashboard } from './features/dashboard/Dashboard';
+import { ViewLoadBoundary } from './components/ViewLoadBoundary';
+import { makeViewerViews, prefetchViewers } from './viewerChunks';
+import { dismissBoot } from './boot';
 import { UploadTrace } from './features/upload/UploadTrace';
 import { SharedViewBar } from './features/share/SharedViewBar';
 import { AppToast } from './features/share/AppToast';
@@ -74,10 +76,18 @@ export default function App() {
   useUndoShortcut(); // 전역 Cmd+Z / Cmd+Shift+Z (모든 화면·3D 뷰 포함)
   const openingShare = useShareHash();
 
+  // 첫 화면을 그렸으니 index.html 시작 화면을 걷는다
+  useEffect(() => dismissBoot(), []);
+
+  // 3D 화면 코드는 첫 화면에 필요 없어 따로 받는다. 도면을 열면 쉬는 틈에 미리 받아 둔다.
+  useEffect(() => {
+    if (screen === 'editor') prefetchViewers();
+  }, [screen]);
+
   return (
     <>
       {openingShare ? (
-        <div className="share-opening">공유받은 도면을 여는 중이에요</div>
+        <LoadingScreen message="공유받은 도면을 여는 중이에요" />
       ) : (
         <CurrentScreen screen={screen} view={view} shared={shared} />
       )}
@@ -95,12 +105,21 @@ function CurrentScreen({
   view: View;
   shared: boolean;
 }): ReactNode {
+  const [views, setViews] = useState(makeViewerViews);
   if (screen === 'dashboard') return <Dashboard />;
   if (screen === 'upload') return <UploadTrace />;
 
   // editor: 워크스루/조감도는 상단바 없이 전체 뷰포트 (1d/1f)
   if (view === 'walkthrough' || view === 'birdseye') {
-    const viewer = view === 'walkthrough' ? <Walkthrough /> : <Birdseye />;
+    const View3D = view === 'walkthrough' ? views.Walkthrough : views.Birdseye;
+    // 실패한 lazy 는 같은 오류를 기억하므로 다시 시도는 새로 만든다
+    const viewer = (
+      <ViewLoadBoundary onRetry={() => setViews(makeViewerViews())}>
+        <Suspense fallback={<LoadingScreen message="3D 화면을 준비하고 있어요" />}>
+          <View3D />
+        </Suspense>
+      </ViewLoadBoundary>
+    );
     if (!shared) return viewer;
     return (
       <div className="shared-frame">
