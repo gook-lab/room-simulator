@@ -66,16 +66,6 @@
   top: 44px;
 }
 
-.share-opening {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-2);
-  font-size: 14px;
-  font-weight: 600;
-}
-
 /* 받은 도면의 층은 둘러보기만 — 추가 · 복제 · 삭제 단추를 숨긴다 */
 .app.is-shared .floor-tab__close,
 .app.is-shared .floor-tab--add {

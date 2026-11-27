@@ -72,3 +72,28 @@
   font-weight: 600;
   color: var(--accent-deep);
 }
+
+.quickstart__art {
+  display: none;
+}
+
+/* 대시보드 본문이 넓으면 띠 오른쪽 빈자리에 표지 그림을 둔다. 템플릿 카드는 세 줄 그대로 */
+@container dashboard-main (min-width: 970px) {
+  .quickstart {
+    position: relative;
+    padding-right: 260px;
+  }
+
+  .quickstart__art {
+    display: block;
+    position: absolute;
+    top: 50%;
+    right: 20px;
+    width: 224px;
+    aspect-ratio: 16 / 9;
+    transform: translateY(-50%);
+    background: var(--panel) url('/cover-800.webp') center / cover no-repeat;
+    border: 1px solid var(--border);
+    border-radius: var(--r-card);
+  }
+}

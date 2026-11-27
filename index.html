@@ -4,12 +4,6 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
     <title>Room Simulator</title>
     <meta name="description" content="평면도를 그리거나 올리고 가구를 놓은 뒤, 같은 도면을 3D로 걸어 보는 브라우저 인테리어 플래너예요." />
     <meta property="og:type" content="website" />
@@ -20,8 +14,208 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://roomcast-flame.vercel.app/cover.jpg" />
+    <!--
+      시작 화면(#boot). 앱 CSS · JS 가 오기 전에 바로 그려야 해서 스타일을 여기 둡니다.
+      값은 src/styles/tokens.css 와 같습니다(--app-bg · --ink · --text-2 · --accent · --accent-deep · --neutral-fill).
+      React 쪽 LoadingScreen(src/components/LoadingScreen.tsx)도 이 .boot 클래스를 그대로 씁니다.
+    -->
+    <style>
+      .boot {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 16px;
+        background: #f7f4ef;
+        color: #17201c;
+        font-family: 'Plus Jakarta Sans', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        transition: opacity 180ms ease;
+      }
+      .boot--inline {
+        z-index: auto;
+      }
+      .boot[data-state='leaving'] {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boot__card {
+        width: min(320px, 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        text-align: center;
+      }
+      .boot__mark {
+        display: block;
+        width: 40px;
+        height: 40px;
+        margin-bottom: 2px;
+      }
+      .boot__name {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+      .boot__msg {
+        margin: 0;
+        min-height: 1.5em;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.5;
+        color: #4a544e;
+        word-break: keep-all;
+        text-wrap: balance;
+      }
+      .boot__bar {
+        position: relative;
+        width: 160px;
+        height: 4px;
+        margin-top: 4px;
+        overflow: hidden;
+        border-radius: 2px;
+        background: #ede8e0;
+      }
+      .boot__bar span {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 40%;
+        border-radius: 2px;
+        background: #0e9f6e;
+        animation: boot-slide 1.2s ease-in-out infinite;
+      }
+      @keyframes boot-slide {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(250%);
+        }
+      }
+      .boot__retry {
+        margin-top: 6px;
+        padding: 9px 16px;
+        border: none;
+        border-radius: 8px;
+        background: #0b7c56;
+        color: #fff;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .boot__retry:hover {
+        background: #096646;
+      }
+      .boot__retry:focus-visible {
+        outline: 2px solid #0e9f6e;
+        outline-offset: 2px;
+      }
+      .boot[data-state='failed'] .boot__bar {
+        display: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot {
+          transition: none;
+        }
+        .boot__bar span {
+          animation: none;
+          left: 30%;
+        }
+      }
+    </style>
+    <script>
+      // 시작 화면 상태: 15초 넘게 앱이 안 뜨면 'slow', 진입 스크립트 · 앱 CSS 를 못 받거나
+      // 첫 그림 전에 오류가 나면 'failed'. 앱이 그려지면 src/boot.ts 가 #boot 를 걷습니다.
+      (function () {
+        var MSG = {
+          slow: '연결이 느려요. 조금 더 기다리거나 다시 불러와 주세요.',
+          failed: '화면을 불러오지 못했어요. 연결을 확인하고 다시 불러와 주세요.',
+        };
+        function whenReady(fn) {
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
+          else fn();
+        }
+        function setState(state) {
+          whenReady(function () {
+            var el = document.getElementById('boot');
+            if (!el || el.dataset.state === 'failed' || el.dataset.state === 'leaving') return;
+            el.dataset.state = state;
+            document.getElementById('boot-msg').textContent = MSG[state];
+            var retry = el.querySelector('.boot__retry');
+            retry.hidden = false;
+            if (state === 'failed') retry.focus();
+          });
+        }
+        window.addEventListener(
+          'error',
+          function (e) {
+            var t = e.target;
+            var resource =
+              t &&
+              (t.tagName === 'SCRIPT' ||
+                (t.tagName === 'LINK' && t.rel === 'stylesheet' && t.href.indexOf('fonts.googleapis') < 0));
+            // 리소스 실패, 또는 시작 화면이 떠 있는 동안 난 오류(앱이 첫 그림을 못 그림)
+            if (resource || ((!t || t === window) && document.getElementById('boot'))) setState('failed');
+          },
+          true,
+        );
+        setTimeout(function () {
+          setState('slow');
+        }, 15000);
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- 글꼴은 첫 그림을 막지 않게 늦게 붙입니다(display=swap 이라 원래도 대체 글꼴로 먼저 그림). -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+      />
+      <style>
+        .boot__bar,
+        #boot-msg {
+          display: none;
+        }
+      </style>
+    </noscript>
   </head>
   <body>
+    <div id="boot" class="boot" data-state="loading">
+      <div class="boot__card">
+        <svg class="boot__mark" viewBox="0 0 22 22" aria-hidden="true">
+          <rect width="22" height="22" rx="6" fill="#0e9f6e" />
+          <path
+            d="M11 16.5h5.5v-11h-11v11H7.5M11 5.5v5M11 16.5V13M7.5 16.5a3.5 3.5 0 0 1 3.5-3.5"
+            fill="none"
+            stroke="#fff"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <p class="boot__name">Room Simulator</p>
+        <p class="boot__msg" id="boot-msg" role="status">도면을 펼치고 있어요</p>
+        <noscript>
+          <p class="boot__msg">JavaScript 를 켜야 쓸 수 있어요. 브라우저 설정에서 켠 뒤 다시 열어 주세요.</p>
+        </noscript>
+        <div class="boot__bar" aria-hidden="true"><span></span></div>
+        <button type="button" class="boot__retry" onclick="location.reload()" hidden>다시 불러오기</button>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

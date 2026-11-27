@@ -25,6 +25,8 @@ export function QuickStart() {
         </h3>
         <p className="quickstart__desc">가구까지 놓인 집을 열고, 옮겨 보고, 3D로 걸어 볼 수 있어요.</p>
       </div>
+      {/* 평면도가 3D 모형으로 바뀌는 표지 그림 — 넓은 화면에서만 보이고 받는다(quickStart.css) */}
+      <span className="quickstart__art" aria-hidden="true" />
       <div className="quickstart__list">
         {previews.map(({ tpl, plan }) => (
           <button
