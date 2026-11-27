@@ -291,7 +291,7 @@
 - [x] **404**: `public/404.html`(JS 없음 · `noindex` · [처음 화면으로]). 배포 전 라이브는 Vercel 기본 "NOT_FOUND"(404, text/plain)였습니다.
 - 확인 촬영: `docs/art/first-impression/check/`. 측정 도구: `scripts/measure-first-load.mjs`.
 - 시험 446 → 454, 린트 경고 65(변화 없음), 빌드 통과.
-- 사람이 볼 것: 파비콘이 아직 Vite 기본 번개 그림입니다(이번 라운드는 바꾸지 않음). 배포 뒤 없는 주소가 404 상태로 새 화면을 주는지 확인이 필요합니다.
+- [x] **배포 확인 · 파비콘**: main 2f4ec48 배포 뒤 `/nope` 가 404 · text/html 로 새 화면을 줍니다(라이브 4 Mbps 첫 그림 180ms · 쓸 수 있는 시각 524ms). 파비콘을 Vite 기본 번개 그림에서 브랜드 표식(초록 칸 + 문 달린 방, `public/favicon.svg`)으로 바꿨습니다(사용자 결정 11/27).
 
 ### 45차 (2026-11-25, 고도화 — QA · 디자인 · 기획 팀 라운드)
 
